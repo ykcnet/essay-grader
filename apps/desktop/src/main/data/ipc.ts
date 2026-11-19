@@ -20,6 +20,8 @@ import {
   createAssignment,
   createClass,
   auditAssignment,
+  exportAssignmentStats,
+  getAssignmentStats,
   getState,
   listAssignments,
   listWorks,
@@ -69,6 +71,19 @@ export function registerDataIpc(): void {
   ipcMain.handle('assignment:audit', (_event, classId: string, assignmentId: string) =>
     auditAssignment(classId, assignmentId)
   )
+
+  ipcMain.handle('stats:get', (_event, classId: string, assignmentId: string) =>
+    getAssignmentStats(classId, assignmentId)
+  )
+
+  ipcMain.handle('stats:export', (_event, classId: string, assignmentId: string) =>
+    exportAssignmentStats(classId, assignmentId)
+  )
+
+  ipcMain.handle('stats:reveal', async (_event, dir: string) => {
+    await shell.openPath(dir)
+    return { opened: true }
+  })
   ipcMain.handle(
     'assignment:update-rubric',
     (_event, classId: string, assignmentId: string, rubric: Rubric) =>

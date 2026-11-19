@@ -47,6 +47,13 @@ const api = {
     audit: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('assignment:audit', classId, assignmentId)
   },
+  stats: {
+    get: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('stats:get', classId, assignmentId),
+    exportCsv: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('stats:export', classId, assignmentId),
+    reveal: (dir: string) => ipcRenderer.invoke('stats:reveal', dir)
+  },
   work: {
     list: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('work:list', classId, assignmentId),

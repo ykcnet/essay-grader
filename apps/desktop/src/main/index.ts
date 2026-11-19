@@ -5,6 +5,7 @@ import { runM1Check } from './data/m1-check'
 import { runM3Check } from './data/m3-check'
 import { runM4Check } from './data/m4-check'
 import { runM5Check } from './data/m5-check'
+import { runM6Check } from './data/m6-check'
 import { autoOpenLastDatabase } from './data/repository'
 import { readSettings } from './data/settings'
 import { registerFeedbackIpc } from './feedback/ipc'
@@ -20,6 +21,7 @@ const m2Mode = process.argv.includes('--m2-check')
 const m3Mode = process.argv.includes('--m3-check')
 const m4Mode = process.argv.includes('--m4-check')
 const m5Mode = process.argv.includes('--m5-check')
+const m6Mode = process.argv.includes('--m6-check')
 
 if (spikeMode) {
   // 隱藏/離屏視窗預設會被 Chromium 降頻，FPS 測試需要關掉
@@ -117,6 +119,12 @@ if (!gotLock) {
       return
     }
 
+    if (m6Mode) {
+      const code = await runM6Check()
+      app.exit(code)
+      return
+    }
+
     // 開發模式啟動時驗證 fixtures；--validate-fixtures 只驗證不開窗。
     if (isDev || fixturesOnly) {
       const ok = await validateFixtures()
@@ -145,6 +153,7 @@ if (!gotLock) {
       !m3Mode &&
       !m4Mode &&
       !m5Mode &&
+      !m6Mode &&
       process.platform !== 'darwin'
     ) {
       app.quit()

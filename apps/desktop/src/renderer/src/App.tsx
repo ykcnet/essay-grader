@@ -6,6 +6,7 @@ import {
   RUBRIC_PRESET_ORDER,
   RUBRIC_PRESETS,
   type AssignmentAudit,
+  type AssignmentStats,
   type AssignmentSummary,
   type ClassFile,
   type CreateAssignmentInput,
@@ -78,10 +79,18 @@ export default function App(): JSX.Element {
   const [auditBusy, setAuditBusy] = useState(false)
   const [auditMs, setAuditMs] = useState<number | null>(null)
   const [auditRun, setAuditRun] = useState(0)
+  const [stats, setStats] = useState<AssignmentStats | null>(null)
+  const [statsOpen, setStatsOpen] = useState(false)
+  const [statsBusy, setStatsBusy] = useState(false)
+  const [statsMs, setStatsMs] = useState<number | null>(null)
+  const [statsRun, setStatsRun] = useState(0)
+  const [statsExport, setStatsExport] = useState<{ dir: string; files: string[] } | null>(null)
 
   const selectedIdRef = useRef<string | null>(null)
   const selectedAssignmentRef = useRef<string | null>(null)
   const auditSeqRef = useRef(0)
+  const statsSeqRef = useRef(0)
+  const statsOpenRef = useRef(false)
 
   useEffect(() => {
     selectedIdRef.current = selectedId
@@ -90,6 +99,10 @@ export default function App(): JSX.Element {
   useEffect(() => {
     selectedAssignmentRef.current = selectedAssignmentId
   }, [selectedAssignmentId])
+
+  useEffect(() => {
+    statsOpenRef.current = statsOpen
+  }, [statsOpen])
   useEffect(() => {
     selectedIdRef.current = selectedId
   }, [selectedId])
@@ -114,6 +127,11 @@ export default function App(): JSX.Element {
     setAuditOpen(false)
     setAuditMs(null)
     auditSeqRef.current += 1
+    setStats(null)
+    setStatsOpen(false)
+    setStatsMs(null)
+    setStatsExport(null)
+    statsSeqRef.current += 1
     setAssignments((await window.electronAPI.db.listAssignments(id)) as AssignmentSummary[])
     setImportStatus((await window.electronAPI.imports.status()) as ImportStatus)
     if (result.warning) setToast({ kind: 'info', text: result.warning })
@@ -249,12 +267,65 @@ export default function App(): JSX.Element {
       })
   }, [classFile, selectedAssignmentId])
 
+  const runStats = useCallback((): void => {
+    if (!classFile || !selectedAssignmentId) return
+    const classId = classFile.id
+    const assignmentId = selectedAssignmentId
+    const seq = ++statsSeqRef.current
+    const started = performance.now()
+
+    setStatsOpen(true)
+    setStatsBusy(true)
+    setStatsExport(null)
+
+    void window.electronAPI.stats
+      .get(classId, assignmentId)
+      .then((result) => {
+        if (statsSeqRef.current !== seq) return
+        setStats(result as AssignmentStats)
+        setStatsMs(Math.round(performance.now() - started))
+        setStatsRun((value) => value + 1)
+      })
+      .catch((error: unknown) => {
+        if (statsSeqRef.current !== seq) return
+        setToast({ kind: 'error', text: `統計：${errorText(error)}` })
+      })
+      .finally(() => {
+        if (statsSeqRef.current === seq) setStatsBusy(false)
+      })
+  }, [classFile, selectedAssignmentId])
+
+  const handleExportStats = (): void => {
+    if (!classFile || !selectedAssignmentId) return
+    void run('匯出統計 CSV', async () => {
+      const result = (await window.electronAPI.stats.exportCsv(
+        classFile.id,
+        selectedAssignmentId
+      )) as { dir: string; files: string[] }
+      setStatsExport(result)
+      setToast({
+        kind: 'ok',
+        text: `已匯出 ${result.files.length} 個 CSV：${result.dir}`
+      })
+    })
+  }
+
+  const handleRevealStats = (): void => {
+    if (!statsExport) return
+    void window.electronAPI.stats.reveal(statsExport.dir)
+  }
+
   const handleSelectAssignment = (id: string): void => {
     auditSeqRef.current += 1
+    statsSeqRef.current += 1
     setSelectedAssignmentId(id)
     setAuditOpen(false)
     setAudit(null)
     setAuditMs(null)
+    setStatsOpen(false)
+    setStats(null)
+    setStatsMs(null)
+    setStatsExport(null)
     if (classFile) void refreshWorks(classFile.id, id)
   }
 
@@ -363,8 +434,9 @@ export default function App(): JSX.Element {
             if (message) setToast({ kind: 'info', text: message })
             if (classFile && selectedAssignmentId) {
               void refreshWorks(classFile.id, selectedAssignmentId)
-              // 批次檢查面板若開著，回到工作區時自動重跑。
+              // 批次檢查或統計面板若開著，回到工作區時自動重跑。
               if (auditOpen) runAudit()
+              if (statsOpenRef.current) runStats()
             }
           }}
         />
@@ -380,7 +452,7 @@ export default function App(): JSX.Element {
           <span className="brand-mark">作</span>
           <div>
             <h1>作文批閱</h1>
-            <p className="brand-sub">M4 批次檢查</p>
+            <p className="brand-sub">M6 統計</p>
           </div>
         </div>
 
@@ -516,8 +588,17 @@ export default function App(): JSX.Element {
                     auditFilter={auditFilter}
                     auditMs={auditMs}
                     auditRun={auditRun}
+                    stats={stats}
+                    statsOpen={statsOpen}
+                    statsBusy={statsBusy}
+                    statsMs={statsMs}
+                    statsRun={statsRun}
+                    statsExport={statsExport}
                     onAudit={runAudit}
                     onAuditFilter={setAuditFilter}
+                    onStats={runStats}
+                    onExportStats={handleExportStats}
+                    onRevealStats={handleRevealStats}
                     onOpenInbox={handleOpenInbox}
                     onSimulate={handleSimulate}
                     onRefresh={handleRefreshInbox}
@@ -971,8 +1052,17 @@ function ImportPanel({
   auditFilter,
   auditMs,
   auditRun,
+  stats,
+  statsOpen,
+  statsBusy,
+  statsMs,
+  statsRun,
+  statsExport,
   onAudit,
   onAuditFilter,
+  onStats,
+  onExportStats,
+  onRevealStats,
   onOpenInbox,
   onSimulate,
   onRefresh,
@@ -989,8 +1079,17 @@ function ImportPanel({
   auditFilter: AuditFilter
   auditMs: number | null
   auditRun: number
+  stats: AssignmentStats | null
+  statsOpen: boolean
+  statsBusy: boolean
+  statsMs: number | null
+  statsRun: number
+  statsExport: { dir: string; files: string[] } | null
   onAudit: () => void
   onAuditFilter: (filter: AuditFilter) => void
+  onStats: () => void
+  onExportStats: () => void
+  onRevealStats: () => void
   onOpenInbox: () => void
   onSimulate: () => void
   onRefresh: () => void
@@ -1012,6 +1111,9 @@ function ImportPanel({
           </p>
         </div>
         <div className="card-actions">
+          <button className="small" disabled={busy || statsBusy} onClick={onStats}>
+            {statsBusy ? '統計中…' : statsOpen ? '重新統計' : '統計'}
+          </button>
           <button className="small" disabled={busy || auditBusy} onClick={onAudit}>
             {auditBusy ? '檢查中…' : auditOpen ? '重新檢查' : '批次檢查'}
           </button>
@@ -1096,6 +1198,19 @@ function ImportPanel({
         />
       )}
 
+      {statsOpen && (
+        <StatsPanel
+          stats={stats}
+          busy={statsBusy}
+          elapsedMs={statsMs}
+          run={statsRun}
+          exported={statsExport}
+          onStats={onStats}
+          onExport={onExportStats}
+          onReveal={onRevealStats}
+        />
+      )}
+
       <div className="event-log">
         <h4>最近事件</h4>
         {events.length === 0 ? (
@@ -1109,6 +1224,270 @@ function ImportPanel({
         )}
       </div>
     </section>
+  )
+}
+
+/** 作業層級統計面板：G1 弱項排行、G2 常錯字、G3 個人弱項與 CSV 匯出。 */
+function StatsPanel({
+  stats,
+  busy,
+  elapsedMs,
+  run,
+  exported,
+  onStats,
+  onExport,
+  onReveal
+}: {
+  stats: AssignmentStats | null
+  busy: boolean
+  elapsedMs: number | null
+  run: number
+  exported: { dir: string; files: string[] } | null
+  onStats: () => void
+  onExport: () => void
+  onReveal: () => void
+}): JSX.Element {
+  const summary = stats?.summary
+  const weaknesses = stats?.weaknesses ?? []
+  const typos = stats?.typos ?? []
+  const rows = stats?.students ?? []
+  const checkedAt = stats
+    ? new Date(stats.generatedAt).toLocaleTimeString('zh-TW', { hour12: false })
+    : ''
+
+  const value = (input: number | null | undefined): string =>
+    input === null || input === undefined ? '—' : Number.isInteger(input) ? String(input) : input.toFixed(1)
+
+  return (
+    <div className="stats-panel" data-run={run}>
+      <div className="audit-head">
+        <div>
+          <h4>統計 · {stats?.title ?? '作業'}</h4>
+          <p className="audit-meta" data-run={run}>
+            {stats
+              ? `計算於 ${checkedAt}${elapsedMs !== null ? ` · ${elapsedMs} ms` : ''}`
+              : '尚未計算'}
+            {summary
+              ? ` · 已批 ${summary.done}／匯入 ${summary.imported}／在學 ${summary.students}`
+              : ''}
+          </p>
+        </div>
+        <div className="card-actions">
+          <button className="small" disabled={busy} onClick={onStats}>
+            {busy ? '計算中…' : '重新計算'}
+          </button>
+          <button className="small primary" disabled={busy} onClick={onExport}>
+            匯出 CSV
+          </button>
+          {exported && (
+            <button className="small" onClick={onReveal}>
+              開啟統計資料夾
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!stats ? (
+        <p className="muted">{busy ? '正在彙整批注與分數…' : '尚未取得統計結果'}</p>
+      ) : (
+        <>
+          <div className="queue-counts audit-stats">
+            <span className="queue-chip">在學 {summary?.students ?? 0}</span>
+            <span className="queue-chip done">已批 {summary?.done ?? 0}</span>
+            {summary && summary.notDone > 0 && (
+              <span className="queue-chip pending">未完成 {summary.notDone}</span>
+            )}
+            {summary && summary.missing > 0 && (
+              <span className="queue-chip missing">未匯入 {summary.missing}</span>
+            )}
+            <span className="queue-chip clean">平均 {value(summary?.average)}</span>
+            <span className="queue-chip">中位 {value(summary?.median)}</span>
+            <span className="queue-chip">最高 {value(summary?.high)}</span>
+            <span className="queue-chip">最低 {value(summary?.low)}</span>
+          </div>
+
+          <div className="stats-summary">
+            <div className="stats-score">
+              <strong>{value(summary?.average)}</strong>
+              <span>班級平均</span>
+            </div>
+            <div className="stats-grades">
+              <p>等第分布</p>
+              <div>
+                {(summary?.grades ?? []).length === 0 ? (
+                  <span className="muted">尚無已批分數</span>
+                ) : (
+                  summary?.grades.map((grade) => (
+                    <span key={grade.label} className="stats-grade-chip">
+                      {grade.label} <strong>{grade.count}</strong>
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+            <div className="stats-items">
+              <p>分項平均</p>
+              {(summary?.items ?? []).map((item) => (
+                <span key={item.id}>
+                  {item.name} <strong>{value(item.average)}</strong>／{item.max}
+                  {item.percent !== null ? `（${value(item.percent)}%）` : ''}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="stats-grid">
+            <section className="stats-block">
+              <h5>弱項排行（G1）</h5>
+              <div className="stats-category-chips">
+                {(stats.categories ?? []).map((item) => (
+                  <span key={item.key} className="stats-category-chip">
+                    {item.categoryLabel} <strong>{item.count}</strong>
+                  </span>
+                ))}
+              </div>
+              <div className="stats-scroll">
+                <table className="table stats-table">
+                  <thead>
+                    <tr>
+                      <th className="w-seat">#</th>
+                      <th>類型</th>
+                      <th>次數</th>
+                      <th>占比</th>
+                      <th>人數</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weaknesses.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="muted center">
+                          尚無已批作品的弱項批注
+                        </td>
+                      </tr>
+                    )}
+                    {weaknesses.map((item, index) => (
+                      <tr key={item.key} className="stats-row">
+                        <td className="mono">{index + 1}</td>
+                        <td>
+                          <span className={`stats-cat stats-cat--${item.category}`}>
+                            {item.categoryLabel}
+                          </span>
+                          {item.subtype ? ` ${item.label}` : ''}
+                        </td>
+                        <td className="mono">{item.count}</td>
+                        <td className="stats-share">
+                          <span className="stats-bar">
+                            <i style={{ width: `${Math.min(100, item.share * 100)}%` }} />
+                          </span>
+                          {(item.share * 100).toFixed(1)}%
+                        </td>
+                        <td className="mono">{item.students}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <section className="stats-block">
+              <h5>常錯字（G2）</h5>
+              <div className="stats-scroll">
+                <table className="table stats-table">
+                  <thead>
+                    <tr>
+                      <th className="w-seat">#</th>
+                      <th>錯字</th>
+                      <th>正確</th>
+                      <th>次數</th>
+                      <th>人數</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {typos.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="muted center">
+                          尚無填入錯字與正確字的批注
+                        </td>
+                      </tr>
+                    )}
+                    {typos.slice(0, 20).map((item, index) => (
+                      <tr key={`${item.wrong}-${item.correct}`}>
+                        <td className="mono">{index + 1}</td>
+                        <td className="stats-wrong">{item.wrong || '—'}</td>
+                        <td className="stats-correct">{item.correct || '—'}</td>
+                        <td className="mono">{item.count}</td>
+                        <td className="mono">{item.students}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          </div>
+
+          <section className="stats-block">
+            <h5>個人弱項（G3）</h5>
+            <div className="stats-scroll stats-scroll--tall">
+              <table className="table stats-table">
+                <thead>
+                  <tr>
+                    <th className="w-seat">座號</th>
+                    <th>姓名</th>
+                    <th>狀態</th>
+                    <th>總分</th>
+                    <th>等第</th>
+                    <th>前三弱項</th>
+                    <th>錯字</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.seat} className={row.counted ? '' : 'stats-row--muted'}>
+                      <td className="mono">{row.seat}</td>
+                      <td>{row.name}</td>
+                      <td>
+                        <span className={`status status--${row.status}`}>
+                          {row.status === 'missing' ? '未匯入' : STATUS_LABELS[row.status]}
+                        </span>
+                        {!row.counted && row.imported && (
+                          <span className="stats-note"> 不計入</span>
+                        )}
+                      </td>
+                      <td className="mono">{value(row.score)}</td>
+                      <td>{row.grade ?? '—'}</td>
+                      <td>
+                        <div className="stats-personal">
+                          {row.counted ? (
+                            row.weaknesses.length > 0 ? (
+                              row.weaknesses.map((item) => (
+                                <span key={item.key} className="stats-weakness">
+                                  {item.label} <strong>{item.count}</strong>
+                                </span>
+                              ))
+                            ) : (
+                              <span className="muted">無弱項批注</span>
+                            )
+                          ) : (
+                            <span className="muted">未計入</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="mono">{row.counted ? row.counts.typo : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {exported && (
+            <p className="audit-meta">
+              CSV：{exported.dir}（{exported.files.join('、')}）
+            </p>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 

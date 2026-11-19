@@ -30,8 +30,21 @@ npm run m2:check     # 匯入驗收（10 檔配對、去重、unmatched、Excel 
 npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫、量規與等第、計分、驗證、work 存取、UI 煙霧）
 npm run m4:check     # 批次檢查驗收（45 人、44 份作品、重複／缺頁／未匯入、UI 煙霧）
 npm run m5:check     # 回饋單驗收（資料推導、檔名、單頁 PDF、溢頁阻擋、UI 煙霧）
+npm run m6:check     # 統計驗收（G1／G2／G3、分數摘要、CSV 四檔、UI 煙霧）
 npm run validate:fixtures
 ```
+
+## 固定 M: 磁碟
+
+專案路徑約定為 `M:\dev\projects\essay-grader`。若把專案磁碟接到新主機後拿到其他代號，
+先關閉使用該磁碟的程式，再以**系統管理員**開啟 PowerShell 執行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\fix-m-drive.ps1
+```
+
+腳本會把專案所在磁碟區改成 `M:`；已在 `M:` 時不會變更，`M:` 已被其他磁碟占用時會停止並提示先釋放。
+變更磁碟代號需要系統管理員權限，完成後請重新開啟終端機與編輯器。
 
 匯入流程：在作業上按「開啟 inbox」放入圖片＋sidecar，watcher 會自動配對；
 「模擬 10 檔」可在沒有手機的情況下測試匯入。
@@ -61,6 +74,12 @@ npm run validate:fixtures
 一頁 A4 只印分數、等第、扣分、分項、總評、詞句改寫、常錯字與佳句，不印原圖；
 內容過長時會自動降到最小字級，仍放不下就阻擋匯出並提示縮短總評或減少批注。
 
+統計：匯入佇列面板按「統計」，可看班級分數摘要、等第分布、分項平均、G1 弱項排行、
+G2 常錯字與 G3 每人前三弱項。按「匯出 CSV」會在該作業資料夾的 `_stats/` 產生
+`scores.csv`、`weakness-ranking.csv`、`common-typos.csv`、`student-weakness.csv`，
+可直接用 Excel 開啟（UTF-8 BOM）。統計只計已批（`done`）作品；未完成與未匯入的學生
+仍列在個人表，但標示「不計入」，不影響班級數字。
+
 Spike 測試頁：主畫面按「開啟 Spike 驗證頁」，可手動縮放、放標記、匯出 PDF。
 自動結果寫到 `spike-out/report.json`。
 
@@ -72,9 +91,12 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 
 ## 目前進度
 
-M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單已完成。
-驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19。
+M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計已完成。
+驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
+`m5:check` 19/19、`m6:check` 17/17。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 32 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），
-超長內容會被擋下。下一步為 M6 統計；已知限制見 `progress.md`。
+超長內容會被擋下。M6 以 6 人、5 份作品（4 份 `done`）驗證統計：13 個弱項、
+常錯字「在→再」×3、平均 81、四份 CSV；已知限制見 `progress.md`。
+下一步為 M7 打磨與交付，之後再接 M8 手機掃描。

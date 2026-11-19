@@ -21,7 +21,8 @@
     "m2:check": "electron apps/desktop --m2-check",
     "m3:check": "electron apps/desktop --m3-check",
     "m4:check": "electron apps/desktop --m4-check",
-    "m5:check": "electron apps/desktop --m5-check"
+    "m5:check": "electron apps/desktop --m5-check",
+    "m6:check": "electron apps/desktop --m6-check"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

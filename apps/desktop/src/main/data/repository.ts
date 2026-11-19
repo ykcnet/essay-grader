@@ -1,5 +1,5 @@
 import { shell } from 'electron'
-import { mkdir, readdir, readFile, stat } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { extname, join, resolve } from 'node:path'
 import {
   AssignmentSchema,
@@ -18,8 +18,11 @@ import {
   validateGradeBands,
   appendMissingPageIssues,
   auditWorks,
+  buildAssignmentStats,
+  statsToCsvFiles,
   type AssignmentAudit,
   type AssignmentFile,
+  type AssignmentStats,
   type AssignmentSummary,
   type ClassFile,
   type ClassSummary,
@@ -502,4 +505,71 @@ export async function auditAssignment(
 
   const audit = auditWorks(assignmentResult.data, classResult.data.students, works)
   return appendMissingPageIssues(audit, missingBySeat)
+}
+
+/**
+ * 作業層級統計：只讀資料，不改任何檔案。
+ * 統計範圍由 core 決定（已批作品），未完成與未匯入仍會列在個人表。
+ */
+export async function getAssignmentStats(
+  classId: string,
+  assignmentId: string
+): Promise<AssignmentStats> {
+  const root = requireRoot()
+  const [classResult, assignmentResult] = await Promise.all([
+    loadClass(classId),
+    loadAssignment(classId, assignmentId)
+  ])
+
+  const dir = join(root, classId, assignmentId)
+  const entries = await readdir(dir, { withFileTypes: true })
+  const works: WorkFile[] = []
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !/^S\d{2}$/.test(entry.name)) continue
+
+    const workPath = join(dir, entry.name, 'work.json')
+    if (!(await pathExists(workPath))) continue
+
+    try {
+      const { data } = await readJsonRecovering(workPath, WorkSchema)
+      works.push(data)
+    } catch (error) {
+      console.warn(`[stats] 略過 ${entry.name}/work.json：${toMessage(error)}`)
+    }
+  }
+
+  return buildAssignmentStats(assignmentResult.data, classResult.data.students, works)
+}
+
+export interface StatsExportResult {
+  dir: string
+  files: string[]
+  generatedAt: string
+}
+
+/** 把統計寫成四個 CSV，固定放在作業資料夾的 `_stats/`。 */
+export async function exportAssignmentStats(
+  classId: string,
+  assignmentId: string
+): Promise<StatsExportResult> {
+  const root = requireRoot()
+  const stats = await getAssignmentStats(classId, assignmentId)
+  const dir = join(root, classId, assignmentId, '_stats')
+
+  await mkdir(dir, { recursive: true })
+
+  const files = statsToCsvFiles(stats)
+  for (const file of files) {
+    const path = join(dir, file.name)
+    const tmp = `${path}.tmp`
+    await writeFile(tmp, file.content, 'utf8')
+    await rename(tmp, path)
+  }
+
+  return {
+    dir,
+    files: files.map((file) => file.name),
+    generatedAt: stats.generatedAt
+  }
 }
