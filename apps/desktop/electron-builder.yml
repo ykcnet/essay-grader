@@ -1,0 +1,46 @@
+appId: tw.edu.essaygrader
+productName: 作文批閱
+copyright: Copyright © 2026 Essay Grader
+electronVersion: 45.4.1
+# 使用已安裝的 Electron runtime，避免打包時重新下載；
+# 若在乾淨環境打包，npm install 會先裝好 node_modules/electron/dist。
+electronDist: ../../node_modules/electron/dist
+
+directories:
+  output: release
+  buildResources: ../../
+
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+
+asar: true
+asarUnpack:
+  - node_modules/sharp/**/*
+  - node_modules/@img/**/*
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: app.ico
+  executableName: EssayGrader
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: 作文批閱
+  artifactName: EssayGrader-${version}-Setup.${ext}
+
+portable:
+  artifactName: EssayGrader-${version}-Portable.${ext}

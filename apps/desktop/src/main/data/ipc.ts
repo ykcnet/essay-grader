@@ -1,4 +1,5 @@
-import { dialog, ipcMain, shell } from 'electron'
+import { app, dialog, ipcMain, shell } from 'electron'
+import { join, resolve, sep } from 'node:path'
 import {
   BUILTIN_LIBRARY,
   type ClassFile,
@@ -19,6 +20,7 @@ import {
   countFinalReuse,
   createAssignment,
   createClass,
+  currentRoot,
   auditAssignment,
   exportAssignmentStats,
   getAssignmentStats,
@@ -35,6 +37,12 @@ import {
   saveWork,
   updateAssignmentRubric
 } from './repository'
+import { backupFileName, createBackupZip, restoreBackupZip } from './backup'
+import { log, logDirectory, logError, logInfo, openLogsFolder } from '../logger'
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
 
 export function registerDataIpc(): void {
   ipcMain.handle('db:state', () => getState())
@@ -57,6 +65,81 @@ export function registerDataIpc(): void {
   })
 
   ipcMain.handle('db:reveal', () => revealDatabase())
+
+  ipcMain.handle('backup:create', async () => {
+    const root = currentRoot()
+    if (!root) throw new Error('請先開啟資料庫，再建立備份。')
+
+    const result = await dialog.showSaveDialog({
+      title: '備份資料庫',
+      buttonLabel: '儲存備份',
+      defaultPath: join(app.getPath('documents'), backupFileName()),
+      filters: [{ name: 'Zip 備份', extensions: ['zip'] }]
+    })
+    if (result.canceled || !result.filePath) return { canceled: true }
+
+    const target = result.filePath.toLowerCase().endsWith('.zip')
+      ? result.filePath
+      : `${result.filePath}.zip`
+
+    try {
+      const backup = await createBackupZip(root, target)
+      logInfo(`備份完成：files=${backup.files} bytes=${backup.bytes}`)
+      return { canceled: false, ...backup }
+    } catch (error) {
+      logError(`備份失敗：${message(error)}`)
+      throw new Error(`備份失敗：${message(error)}`)
+    }
+  })
+
+  ipcMain.handle('backup:restore', async () => {
+    const current = currentRoot()
+
+    const zipPick = await dialog.showOpenDialog({
+      title: '選擇要還原的備份',
+      buttonLabel: '選擇備份',
+      properties: ['openFile'],
+      filters: [{ name: 'Zip 備份', extensions: ['zip'] }]
+    })
+    if (zipPick.canceled || !zipPick.filePaths[0]) return { canceled: true }
+
+    const folderPick = await dialog.showOpenDialog({
+      title: '選擇新的資料夾（不能是目前資料庫）',
+      buttonLabel: '還原到這裡',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (folderPick.canceled || !folderPick.filePaths[0]) return { canceled: true }
+
+    const destination = resolve(folderPick.filePaths[0])
+    if (current) {
+      const root = resolve(current)
+      if (
+        destination === root ||
+        destination.startsWith(`${root}${sep}`) ||
+        root.startsWith(`${destination}${sep}`)
+      ) {
+        throw new Error('不可還原到目前開啟的資料庫或它的上層資料夾，請選擇新的資料夾。')
+      }
+    }
+
+    try {
+      const restored = await restoreBackupZip(zipPick.filePaths[0], destination)
+      const state = await openDatabase(restored.root)
+      logInfo(`還原完成：files=${restored.files} bytes=${restored.bytes}`)
+      return { canceled: false, ...restored, state }
+    } catch (error) {
+      logError(`還原失敗：${message(error)}`)
+      throw new Error(`還原失敗：${message(error)}`)
+    }
+  })
+
+  ipcMain.handle('logs:open', async () => ({ path: await openLogsFolder() }))
+  ipcMain.handle('logs:path', () => logDirectory())
+  ipcMain.handle('logs:write', (_event, level: string, text: string) => {
+    const safeLevel = level === 'warn' || level === 'error' ? level : 'info'
+    log(safeLevel, `renderer：${String(text).slice(0, 1000)}`)
+    return { ok: true }
+  })
 
   ipcMain.handle('class:create', (_event, input: CreateClassInput) => createClass(input))
   ipcMain.handle('class:load', (_event, id: string) => loadClass(id))

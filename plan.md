@@ -1,6 +1,6 @@
 # Essay Grader — 製作方案（草案）
 
-> 版本 v0.9 ｜ 2026-11-19 ｜ 狀態：**M6 統計完成；下一步 M7 打磨交付／M8 手機**
+> 版本 v1.0 ｜ 2026-11-19 ｜ 狀態：**M0–M7 完成（M7 打包與交付）；下一步 M8 手機**
 >
 > 需求本體仍以 `features.md` 為準；本檔整理技術棧比較、架構、資料模型、里程碑與待決事項。
 > 「已定」代表本次確認；「建議」代表尚未拍板。
@@ -499,13 +499,13 @@ essay-grader/
 | M4 評分＋防重複 | 1 週 | 分項給分、自動扣分、總分／等第、總評 30 字、同批重複提示／阻擋、完成檢查表 | 45 份批次檢查不會漏；第 3 次總評被擋 |
 | M5 回饋單 | 1–1.5 週 | 一頁 A4 預覽、單份 PDF、列印、檔名規則 | 中文不缺字、不溢頁；PDF 開啟正常 |
 | M6 統計（已完成） | 1 週 | G1 弱項排行、G2 常錯字、G3 個人弱項、CSV | 數字與批注一致；可匯出 |
-| M7 打磨＋交付 | 1 週 | 安裝檔、portable、備份、錯誤處理、log、使用者說明 | 乾淨 Windows 10/11 可安裝、可批完一班 |
+| M7 打磨＋交付（已完成） | 1 週 | 安裝檔、portable、備份／還原、日誌與錯誤處理、使用者說明 | 乾淨 Windows 10/11 可安裝、可批完一班 |
 | M8 Android 掃描器 | 3–4 週 | 選班級／作業／學生、ML Kit 掃描、多頁排序、重拍、離線佇列、inbox 寫入 | 手機拍 3 頁 → 桌機 10 秒內出現在佇列 |
 | M9 P1 | 4–6 週 | 批次 PDF、含原圖、冷卻輪替、匯出 CSV、備份排程、遷移工具 | 依 P1 清單逐項驗收 |
 
 **粗估**：桌機 MVP 6–8 週；桌機 P0 約 9–11 週；加 Android 與 QA 約 14–17 週。需求不再變動的估算，誤差約 ±30%。
 
-> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）已於 2026-11-19 完成；M1 11/11、M2 13/13、M3 25/25、M4 17/17、M5 19/19、M6 17/17。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出。
+> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）、M7（打磨＋交付）已於 2026-11-19 完成；M1 11/11、M2 13/13、M3 25/25、M4 17/17、M5 19/19、M6 17/17、M7 25/25。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出；M7 補上備份／還原、日誌與錯誤處理、ErrorBoundary、使用者說明、electron-builder 設定與 NSIS／portable 打包。
 
 **M3 驗收備註**
 
@@ -546,6 +546,16 @@ essay-grader/
 - **UI**：匯入佇列面板加「統計」按鈕；面板含摘要、等第／分項平均、G1／G2／G3、匯出 CSV 與開啟統計資料夾。`spike-out/m6-stats.png` 已能完整拍到四個區塊。
 - `npm run m6:check` 17/17：6 人、5 份作品、4 份 `done`、13 個弱項批注、在→再×3、平均 81、四份 CSV（`scores.csv` 633 bytes）、統計 UI 與匯出皆通過。
 - 已知限制：只做單一作業，尚未跨作業比較（G4／G5 未做）；G1 佔比以弱項批注總數為分母；CSV 未做 Excel 樣式；成績寫回 Excel、整班批次 PDF、10 分鐘 soak 仍未做。
+
+**M7 驗收備註**
+
+- **備份**：`createBackupZip` 以 archiver 串流寫入 zip，entry 一律資料庫根目錄的相對 POSIX 路徑；排除 `.essay-grader.lock` 與所有 `*.tmp`／`*.restore.tmp`，保留班級、作業、work、圖片、`_stats` 與 `.bak`。預設檔名 `essay-grader-backup-YYYYMMDD-HHmm.zip`，不含姓名。
+- **還原**：`restoreBackupZip` 先以 yauzl 列出並驗證所有 entry，再用串流解壓；拒絕絕對路徑、磁碟代號、`..`、ADS、符號連結、重複路徑與非資料庫 zip。目的地非空一律拒絕；解壓失敗會清掉本次寫入內容。還原成功後由 IPC 以新資料夾 `openDatabase`，舊資料庫不動。
+- **日誌**：`apps/desktop/src/main/logger.ts` 寫 `app.getPath('userData')/logs/app.log`，格式為 ISO timestamp＋level＋訊息；`app.log` 超過 2 MB 輪替為 `app.1.log`。只記錄事件與錯誤，不記錄學生姓名、總評、批注全文或圖片。`uncaughtException`、`unhandledRejection`、`render-process-gone`、載入失敗皆入日誌；嚴重錯誤顯示「開啟日誌／結束」視窗。
+- **ErrorBoundary**：React 根層包 `ErrorBoundary`，顯示友善錯誤畫面、重新載入與開啟日誌，並把錯誤名稱／訊息寫入日誌（不含 props 或作品內容）。
+- **打包**：`apps/desktop/electron-builder.yml`，appId `tw.edu.essaygrader`、productName「作文批閱」、win x64、nsis（非 oneClick、可選路徑、桌面捷徑）＋portable、asar、sharp／@img asarUnpack、`npmRebuild: false`；產物 `EssayGrader-0.1.0-Setup.exe`（134,107,847 bytes）、`EssayGrader-0.1.0-Portable.exe`（120,756,573 bytes），輸出 `apps/desktop/release`。指令：`npm run dist`、`npm run dist:win`、`npm run dist:portable`。設定以 `electronDist` 使用已安裝的 Electron runtime；第一次打包可能需要下載 NSIS／7zip。
+- `npm run m7:check` 25/25：備份內容與排除規則、相對路徑、非空目的地、zip slip、還原後可讀、日誌格式與輪替、敏感內容、ErrorBoundary、UI 入口、preload API、打包設定、版本與產物檢查。
+- 已知限制：只提供 Windows x64 安裝檔；備份為完整快照且未加密；還原只能到新的空資料夾；日誌只留一份輪替檔；portable 的設定與日誌仍在 `%APPDATA%`。
 
 ---
 
@@ -615,9 +625,10 @@ essay-grader/
 ## 十、下一步
 
 1. Spike 已完成，結果見 2.4。
-2. M1、M2、M3、M4、M5、M6 已完成。M3 交付三欄式批閱介面、縮放／平移／翻頁、五類批注、評語庫、復原、快捷鍵、autosave、基本評分與總評重複提示；M4 交付作業層級批次檢查（未匯入、總評不足、重複超限、未評分、缺頁檔案、尚未完成）與 45 份流程驗收；M5 交付一頁 A4 回饋單、單份 PDF、列印、另存中文檔名與溢頁阻擋；M6 交付統計面板（分數摘要、G1／G2／G3）與 CSV 四檔匯出。
+2. M1、M2、M3、M4、M5、M6、M7 已完成。M3 交付三欄式批閱介面、縮放／平移／翻頁、五類批注、評語庫、復原、快捷鍵、autosave、基本評分與總評重複提示；M4 交付作業層級批次檢查（未匯入、總評不足、重複超限、未評分、缺頁檔案、尚未完成）與 45 份流程驗收；M5 交付一頁 A4 回饋單、單份 PDF、列印、另存中文檔名與溢頁阻擋；M6 交付統計面板（分數摘要、G1／G2／G3）與 CSV 四檔匯出；M7 交付備份／還原、zip slip 防護、日誌輪替、錯誤處理、ErrorBoundary、使用說明與 NSIS／portable 打包設定。
 3. 圖片前處理（EXIF 轉正、移除 GPS／中繼資料、長邊 2600、縮圖）已隨 M3 完成。
 4. 量規預設採用均衡版，建立作業可改選其他 preset、評分前可調整配分與等第門檻；變更只影響之後的計算，已有分數不自動改寫。
-5. 下一步 M7 打磨＋交付：安裝檔、portable、備份、錯誤處理、log、使用者說明；並行補 10 分鐘 soak、跨裝置搬檔方式、成績寫回 Excel、整班批次 PDF。之後接 M8 Android 掃描器。
+5. 下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 `_inbox`。並行補 10 分鐘 soak、跨裝置搬檔方式、成績寫回 Excel、整班批次 PDF。
+6. M7 打包已完成；若換電腦或離線打包，electron-builder 需要重新下載 Electron／NSIS，失敗時不影響 `npm run dev`、`m1:check`–`m7:check` 與既有資料。
 
-> 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M6 已完成並建立對應 commit。
+> 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7 已完成並建立對應 commit。

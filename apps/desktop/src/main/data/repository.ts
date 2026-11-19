@@ -35,6 +35,7 @@ import {
 } from '@essay-grader/core'
 import { ZodError } from 'zod'
 import { startImportWatcher, stopImportWatcher } from '../import/watcher'
+import { logInfo, logWarn } from '../logger'
 import { readJsonRecovering, writeJsonAtomic } from './atomic'
 import { acquireLock, type DatabaseLock } from './lock'
 import { writeSettings } from './settings'
@@ -91,9 +92,10 @@ export async function openDatabase(
   try {
     await startImportWatcher(normalized)
   } catch (error) {
-    console.warn(`[import] watcher 啟動失敗：${toMessage(error)}`)
+    logWarn(`[import] watcher 啟動失敗：${toMessage(error)}`)
   }
 
+  logInfo('資料庫已開啟，鎖已取得')
   return getState()
 }
 
@@ -103,6 +105,7 @@ export async function closeDatabase(): Promise<void> {
   current = null
   await stopImportWatcher()
   await lock.release()
+  logInfo('資料庫已關閉，鎖已釋放')
 }
 
 export async function autoOpenLastDatabase(last: string | undefined): Promise<void> {
@@ -110,7 +113,7 @@ export async function autoOpenLastDatabase(last: string | undefined): Promise<vo
   try {
     await openDatabase(last)
   } catch (error) {
-    console.warn(`[db] 無法自動開啟上次的資料庫：${toMessage(error)}`)
+    logWarn(`[db] 無法自動開啟上次的資料庫：${toMessage(error)}`)
   }
 }
 
@@ -227,7 +230,7 @@ export async function listAssignments(classId: string): Promise<AssignmentSummar
         rubricId: data.rubric.id
       })
     } catch (error) {
-      console.warn(`[db] 略過 ${entry.name}：${toMessage(error)}`)
+      logWarn(`[db] 略過 ${entry.name}：${toMessage(error)}`)
     }
   }
 
@@ -351,7 +354,7 @@ export async function listWorks(
         hasScores: Boolean(data.scores)
       })
     } catch (error) {
-      console.warn(`[db] 略過 ${entry.name}/work.json：${toMessage(error)}`)
+      logWarn(`[db] 略過 ${entry.name}/work.json：${toMessage(error)}`)
     }
   }
 
@@ -499,7 +502,7 @@ export async function auditAssignment(
       }
       if (missing.length > 0) missingBySeat.set(data.seat, missing)
     } catch (error) {
-      console.warn(`[audit] 略過 ${entry.name}/work.json：${toMessage(error)}`)
+      logWarn(`[audit] 略過 ${entry.name}/work.json：${toMessage(error)}`)
     }
   }
 
@@ -535,7 +538,7 @@ export async function getAssignmentStats(
       const { data } = await readJsonRecovering(workPath, WorkSchema)
       works.push(data)
     } catch (error) {
-      console.warn(`[stats] 略過 ${entry.name}/work.json：${toMessage(error)}`)
+      logWarn(`[stats] 略過 ${entry.name}/work.json：${toMessage(error)}`)
     }
   }
 

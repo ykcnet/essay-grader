@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'node:path'
 import { registerDataIpc } from './data/ipc'
 import { runM1Check } from './data/m1-check'
@@ -6,10 +6,12 @@ import { runM3Check } from './data/m3-check'
 import { runM4Check } from './data/m4-check'
 import { runM5Check } from './data/m5-check'
 import { runM6Check } from './data/m6-check'
+import { runM7Check } from './data/m7-check'
 import { autoOpenLastDatabase } from './data/repository'
 import { readSettings } from './data/settings'
 import { registerFeedbackIpc } from './feedback/ipc'
 import { runM2Check } from './import/m2-check'
+import { installErrorHandlers, logError, logInfo, logWarn, openLogsFolder } from './logger'
 import { registerSpikeIpc, runSpike } from './spike'
 import { validateFixtures } from './validate-fixtures'
 
@@ -22,6 +24,9 @@ const m3Mode = process.argv.includes('--m3-check')
 const m4Mode = process.argv.includes('--m4-check')
 const m5Mode = process.argv.includes('--m5-check')
 const m6Mode = process.argv.includes('--m6-check')
+const m7Mode = process.argv.includes('--m7-check')
+const checkMode =
+  m1Mode || m2Mode || m3Mode || m4Mode || m5Mode || m6Mode || m7Mode || spikeMode || fixturesOnly
 
 if (spikeMode) {
   // 隱藏/離屏視窗預設會被 Chromium 降頻，FPS 測試需要關掉
@@ -50,6 +55,43 @@ function createWindow(): void {
 
   win.on('ready-to-show', () => win.show())
 
+  let crashDialogShown = false
+  win.webContents.on('did-finish-load', () => {
+    crashDialogShown = false
+  })
+
+  win.webContents.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
+    if (!isMainFrame || code === -3) return
+    logError(`畫面載入失敗：code=${code} ${description} url=${url}`)
+  })
+
+  win.webContents.on('unresponsive', () => {
+    logWarn('主視窗沒有回應')
+  })
+
+  win.webContents.on('render-process-gone', (_event, details) => {
+    logError(`畫面程序結束：reason=${details.reason} exitCode=${details.exitCode}`)
+    if (crashDialogShown || win.isDestroyed()) return
+    crashDialogShown = true
+
+    void dialog
+      .showMessageBox(win, {
+        type: 'error',
+        title: '作文批閱',
+        message: '畫面發生錯誤並已停止。',
+        detail: '可以先重新載入；若持續發生，請開啟日誌資料夾，把最近的 app.log 提供給開發者。',
+        buttons: ['重新載入', '開啟日誌資料夾', '關閉'],
+        defaultId: 0,
+        cancelId: 2,
+        noLink: true
+      })
+      .then(({ response }) => {
+        if (win.isDestroyed()) return
+        if (response === 0) win.reload()
+        if (response === 1) void openLogsFolder().catch(() => undefined)
+      })
+  })
+
   // 一律用系統瀏覽器開外部連結，不在 app 內導航。
   win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
@@ -68,6 +110,9 @@ registerSpikeIpc()
 registerDataIpc()
 registerFeedbackIpc()
 
+// 驗收模式不跳錯誤視窗，避免自動測試卡住。
+if (!checkMode) installErrorHandlers()
+
 const gotLock = app.requestSingleInstanceLock()
 if (!gotLock) {
   app.quit()
@@ -82,6 +127,7 @@ if (!gotLock) {
 
   app.whenReady().then(async () => {
     app.setAppUserModelId('tw.edu.essaygrader')
+    logInfo(`應用程式啟動 v${app.getVersion()}（${isDev ? 'dev' : 'packaged'}）`)
 
     if (spikeMode) {
       const code = await runSpike()
@@ -125,6 +171,12 @@ if (!gotLock) {
       return
     }
 
+    if (m7Mode) {
+      const code = await runM7Check()
+      app.exit(code)
+      return
+    }
+
     // 開發模式啟動時驗證 fixtures；--validate-fixtures 只驗證不開窗。
     if (isDev || fixturesOnly) {
       const ok = await validateFixtures()
@@ -154,6 +206,7 @@ if (!gotLock) {
       !m4Mode &&
       !m5Mode &&
       !m6Mode &&
+      !m7Mode &&
       process.platform !== 'darwin'
     ) {
       app.quit()

@@ -43,6 +43,16 @@ const api = {
     updateRubric: (classId: string, assignmentId: string, rubric: unknown) =>
       ipcRenderer.invoke('assignment:update-rubric', classId, assignmentId, rubric)
   },
+  backup: {
+    create: () => ipcRenderer.invoke('backup:create'),
+    restore: () => ipcRenderer.invoke('backup:restore')
+  },
+  logs: {
+    open: () => ipcRenderer.invoke('logs:open'),
+    path: () => ipcRenderer.invoke('logs:path'),
+    write: (level: 'info' | 'warn' | 'error', message: string) =>
+      ipcRenderer.invoke('logs:write', level, message)
+  },
   assignment: {
     audit: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('assignment:audit', classId, assignmentId)

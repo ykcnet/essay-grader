@@ -3,9 +3,12 @@
 紙本作文掃描 → 桌機批閱 → 評分 → 一頁回饋單 → 分數寫回 Excel。
 
 - 技術棧：**Electron + React + TypeScript**（2026-11-19 定案）
+- 版本：**0.1.0（M7 打磨＋交付）**
 - 手機端：Kotlin + ML Kit（第二階段，只寫 `_inbox`）
 - 資料庫：本地資料夾，全 ASCII，中文只存在 JSON
 - 隱私：不連網、不埋 telemetry、照片移除 GPS
+
+使用方式、安裝版／portable 差異、批閱流程與常見問題請看 **[docs/使用說明.md](docs/使用說明.md)**。
 
 ## 目錄
 
@@ -13,7 +16,8 @@
 apps/desktop/        Electron 桌機端（main / preload / renderer）
 packages/core/       schema（zod）、資料夾命名、匯入規則
 fixtures/            3 位學生 × 2 頁的測試專案
-docs 需求            features.md / plan.md / progress.md
+docs/                使用說明（安裝、批閱、備份、日誌、FAQ）
+features.md / plan.md / progress.md  需求、方案與進度
 tools/               圖示與 fixture 產生器
 ```
 
@@ -31,8 +35,19 @@ npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫、量規與等�
 npm run m4:check     # 批次檢查驗收（45 人、44 份作品、重複／缺頁／未匯入、UI 煙霧）
 npm run m5:check     # 回饋單驗收（資料推導、檔名、單頁 PDF、溢頁阻擋、UI 煙霧）
 npm run m6:check     # 統計驗收（G1／G2／G3、分數摘要、CSV 四檔、UI 煙霧）
+npm run m7:check     # 交付驗收（備份／還原、zip slip、日誌輪替、ErrorBoundary、打包設定）
+npm run dist         # 同上，產出 NSIS 安裝檔與 portable（apps/desktop/release）
+npm run dist:win     # 建置後打包 Windows x64：Setup＋Portable
+npm run dist:portable # 只產出 portable
 npm run validate:fixtures
 ```
+
+打包產物（2026-11-19 實測）：
+
+- `apps/desktop/release/EssayGrader-0.1.0-Setup.exe`：134,107,847 bytes（約 127.9 MB）
+- `apps/desktop/release/EssayGrader-0.1.0-Portable.exe`：120,756,573 bytes（約 115.2 MB）
+
+打包設定在 `apps/desktop/electron-builder.yml`：appId `tw.edu.essaygrader`、win x64、NSIS（可選安裝路徑＋桌面捷徑）與 portable、asar、sharp／@img asarUnpack、`npmRebuild: false`。設定使用已安裝的 Electron runtime（`electronDist`），避免每次重新下載；第一次打包仍可能需要下載 NSIS／7zip，離線環境會失敗，但不影響開發與驗收。
 
 ## 固定 M: 磁碟
 
@@ -80,6 +95,18 @@ G2 常錯字與 G3 每人前三弱項。按「匯出 CSV」會在該作業資料
 可直接用 Excel 開啟（UTF-8 BOM）。統計只計已批（`done`）作品；未完成與未匯入的學生
 仍列在個人表，但標示「不計入」，不影響班級數字。
 
+備份與還原：資料庫開啟時，右上角「備份資料庫」會把整個資料庫根目錄存成 zip，
+預設檔名 `essay-grader-backup-YYYYMMDD-HHmm.zip`；包含 class／assignment／work、圖片、
+`_stats`、`.bak`，排除 `.essay-grader.lock` 與所有 `*.tmp`。zip 內一律相對路徑。
+「還原備份」選 zip 後只能解到**新的空資料夾**；目的地非空、目前資料庫或含不安全路徑
+（zip slip）一律拒絕。還原成功後會直接開啟新資料庫，舊資料不動。
+
+日誌與錯誤處理：主程序日誌寫到 `%APPDATA%\作文批閱\logs\app.log`，每筆含 ISO 時間與
+level，超過約 2 MB 輪替為 `app.1.log`。右上角「開啟日誌」可直接開資料夾。主程序未捕捉
+例外、未處理 rejection、畫面程序結束與載入失敗都會記錄；React 有 ErrorBoundary，
+顯示友善錯誤畫面、重新載入與開啟日誌，不會整個視窗空白。日誌不記錄學生姓名、總評、
+批注全文或圖片內容。
+
 Spike 測試頁：主畫面按「開啟 Spike 驗證頁」，可手動縮放、放標記、匯出 PDF。
 自動結果寫到 `spike-out/report.json`。
 
@@ -91,12 +118,14 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 
 ## 目前進度
 
-M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計已完成。
+M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付已完成。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
-`m5:check` 19/19、`m6:check` 17/17。
+`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
-已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 32 ms）；
+已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），
 超長內容會被擋下。M6 以 6 人、5 份作品（4 份 `done`）驗證統計：13 個弱項、
-常錯字「在→再」×3、平均 81、四份 CSV；已知限制見 `progress.md`。
-下一步為 M7 打磨與交付，之後再接 M8 手機掃描。
+常錯字「在→再」×3、平均 81、四份 CSV。M7 驗證備份 zip 內容、排除 lock／tmp、
+非空目的地與 zip slip 拒絕、還原後可讀、日誌格式與 2 MB 輪替、敏感內容不落日誌、
+ErrorBoundary 與打包設定；安裝檔與 portable 的打包狀態見 `progress.md`。
+已知限制見 `progress.md`；下一步為 M8 手機掃描。

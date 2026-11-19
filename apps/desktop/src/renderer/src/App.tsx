@@ -55,6 +55,12 @@ function errorText(error: unknown): string {
   return raw.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 export default function App(): JSX.Element {
   const [state, setState] = useState<DatabaseState | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -197,6 +203,49 @@ export default function App(): JSX.Element {
       setClassFile(null)
       setAssignments([])
       setToast({ kind: 'ok', text: '資料庫已關閉，鎖已釋放' })
+    })
+  }
+
+  const handleBackup = (): void => {
+    void run('備份資料庫', async () => {
+      const result = (await window.electronAPI.backup.create()) as {
+        canceled: boolean
+        path?: string
+        files?: number
+        bytes?: number
+      }
+      if (result.canceled) return
+      const name = result.path?.split(/[\\/]/).pop() ?? '備份檔'
+      setToast({
+        kind: 'ok',
+        text: `已備份 ${result.files ?? 0} 個檔案（${formatBytes(result.bytes ?? 0)}）：${name}`
+      })
+    })
+  }
+
+  const handleRestore = (): void => {
+    void run('還原備份', async () => {
+      const result = (await window.electronAPI.backup.restore()) as {
+        canceled: boolean
+        root?: string
+        files?: number
+        bytes?: number
+        state?: DatabaseState
+      }
+      if (result.canceled) return
+      if (result.state) setState(result.state)
+      await refresh()
+      setToast({
+        kind: 'ok',
+        text: `已還原 ${result.files ?? 0} 個檔案並開啟新資料庫`
+      })
+    })
+  }
+
+  const handleOpenLogs = (): void => {
+    void run('開啟日誌', async () => {
+      await window.electronAPI.logs.open()
+      setToast({ kind: 'info', text: '已開啟日誌資料夾' })
     })
   }
 
@@ -452,7 +501,7 @@ export default function App(): JSX.Element {
           <span className="brand-mark">作</span>
           <div>
             <h1>作文批閱</h1>
-            <p className="brand-sub">M6 統計</p>
+            <p className="brand-sub">M7 備份與交付</p>
           </div>
         </div>
 
@@ -465,13 +514,24 @@ export default function App(): JSX.Element {
           {state?.root ? (
             <>
               <button onClick={() => void window.electronAPI.db.reveal()}>開啟資料夾</button>
-              <button onClick={handleClose}>關閉資料庫</button>
+              <button className="ghost" onClick={handleBackup}>
+                備份資料庫
+              </button>
+              <button className="ghost" onClick={handleRestore}>
+                還原備份
+              </button>
+              <button className="ghost" onClick={handleClose}>
+                關閉資料庫
+              </button>
             </>
           ) : (
             <button className="primary" onClick={handleOpen}>
               開啟資料庫
             </button>
           )}
+          <button className="ghost" onClick={handleOpenLogs}>
+            開啟日誌
+          </button>
           <button className="ghost" onClick={() => void window.electronAPI.spike.openWindow()}>
             Spike
           </button>

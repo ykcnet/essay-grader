@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-19
-> 階段：**M6 統計完成；下一步 M7 打磨交付或 M8 手機（依 `plan.md`）**
+> 階段：**M0–M7 完成（備份、日誌、錯誤處理、安裝檔與 portable）；下一步 M8 手機**
 
 ---
 
@@ -22,7 +22,7 @@
 | `tools/make_fixture_pages.ps1` | 產生 fixtures 的 1200×1600 測試頁面 |
 | `tools/make_spike_page.ps1` | 產生 Spike 的 2600×3466 測試頁面 |
 | `apps/desktop/src/main/spike/` | Spike 自動檢查：Canvas、PDF、監看、記憶體 |
-| `apps/desktop/src/main/data/` | M1 資料層：原子寫入、`.bak` 還原、鎖、repository、IPC；M3／M4／M5 驗收 |
+| `apps/desktop/src/main/data/` | M1 資料層：原子寫入、`.bak` 還原、鎖、repository、IPC；M3–M7 驗收 |
 | `packages/core/src/audit.ts` | M4 作業層級批次檢查純函式（未匯入、總評不足、重複、未評分、缺頁） |
 | `apps/desktop/src/main/data/m4-check.ts` | M4 驗收：45 人、44 份作品的批次檢查與 UI 煙霧 |
 | `packages/core/src/feedback.ts` | M5 回饋單 view model：分項、扣分、錯字聚合、詞句改寫、佳句、檔名規則 |
@@ -31,6 +31,12 @@
 | `packages/core/src/stats.ts` | M6 統計純函式：分數摘要、G1 弱項排行、G2 常錯字、G3 個人前三、CSV 四檔 |
 | `apps/desktop/src/main/data/m6-check.ts` | M6 驗收：統計範圍、G1／G2／G3、CSV 內容與 UI 煙霧、統計截圖 |
 | `apps/desktop/src/renderer/src/App.tsx`（StatsPanel） | M6 統計面板：摘要、等第／分項平均、G1／G2／G3、匯出 CSV、開啟資料夾 |
+| `apps/desktop/src/main/data/backup.ts` | M7 備份／還原：archiver 相對路徑 zip、排除 lock／tmp、yauzl 串流解壓、zip slip 與非空目的地防護 |
+| `apps/desktop/src/main/logger.ts` | M7 主程序日誌：時間／level、2 MB 輪替、未捕捉例外與 renderer crash、開啟日誌資料夾 |
+| `apps/desktop/src/main/data/m7-check.ts` | M7 驗收：備份內容、還原可讀、zip slip、日誌輪替與敏感內容、UI API、打包設定 |
+| `apps/desktop/src/renderer/src/ErrorBoundary.tsx` | M7 React 錯誤邊界：友善畫面、重新載入、開啟日誌，不讓視窗空白 |
+| `apps/desktop/electron-builder.yml` | M7 打包：appId、NSIS／portable、asar、sharp asarUnpack、ASCII 產物名稱 |
+| `docs/使用說明.md` | M7 使用者說明：安裝／portable、資料庫、匯入、批閱、評分、回饋單、統計、備份、日誌、隱私與 FAQ |
 | `tools/fix-m-drive.ps1` | 把專案所在磁碟區固定為 `M:`；需系統管理員，已在目前主機驗證 |
 | `apps/desktop/src/main/import/` | M2 匯入：inbox watcher、sidecar 配對、去重、Excel 名單、sharp 前處理 |
 | `apps/desktop/src/renderer/src/review/` | M3 三欄式批閱介面：Konva 縮放平移、五類批注、評語庫、評分、總評、autosave |
@@ -238,7 +244,17 @@ essay-grader-data/
 - UI：匯入佇列按「統計」可載入摘要與 G1／G2／G3（表格共 15 列），按「匯出 CSV」成功並顯示四個檔名；截圖 `spike-out/m6-stats.png` 已調整視窗高度與捲動，完整拍到摘要、G1、G2、G3。
 - `npm run m6:check` 17/17；重跑 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`spike` 全數通過（private 453 MB）。
 
-### 已知限制（M3–M6）
+### M7 驗收（2026-11-19）
+
+- 備份：`createBackupZip(source, target)` 不經對話框，直接壓整個資料庫根目錄；測試資料庫 7 個檔案壓成 634 bytes zip，含 `class.json`、`work.json`、`p1.jpg`、`_stats/scores.csv`、`work.json.bak`；排除 `.essay-grader.lock`、`*.tmp`、`*.restore.tmp`；所有 entry 皆相對路徑（無磁碟代號、開頭斜線、反斜線或 `..`），也不含目標 zip 自身。
+- 還原：目的地非空會拒絕且不動原檔；惡意 zip（`../m7-evil.txt`）在寫入前被擋下，目的地外沒有逃逸檔案；正常備份還原 7 檔、837 bytes，`openDatabase` 後 1 班級、1 份作品、總分 81、總評一致；再對目前資料庫還原會被拒，資料庫仍為 1 班級。直接測試 5 種 zip slip 路徑（`../`、`..\\`、`C:/`、`/`、`a/../../`）皆被 `safeEntryPath` 拒絕。
+- 日誌：每筆含 ISO timestamp 與 `[INFO]`／`[WARN]`／`[ERROR]`；連續寫入後 `app.1.log` 2,098,947 bytes、`app.log` 164,250 bytes，確認超過 2 MB 會輪替；日誌不含測試學生姓名與總評全文。主程序另捕捉 `uncaughtException`、`unhandledRejection`、`render-process-gone`、載入失敗，React ErrorBoundary 已進建置產物。
+- UI／API：主畫面有「備份資料庫」「還原備份」「開啟日誌」；preload 的 `backup.create`、`backup.restore`、`logs.open`、`logs.path`、`logs.write` 皆存在（隱藏視窗煙霧）。
+- 打包設定：`apps/desktop/electron-builder.yml` 具 appId `tw.edu.essaygrader`、productName 作文批閱、win x64 的 nsis＋portable、NSIS 非 oneClick 且可選安裝路徑、桌面捷徑、asar、sharp／@img asarUnpack、`npmRebuild: false`、ASCII 產物名、輸出到 `apps/desktop/release`；根目錄 `app.ico` 410,598 bytes；三份 package.json 版本一致 0.1.0。
+- 打包產物：`EssayGrader-0.1.0-Setup.exe` 134,107,847 bytes（約 127.9 MB）、`EssayGrader-0.1.0-Portable.exe` 120,756,573 bytes（約 115.2 MB）、`EssayGrader-0.1.0-Setup.exe.blockmap` 141,021 bytes；`win-unpacked` 以 `--user-data-dir` 啟動成功，packaged 版日誌正常寫入。第一次打包因 GitHub 下載 Electron 卡住，改用本機已安裝的 `electronDist` 後完成；快取中的 NSIS／7zip 可重用。
+- 完整回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`spike` 全通過（FPS 60.0、A4 PDF 178 KB／105 ms、監看 10/10 78 ms、private 446 MB）。
+
+### 已知限制（M3–M7）
 
 - 10 分鐘連續操作 soak 尚未執行，目前只有 `m3:check`、`m4:check`、`m5:check` 的短時間 UI 煙霧與 45 份批次檢查。
 - 量規預設採用均衡版（40／30／30），之後可調整；三組配分、扣分 0.5／0.5、上限 10 與等第門檻仍為預設值，尚未經老師確認。
@@ -256,6 +272,11 @@ essay-grader-data/
 - 批次檢查以單一作業為範圍，不跨作業比對重複；頁面檔案只確認存在，不重新驗證圖片內容。
 - 批次檢查的「乾淨」只代表沒有阻擋完成的問題；`pending`／`grading` 仍會以提醒列出。
 - UI 自動驗收已涵蓋批次檢查按鈕、面板、前往批閱與返回重查、回饋單按鈕與預覽頁，但未逐項模擬完整鍵盤批閱流程，也未自動按下列印對話框。
+- 安裝檔目前只做 Windows x64；未提供 macOS／Linux 版。
+- 備份是完整快照，尚未做增量、排程或雲端備份；zip 未加密，請自行保管。
+- 還原只能進新的空資料夾，不會自動合併或覆寫既有資料庫。
+- 日誌只保留目前檔與 `app.1.log` 一份輪替檔，沒有長期歸檔。
+- portable 的設定與日誌仍寫在使用者 `%APPDATA%`，不隨 exe 攜帶；資料庫位置由使用者選擇。
 
 ---
 
