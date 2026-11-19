@@ -438,7 +438,47 @@ export default function App(): JSX.Element {
       if (classFile && selectedAssignmentId) {
         await refreshWorks(classFile.id, selectedAssignmentId)
       }
-      setToast({ kind: 'ok', text: '已重新掃描 inbox' })
+      setToast({ kind: 'ok', text: '已重新掃描 inbox 與 Google Drive inbox' })
+    })
+  }
+
+  const handleChooseDriveRoot = (): void => {
+    void run('設定 Google Drive inbox', async () => {
+      const result = (await window.electronAPI.imports.chooseDriveRoot()) as {
+        canceled: boolean
+        root?: string
+        status: ImportStatus
+      }
+      setImportStatus(result.status)
+      if (!result.canceled) {
+        setToast({ kind: 'ok', text: `已設定 Google Drive inbox：${result.root ?? ''}` })
+      }
+    })
+  }
+
+  const handleClearDriveRoot = (): void => {
+    void run('清除 Google Drive inbox', async () => {
+      setImportStatus((await window.electronAPI.imports.clearDriveRoot()) as ImportStatus)
+      setToast({ kind: 'info', text: '已清除 Google Drive inbox 設定' })
+    })
+  }
+
+  const handleEnsureDriveFolder = (): void => {
+    if (!classFile || !selectedAssignmentId) return
+    void run('建立作業資料夾', async () => {
+      const result = (await window.electronAPI.imports.ensureDriveFolder(
+        classFile.id,
+        selectedAssignmentId
+      )) as { dir: string }
+      setImportStatus((await window.electronAPI.imports.status()) as ImportStatus)
+      setToast({ kind: 'ok', text: `已建立：${result.dir}` })
+    })
+  }
+
+  const handleOpenDriveRoot = (): void => {
+    void run('開啟 Google Drive inbox', async () => {
+      const result = (await window.electronAPI.imports.openDriveRoot()) as { dir: string }
+      setToast({ kind: 'info', text: `Google Drive inbox：${result.dir}` })
     })
   }
 
@@ -501,7 +541,7 @@ export default function App(): JSX.Element {
           <span className="brand-mark">作</span>
           <div>
             <h1>作文批閱</h1>
-            <p className="brand-sub">M7 備份與交付</p>
+            <p className="brand-sub">M7＋Google Drive inbox</p>
           </div>
         </div>
 
@@ -662,6 +702,10 @@ export default function App(): JSX.Element {
                     onOpenInbox={handleOpenInbox}
                     onSimulate={handleSimulate}
                     onRefresh={handleRefreshInbox}
+                    onChooseDriveRoot={handleChooseDriveRoot}
+                    onClearDriveRoot={handleClearDriveRoot}
+                    onEnsureDriveFolder={handleEnsureDriveFolder}
+                    onOpenDriveRoot={handleOpenDriveRoot}
                     onReview={(seat) => {
                       if (!classFile || !selectedAssignment) return
                       setReviewTarget({
@@ -1126,6 +1170,10 @@ function ImportPanel({
   onOpenInbox,
   onSimulate,
   onRefresh,
+  onChooseDriveRoot,
+  onClearDriveRoot,
+  onEnsureDriveFolder,
+  onOpenDriveRoot,
   onReview,
   onFeedback
 }: {
@@ -1153,6 +1201,10 @@ function ImportPanel({
   onOpenInbox: () => void
   onSimulate: () => void
   onRefresh: () => void
+  onChooseDriveRoot: () => void
+  onClearDriveRoot: () => void
+  onEnsureDriveFolder: () => void
+  onOpenDriveRoot: () => void
   onReview: (seat: string) => void
   onFeedback: (seat: string) => void
 }): JSX.Element {
@@ -1194,6 +1246,49 @@ function ImportPanel({
         <span className="queue-chip grading">批閱中 {counts.grading}</span>
         <span className="queue-chip done">已批 {counts.done}</span>
         <span className="queue-total">共 {works.length} 份</span>
+      </div>
+
+      <div className="drive-inbox">
+        <div className="drive-inbox-info">
+          <h4>Google Drive inbox</h4>
+          <p className="assignment-meta" title={status?.externalRoot ?? ''}>
+            {status?.externalRoot ?? '尚未設定'}
+          </p>
+          <p className="drive-inbox-state">
+            {status?.externalRoot
+              ? status.externalWatching
+                ? '監看中'
+                : '未監看'
+              : '未設定外部 inbox'}
+            {status?.externalError ? ` · ${status.externalError}` : ''}
+          </p>
+        </div>
+        <div className="card-actions">
+          <button className="small" disabled={busy} onClick={onChooseDriveRoot}>
+            設定／變更
+          </button>
+          <button
+            className="small"
+            disabled={busy || !status?.externalRoot}
+            onClick={onClearDriveRoot}
+          >
+            清除
+          </button>
+          <button
+            className="small"
+            disabled={busy || !status?.externalRoot}
+            onClick={onEnsureDriveFolder}
+          >
+            建立此作業資料夾
+          </button>
+          <button
+            className="small"
+            disabled={busy || !status?.externalRoot}
+            onClick={onOpenDriveRoot}
+          >
+            開啟資料夾
+          </button>
+        </div>
       </div>
 
       <table className="table">

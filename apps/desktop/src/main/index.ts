@@ -10,6 +10,7 @@ import { runM7Check } from './data/m7-check'
 import { autoOpenLastDatabase } from './data/repository'
 import { readSettings } from './data/settings'
 import { registerFeedbackIpc } from './feedback/ipc'
+import { runDriveCheck } from './import/drive-check'
 import { runM2Check } from './import/m2-check'
 import { installErrorHandlers, logError, logInfo, logWarn, openLogsFolder } from './logger'
 import { registerSpikeIpc, runSpike } from './spike'
@@ -25,8 +26,18 @@ const m4Mode = process.argv.includes('--m4-check')
 const m5Mode = process.argv.includes('--m5-check')
 const m6Mode = process.argv.includes('--m6-check')
 const m7Mode = process.argv.includes('--m7-check')
+const driveMode = process.argv.includes('--drive-check')
 const checkMode =
-  m1Mode || m2Mode || m3Mode || m4Mode || m5Mode || m6Mode || m7Mode || spikeMode || fixturesOnly
+  m1Mode ||
+  m2Mode ||
+  m3Mode ||
+  m4Mode ||
+  m5Mode ||
+  m6Mode ||
+  m7Mode ||
+  driveMode ||
+  spikeMode ||
+  fixturesOnly
 
 if (spikeMode) {
   // 隱藏/離屏視窗預設會被 Chromium 降頻，FPS 測試需要關掉
@@ -177,6 +188,12 @@ if (!gotLock) {
       return
     }
 
+    if (driveMode) {
+      const code = await runDriveCheck()
+      app.exit(code)
+      return
+    }
+
     // 開發模式啟動時驗證 fixtures；--validate-fixtures 只驗證不開窗。
     if (isDev || fixturesOnly) {
       const ok = await validateFixtures()
@@ -207,6 +224,7 @@ if (!gotLock) {
       !m5Mode &&
       !m6Mode &&
       !m7Mode &&
+      !driveMode &&
       process.platform !== 'darwin'
     ) {
       app.quit()

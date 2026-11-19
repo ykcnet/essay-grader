@@ -98,6 +98,11 @@ const api = {
       ipcRenderer.invoke('import:open-inbox', classId, assignmentId),
     simulate: (classId: string, assignmentId: string, count = 10) =>
       ipcRenderer.invoke('import:simulate', classId, assignmentId, count),
+    chooseDriveRoot: () => ipcRenderer.invoke('import:drive-choose'),
+    clearDriveRoot: () => ipcRenderer.invoke('import:drive-clear'),
+    openDriveRoot: () => ipcRenderer.invoke('import:drive-open'),
+    ensureDriveFolder: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('import:drive-ensure-folder', classId, assignmentId),
     onEvent: (listener: ImportEventListener) => {
       const id = nextListenerId++
       importListeners.set(id, listener)

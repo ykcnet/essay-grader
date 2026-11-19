@@ -578,6 +578,41 @@ input[type='checkbox'] {
   color: var(--muted);
 }
 
+.drive-inbox {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px dashed #d8cfbd;
+  border-radius: 6px;
+  background: #fdfbf6;
+}
+
+.drive-inbox-info {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+
+.drive-inbox-info h4 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: var(--navy, #0b2545);
+}
+
+.drive-inbox-info .assignment-meta {
+  overflow-wrap: anywhere;
+}
+
+.drive-inbox-state {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .status {
   display: inline-block;
   padding: 2px 9px;

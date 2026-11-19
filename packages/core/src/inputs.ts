@@ -56,6 +56,9 @@ export interface WorkSummary {
 
 export type ImportEventType = 'imported' | 'duplicate' | 'unmatched' | 'error' | 'watcher'
 
+/** 匯入來源：資料庫內 `_inbox`，或外部的 Google Drive 同步資料夾。 */
+export type ImportSource = 'inbox' | 'drive'
+
 export interface ImportEvent {
   id: string
   at: string
@@ -65,9 +68,16 @@ export interface ImportEvent {
   assignmentId?: string
   seat?: string
   file?: string
+  source?: ImportSource
 }
 
 export interface ImportStatus {
   watching: number
   events: ImportEvent[]
+  /** 已設定的 Google Drive 本機同步資料夾；未設定時為 null。 */
+  externalRoot?: string | null
+  /** 外部 inbox 是否正在監看。 */
+  externalWatching?: boolean
+  /** 外部 inbox 無法監看時的原因，例如資料夾不存在。 */
+  externalError?: string | null
 }

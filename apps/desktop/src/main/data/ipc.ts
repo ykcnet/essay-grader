@@ -1,4 +1,5 @@
 import { app, dialog, ipcMain, shell } from 'electron'
+import { stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import {
   BUILTIN_LIBRARY,
@@ -14,7 +15,14 @@ import {
   refreshImportWatcher,
   simulateImport
 } from '../import/watcher'
+import {
+  ensureExternalAssignmentFolder,
+  getExternalStatus,
+  startExternalWatcher,
+  stopExternalWatcher
+} from '../import/external'
 import { importRosterViaDialog } from '../import/roster-excel'
+import { clearExternalInboxRoot, readSettings, writeSettings } from './settings'
 import {
   closeDatabase,
   countFinalReuse,
@@ -218,6 +226,55 @@ export function registerDataIpc(): void {
     'import:simulate',
     (_event, classId: string, assignmentId: string, count: number) =>
       simulateImport(classId, assignmentId, count)
+  )
+
+  ipcMain.handle('import:drive-choose', async () => {
+    const result = await dialog.showOpenDialog({
+      title: '選擇 Google Drive 本機同步資料夾',
+      buttonLabel: '使用此資料夾',
+      properties: ['openDirectory', 'createDirectory']
+    })
+    if (result.canceled || !result.filePaths[0]) {
+      return { canceled: true, status: getImportStatus() }
+    }
+
+    const chosen = resolve(result.filePaths[0])
+    await writeSettings({ externalInboxRoot: chosen })
+    await startExternalWatcher(chosen, currentRoot())
+    return { canceled: false, root: chosen, status: getImportStatus() }
+  })
+
+  ipcMain.handle('import:drive-clear', async () => {
+    await clearExternalInboxRoot()
+    await stopExternalWatcher()
+    return getImportStatus()
+  })
+
+  ipcMain.handle('import:drive-open', async () => {
+    const { externalInboxRoot } = await readSettings()
+    if (!externalInboxRoot) throw new Error('尚未設定 Google Drive inbox。')
+
+    try {
+      const info = await stat(externalInboxRoot)
+      if (!info.isDirectory()) throw new Error('not a directory')
+    } catch {
+      throw new Error('Google Drive inbox 資料夾不存在，請重新設定。')
+    }
+
+    await shell.openPath(externalInboxRoot)
+    return { dir: externalInboxRoot }
+  })
+
+  ipcMain.handle(
+    'import:drive-ensure-folder',
+    async (_event, classId: string, assignmentId: string) => {
+      const dir = await ensureExternalAssignmentFolder(classId, assignmentId)
+      if (!getExternalStatus().watching) {
+        const settings = await readSettings()
+        await startExternalWatcher(settings.externalInboxRoot ?? null, currentRoot())
+      }
+      return { dir }
+    }
   )
 
   ipcMain.handle('roster:import-excel', (_event, classId: string) =>

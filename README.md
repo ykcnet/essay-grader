@@ -3,9 +3,10 @@
 紙本作文掃描 → 桌機批閱 → 評分 → 一頁回饋單 → 分數寫回 Excel。
 
 - 技術棧：**Electron + React + TypeScript**（2026-11-19 定案）
-- 版本：**0.1.0（M7 打磨＋交付）**
-- 手機端：Kotlin + ML Kit（第二階段，只寫 `_inbox`）
+- 版本：**0.1.0（M7 打磨＋交付＋Google Drive 外部 inbox）**
+- 手機端：Kotlin + ML Kit（第二階段，只寫 inbox）；現階段可先用手機 Google Drive App 上傳照片
 - 資料庫：本地資料夾，全 ASCII，中文只存在 JSON
+- 外部 inbox：Google Drive 本機同步資料夾，只搬圖片，資料庫不進雲端
 - 隱私：不連網、不埋 telemetry、照片移除 GPS
 
 使用方式、安裝版／portable 差異、批閱流程與常見問題請看 **[docs/使用說明.md](docs/使用說明.md)**。
@@ -36,6 +37,7 @@ npm run m4:check     # 批次檢查驗收（45 人、44 份作品、重複／缺
 npm run m5:check     # 回饋單驗收（資料推導、檔名、單頁 PDF、溢頁阻擋、UI 煙霧）
 npm run m6:check     # 統計驗收（G1／G2／G3、分數摘要、CSV 四檔、UI 煙霧）
 npm run m7:check     # 交付驗收（備份／還原、zip slip、日誌輪替、ErrorBoundary、打包設定）
+npm run drive:check  # Google Drive 外部 inbox 驗收（兩種擺法、去重、PDF、錯誤路徑、UI）
 npm run dist         # 同上，產出 NSIS 安裝檔與 portable（apps/desktop/release）
 npm run dist:win     # 建置後打包 Windows x64：Setup＋Portable
 npm run dist:portable # 只產出 portable
@@ -63,6 +65,12 @@ powershell -ExecutionPolicy Bypass -File .\tools\fix-m-drive.ps1
 
 匯入流程：在作業上按「開啟 inbox」放入圖片＋sidecar，watcher 會自動配對；
 「模擬 10 檔」可在沒有手機的情況下測試匯入。
+
+Google Drive 外部 inbox：在匯入佇列表按「設定／變更」選擇 Google Drive 本機同步資料夾，
+桌機就會遞迴監看。支援 `<root>/<classId>/<assignmentId>/` 子資料夾（可無 sidecar，靠檔名座號）
+與 `<root>/` 扁平模式（一定要 sidecar）。成功匯入後刪除雲端來源圖片與 sidecar；
+重複檔移到 `_duplicates/`，失敗檔移到 `_unmatched/` 並附 `.reason.txt`。
+只支援 JPG／JPEG／PNG，PDF 會進 `_unmatched`。資料庫仍只放本機，不進雲端。
 
 量規預設採用**均衡版**（40／30／30），之後可調整。另外提供內容導向 45／25／30、
 語言導向 35／30／35；扣分皆為錯字 0.5／標點 0.5、上限 10，等第門檻相同。
@@ -118,9 +126,10 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 
 ## 目前進度
 
-M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付已完成。
+M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付、
+Google Drive 外部 inbox 已完成。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
-`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25。
+`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），

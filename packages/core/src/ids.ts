@@ -36,6 +36,19 @@ export function feedbackFileName(seat: string): string {
   return `S${normalizeSeat(seat)}_feedback.pdf`
 }
 
+/**
+ * 外部 inbox 的座號解析：只接受 `S07…`、`S07_…`、`S07-…`、`S07 …`
+ * 或檔名開頭正好是 `07`；解析不到回 null，不猜測。
+ */
+export function parseSeatFromFileName(fileName: string): string | null {
+  const base = fileName.replace(/\.[^.]+$/, '')
+  const prefixed = /^S(\d{2})(?![0-9])/i.exec(base)
+  if (prefixed) return prefixed[1]!
+  const bare = /^(\d{2})(?![0-9])/.exec(base)
+  if (bare) return bare[1]!
+  return null
+}
+
 /** 判斷是否為匯入時應忽略的暫存檔。 */
 export function isIgnoredFileName(name: string): boolean {
   const lower = name.toLowerCase()

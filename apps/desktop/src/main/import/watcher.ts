@@ -1,16 +1,6 @@
 import chokidar, { type FSWatcher } from 'chokidar'
-import { BrowserWindow, app } from 'electron'
-import { createHash, randomUUID } from 'node:crypto'
-import { EventEmitter } from 'node:events'
-import {
-  copyFile,
-  mkdir,
-  readdir,
-  readFile,
-  rename,
-  unlink,
-  writeFile
-} from 'node:fs/promises'
+import { app } from 'electron'
+import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import { basename, dirname, extname, join } from 'node:path'
 import {
   ClassSchema,
@@ -19,20 +9,25 @@ import {
   formatIssues,
   isIgnoredFileName,
   studentFolderId,
-  type ImportEvent,
   type ImportStatus,
   type WorkFile
 } from '@essay-grader/core'
 import { ZodError } from 'zod'
 import { readJsonRecovering, writeJsonAtomic } from '../data/atomic'
+import { readSettings } from '../data/settings'
+import { emitImportEvent, getImportEvents, onImportEvent } from './events'
+import { getExternalStatus, startExternalWatcher, stopExternalWatcher } from './external'
 import { preprocessImage } from './image'
+import {
+  findDuplicate,
+  moveToSubfolder as moveToFolder,
+  sha256File,
+  stamp
+} from './shared'
 
 const IMAGE_EXTS = new Set(['.jpg', '.jpeg', '.png'])
-const MAX_EVENTS = 100
 const UNMATCHED_GRACE_MS = 1500
 
-const emitter = new EventEmitter()
-const events: ImportEvent[] = []
 const watchers = new Map<string, FSWatcher>()
 const timers = new Set<ReturnType<typeof setTimeout>>()
 const inFlight = new Set<string>()
@@ -40,7 +35,6 @@ const inFlight = new Set<string>()
 let currentRoot: string | null = null
 let chain: Promise<void> = Promise.resolve()
 
-const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
@@ -53,91 +47,12 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-async function emitEvent(partial: Omit<ImportEvent, 'id' | 'at'>): Promise<void> {
-  const event: ImportEvent = { id: randomUUID(), at: new Date().toISOString(), ...partial }
-  events.push(event)
-  if (events.length > MAX_EVENTS) events.shift()
-
-  emitter.emit('event', event)
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) win.webContents.send('import:event', event)
-  }
-}
+const emitEvent = emitImportEvent
 
 function enqueue(task: () => Promise<void>): void {
   chain = chain.then(task).catch((error) => {
     void emitEvent({ type: 'error', message: messageOf(error) })
   })
-}
-
-async function sha256File(path: string): Promise<string> {
-  return createHash('sha256').update(await readFile(path)).digest('hex')
-}
-
-async function moveFile(source: string, target: string): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      await rename(source, target)
-      return
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (code === 'EXDEV') {
-        await copyFile(source, target)
-        await unlink(source)
-        return
-      }
-      if (code !== 'EBUSY' && code !== 'EPERM') throw error
-      await delay(150)
-    }
-  }
-  await copyFile(source, target)
-  await unlink(source)
-}
-
-function stamp(): string {
-  return new Date().toISOString().replace(/[:.]/g, '-')
-}
-
-async function moveToFolder(
-  inboxDir: string,
-  folder: '_unmatched' | '_duplicates',
-  image: string,
-  sidecar: string | null,
-  reason: string
-): Promise<void> {
-  const targetDir = join(inboxDir, folder)
-  await mkdir(targetDir, { recursive: true })
-
-  const name = `${stamp()}__${basename(image)}`
-  const target = join(targetDir, name)
-  await moveFile(image, target)
-
-  if (sidecar) {
-    try {
-      await moveFile(sidecar, `${target}.json`)
-    } catch {
-      // sidecar 可能已被處理或不存在
-    }
-  }
-  await writeFile(`${target}.reason.txt`, `${reason}\n`, 'utf8')
-}
-
-async function findDuplicate(assignmentDir: string, sha: string): Promise<string | null> {
-  const entries = await readdir(assignmentDir, { withFileTypes: true })
-  for (const entry of entries) {
-    if (!entry.isDirectory() || !/^S\d{2}$/.test(entry.name)) continue
-
-    try {
-      const { data } = await readJsonRecovering(
-        join(assignmentDir, entry.name, 'work.json'),
-        WorkSchema
-      )
-      if (data.pages.some((page) => page.sha256 === sha)) return data.seat
-    } catch {
-      continue
-    }
-  }
-  return null
 }
 
 async function processPair(
@@ -470,6 +385,9 @@ export async function startImportWatcher(root: string): Promise<void> {
 
   await Promise.all(dirs.map((dir) => watchInbox(dir)))
   await emitEvent({ type: 'watcher', message: `開始監看 ${dirs.length} 個 inbox` })
+
+  const settings = await readSettings()
+  await startExternalWatcher(settings.externalInboxRoot ?? null, root)
 }
 
 export async function refreshImportWatcher(): Promise<void> {
@@ -489,16 +407,22 @@ export async function stopImportWatcher(): Promise<void> {
   watchers.clear()
   inFlight.clear()
   currentRoot = null
+  await stopExternalWatcher()
 }
 
 export function getImportStatus(): ImportStatus {
-  return { watching: watchers.size, events: [...events] }
+  const external = getExternalStatus()
+  return {
+    watching: watchers.size,
+    events: getImportEvents(),
+    externalRoot: external.root,
+    externalWatching: external.watching,
+    externalError: external.error
+  }
 }
 
-export function onImportEvent(listener: (event: ImportEvent) => void): () => void {
-  emitter.on('event', listener)
-  return () => emitter.off('event', listener)
-}
+export { onImportEvent }
+
 
 export async function ensureInbox(classId: string, assignmentId: string): Promise<string> {
   if (!currentRoot) throw new Error('尚未開啟資料庫')

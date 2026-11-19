@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-19
-> 階段：**M0–M7 完成（備份、日誌、錯誤處理、安裝檔與 portable）；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox 完成；下一步 M8 手機**
 
 ---
 
@@ -38,7 +38,9 @@
 | `apps/desktop/electron-builder.yml` | M7 打包：appId、NSIS／portable、asar、sharp asarUnpack、ASCII 產物名稱 |
 | `docs/使用說明.md` | M7 使用者說明：安裝／portable、資料庫、匯入、批閱、評分、回饋單、統計、備份、日誌、隱私與 FAQ |
 | `tools/fix-m-drive.ps1` | 把專案所在磁碟區固定為 `M:`；需系統管理員，已在目前主機驗證 |
-| `apps/desktop/src/main/import/` | M2 匯入：inbox watcher、sidecar 配對、去重、Excel 名單、sharp 前處理 |
+| `apps/desktop/src/main/import/` | M2 匯入：inbox watcher、sidecar 配對、去重、Excel 名單、sharp 前處理；Drive 外部 inbox watcher 與驗收 |
+| `apps/desktop/src/main/import/external.ts` | Google Drive 外部 inbox：遞迴監看、子資料夾／扁平路由、grace、PDF 擋下、去重、來源清理與 `_unmatched`／`_duplicates` |
+| `apps/desktop/src/main/import/drive-check.ts` | Drive 驗收：兩種擺法、sidecar 優先、PDF、錯誤路徑、設定持久化與 UI 煙霧 |
 | `apps/desktop/src/renderer/src/review/` | M3 三欄式批閱介面：Konva 縮放平移、五類批注、評語庫、評分、總評、autosave |
 | `apps/desktop/src/renderer/src/feedback/` | M5 一頁 A4 回饋單：真實資料、密度調整、列印工具列 |
 | `apps/desktop/src/renderer/src/spike/` | 手動驗證頁（縮放、標記、日誌） |
@@ -124,6 +126,15 @@
 | 69 | CSV 格式 | 固定四檔：`scores.csv`、`weakness-ranking.csv`、`common-typos.csv`、`student-weakness.csv`；UTF-8 BOM＋CRLF，Excel 可直接開，逗號與引號正確轉義 |
 | 70 | CSV 位置 | 寫在該作業資料夾的 `_stats/`，重新匯出覆寫同名檔；不寫入資料庫根目錄 |
 | 71 | M6 驗收 | `npm run m6:check` 17/17：6 人、5 份作品、4 份 `done`、13 個弱項、在→再×3、平均 81、四份 CSV、統計 UI 與截圖 |
+| 72 | 跨裝置搬檔 | **Google Drive 本機同步資料夾**：只作為外部 inbox，資料庫與 `work.json` 不進雲端 |
+| 73 | 外部 inbox 擺法 | 支援子資料夾 `<root>/<classId>/<assignmentId>/`（建議）與扁平 `<root>/`；扁平模式必須有 sidecar |
+| 74 | 外部座號來源 | 有 sidecar 用 sidecar 的 seat；無 sidecar 只接受 `S07…`、`S07_…`、`S07-…`、`S07 …` 或開頭正好 `07`，其餘不猜 |
+| 75 | 外部監看參數 | chokidar 遞迴、輪詢 500ms、`awaitWriteFinish` 1500ms；圖片與 sidecar 先後到達等 2500ms grace |
+| 76 | 外部失敗處理 | 重複檔移到根目錄 `_duplicates/`；失敗移到 `_unmatched/` 並附 `.reason.txt`；PDF 明確標示不支援 |
+| 77 | 外部成功清理 | 寫入本機 `work.json` 後刪除 Drive 來源圖片與 sidecar，作品不長期留在雲端 |
+| 78 | 外部狀態 | `ImportStatus` 增加 `externalRoot`／`externalWatching`／`externalError`；事件加 `source: 'drive'`，訊息以「Drive：」開頭 |
+| 79 | 外部設定 | `settings.json` 增加 `externalInboxRoot`；設定／清除立即套用，重開保留；資料夾選擇器只在 UI 層，核心流程可直接指定路徑 |
+| 80 | Drive 驗收 | `npm run drive:check` 23/23：兩種擺法、sidecar 優先、去重、PDF、錯誤路由、根目錄不存在、設定持久化、UI 與 preload API |
 
 ---
 
@@ -203,7 +214,7 @@ essay-grader-data/
 - [ ] 量規分項／權重／等第預設數值（老師確認）
 - [x] 回饋單版面：一頁 A4、只印文字與統計、不印原圖（2026-11-19）
 - [ ] 回饋單整班批次 PDF
-- [ ] 決定跨裝置搬檔方式（Syncthing／OneDrive／Google Drive／USB）
+- [x] 決定跨裝置搬檔方式：**Google Drive 本機同步資料夾（僅 inbox，資料庫不進雲端）**（2026-11-19）
 - [ ] 補國中版評語庫（介面先留空位）
 - [ ] 批閱主畫面草圖（一頁）
 - [x] **M1 資料層**（2026-11-19）
@@ -254,7 +265,21 @@ essay-grader-data/
 - 打包產物：`EssayGrader-0.1.0-Setup.exe` 134,107,847 bytes（約 127.9 MB）、`EssayGrader-0.1.0-Portable.exe` 120,756,573 bytes（約 115.2 MB）、`EssayGrader-0.1.0-Setup.exe.blockmap` 141,021 bytes；`win-unpacked` 以 `--user-data-dir` 啟動成功，packaged 版日誌正常寫入。第一次打包因 GitHub 下載 Electron 卡住，改用本機已安裝的 `electronDist` 後完成；快取中的 NSIS／7zip 可重用。
 - 完整回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`spike` 全通過（FPS 60.0、A4 PDF 178 KB／105 ms、監看 10/10 78 ms、private 446 MB）。
 
-### 已知限制（M3–M7）
+### Google Drive 外部 inbox 驗收（2026-11-19）
+
+- 設定：`settings.json` 新增 `externalInboxRoot`；寫入後重讀仍在，清除後 key 消失。設定／變更、清除、建立此作業資料夾、開啟資料夾皆即時套用，不需重開。
+- 監看：chokidar 遞迴、`usePolling` 500ms、`awaitWriteFinish` 1500ms；忽略 `_unmatched`／`_duplicates`／`_imported`、隱藏檔、`*.tmp`、`.gdoc`、`.gsheet`、`desktop.ini`、`~$*`。圖片與 sidecar 先後到達等 2500ms grace。
+- 子資料夾：`S07__…jpg` 無 sidecar 靠檔名匯入；`S08__…jpg` 帶 sidecar 匯入；檔名 `S07` 但 sidecar 指定 `seat=12` 時以 sidecar 為準。測試結果 S07 1 頁、S08 2 頁（含扁平）、S12 1 頁，共 3 份／4 頁。
+- 扁平：`flat-photo.jpg` 由 sidecar 的 `class_id`／`assignment_id`／`seat` 路由進 S08；沒有 sidecar 的 `flat-orphan.jpg` 進 `_unmatched`。
+- 座號解析：`S07__`、`S07_`、`S07-`、`S07 `、`S07 (1)`、`07` 可解析；`7`、`S7`、`S072`、無座號回 null，不猜。
+- 失敗處理：PDF 進 `_unmatched`，原因含「不支援 PDF，請上傳 JPG／PNG」；無座號檔、扁平缺 sidecar、sidecar 指向錯誤 class／assignment 都進 `_unmatched` 並附 reason。4 個失敗來源都保留。
+- 去重：Drive 衝突副本 `S07 (1).jpg` 與已匯入頁面 SHA-256 相同，移到 `_duplicates/` 並附重複原因，S07 頁數仍為 1。
+- 清理：成功匯入的圖片與 sidecar 都從 Drive 資料夾刪除；測試確認 4 個來源圖片與 3 個 sidecar 皆不存在。
+- 根目錄不存在：啟動外部 watcher 時回 `externalWatching=false` 並發 `error` 事件（ENOENT），程式不崩潰；修正路徑後可重新啟動。
+- UI：匯入佇列顯示「Google Drive inbox」路徑與監看狀態，具「設定／變更」「清除」「建立此作業資料夾」「開啟資料夾」四個按鈕；preload 的 `chooseDriveRoot`／`clearDriveRoot`／`openDriveRoot`／`ensureDriveFolder` 皆存在（隱藏視窗煙霧）。
+- `npm run drive:check` 23/23；回歸 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`spike` 全數通過。
+
+### 已知限制（M3–M7＋Drive inbox）
 
 - 10 分鐘連續操作 soak 尚未執行，目前只有 `m3:check`、`m4:check`、`m5:check` 的短時間 UI 煙霧與 45 份批次檢查。
 - 量規預設採用均衡版（40／30／30），之後可調整；三組配分、扣分 0.5／0.5、上限 10 與等第門檻仍為預設值，尚未經老師確認。
@@ -277,6 +302,11 @@ essay-grader-data/
 - 還原只能進新的空資料夾，不會自動合併或覆寫既有資料庫。
 - 日誌只保留目前檔與 `app.1.log` 一份輪替檔，沒有長期歸檔。
 - portable 的設定與日誌仍寫在使用者 `%APPDATA%`，不隨 exe 攜帶；資料庫位置由使用者選擇。
+- Google Drive 外部 inbox 依賴 Google Drive for desktop 的本機同步；未安裝、未登入或資料夾不存在時無法監看。
+- 外部 inbox 只支援 JPG／JPEG／PNG；PDF 會移到 `_unmatched`，不支援轉檔。
+- 外部 inbox 沒有全域「最近匯入」清單；事件只保留最近 100 筆，成功後來源即刪除，雲端版本紀錄與垃圾桶仍可能暫時保留。
+- 扁平模式沒有 sidecar 一律進 `_unmatched`；子資料夾模式若檔名沒有座號也不猜。
+- 手機端 App（M8）尚未實作；目前需用手機 Google Drive App 手動上傳圖片與 sidecar。
 
 ---
 
