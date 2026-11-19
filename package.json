@@ -1,0 +1,30 @@
+{
+  "name": "essay-grader",
+  "version": "0.0.0",
+  "private": true,
+  "description": "紙本作文掃描、批閱、評分與回饋單輸出的桌機工具",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev -w @essay-grader/desktop",
+    "build": "npm run build -w @essay-grader/desktop",
+    "start": "npm run start -w @essay-grader/desktop",
+    "typecheck": "npm run typecheck -w @essay-grader/desktop",
+    "validate:fixtures": "electron apps/desktop --validate-fixtures",
+    "spike": "electron apps/desktop --spike",
+    "m1:check": "electron apps/desktop --m1-check",
+    "m2:check": "electron apps/desktop --m2-check",
+    "m3:check": "electron apps/desktop --m3-check",
+    "m4:check": "electron apps/desktop --m4-check",
+    "m5:check": "electron apps/desktop --m5-check"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "sharp@0.34.5": true
+  }
+}

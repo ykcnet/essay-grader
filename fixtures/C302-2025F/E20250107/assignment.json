@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "E20250107",
+  "title": "我的母親",
+  "prompt": "請以「我的母親」為題，寫一篇至少 600 字的記敘文。",
+  "genre": "narrative",
+  "word_limit": 800,
+  "due_at": "2025-01-14T23:59:00+08:00",
+  "rubric": {
+    "id": "junior-default",
+    "items": [
+      { "id": "content", "name": "內容與思想", "max": 40 },
+      { "id": "structure", "name": "結構與組織", "max": 30 },
+      { "id": "language", "name": "語言與表達", "max": 30 }
+    ],
+    "deduction": { "typo_per": 0.5, "punct_per": 0.5, "cap": 10 },
+    "grades": [
+      { "label": "A++", "min": 90 },
+      { "label": "A+", "min": 85 },
+      { "label": "A", "min": 80 },
+      { "label": "B++", "min": 75 },
+      { "label": "B+", "min": 70 },
+      { "label": "B", "min": 65 },
+      { "label": "C", "min": 60 }
+    ]
+  },
+  "rules": {
+    "final_min_chars": 30,
+    "final_max_reuse": 2
+  }
+}

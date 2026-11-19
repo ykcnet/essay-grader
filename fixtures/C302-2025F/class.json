@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "C302-2025F",
+  "name": "國中302",
+  "grade": "junior",
+  "academic_year": "114",
+  "semester": 1,
+  "teacher": "王老師",
+  "students": [
+    { "seat": "07", "name": "王小明", "active": true },
+    { "seat": "08", "name": "陳怡君", "active": true },
+    { "seat": "12", "name": "林志豪", "active": true }
+  ]
+}

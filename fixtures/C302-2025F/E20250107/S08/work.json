@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "class_id": "C302-2025F",
+  "assignment_id": "E20250107",
+  "seat": "08",
+  "name": "陳怡君",
+  "status": "grading",
+  "pages": [
+    { "id": "p1", "file": "p1.jpg", "width": 1200, "height": 1600 },
+    { "id": "p2", "file": "p2.jpg", "width": 1200, "height": 1600 }
+  ],
+  "annotations": [
+    {
+      "id": "01J00000000000000000000003",
+      "page_id": "p2",
+      "anchor": { "x": 0.35, "y": 0.62 },
+      "shape": { "type": "underline", "x": 0.2, "y": 0.61, "w": 0.48, "h": 0.03 },
+      "category": "sentence",
+      "subtype": "word_order",
+      "text": "語序調整後更順。",
+      "meta": {
+        "original": "她總是把最好的東西留給我們吃。",
+        "revised": "她總是把最好的東西留給我們。",
+        "reason": "「留給我們吃」語意重複"
+      },
+      "created_at": "2026-11-19T15:02:00+08:00"
+    }
+  ],
+  "updated_at": "2026-11-19T15:05:00+08:00"
+}

@@ -1,0 +1,495 @@
+@page {
+  size: A4;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #e9edf2;
+  color: #1f2933;
+  font-family: 'Microsoft JhengHei', 'Noto Sans TC', 'PingFang TC', sans-serif;
+}
+
+/* ---- 預覽工具列（列印時隱藏） ---------------------------------------- */
+
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 18px;
+  background: #0b2545;
+  color: #f7f1e3;
+  box-shadow: 0 2px 10px rgba(11, 37, 69, 0.25);
+}
+
+.toolbar-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+}
+
+.toolbar-title strong {
+  font-size: 14px;
+  letter-spacing: 0.04em;
+}
+
+.toolbar-title span {
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.toolbar button {
+  padding: 6px 12px;
+  border: 1px solid rgba(247, 241, 227, 0.35);
+  border-radius: 7px;
+  background: transparent;
+  color: #f7f1e3;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.toolbar button:hover:not(:disabled) {
+  background: rgba(247, 241, 227, 0.12);
+}
+
+.toolbar button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.toolbar button.primary {
+  background: #c0392b;
+  border-color: #c0392b;
+}
+
+.toolbar button.primary:hover:not(:disabled) {
+  background: #a93226;
+}
+
+.toolbar button.ghost {
+  border-color: rgba(247, 241, 227, 0.25);
+}
+
+.toolbar button.link {
+  padding: 0;
+  border: none;
+  background: none;
+  text-decoration: underline;
+}
+
+.toolbar-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 42%;
+  font-size: 12px;
+  opacity: 0.82;
+}
+
+.toolbar-status span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.banner {
+  max-width: 210mm;
+  margin: 12px auto 0;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.banner--ok {
+  background: #d9eee3;
+  color: #1e6147;
+}
+
+.banner--info {
+  background: #e3edf8;
+  color: #1d4e7d;
+}
+
+.banner--error {
+  background: #fbe3e0;
+  color: #8c2418;
+}
+
+.stage {
+  padding: 18px 12px 36px;
+}
+
+.loading {
+  text-align: center;
+  color: #5c6b7a;
+  font-size: 14px;
+}
+
+/* ---- A4 紙張 ---------------------------------------------------------- */
+
+.sheet {
+  --pad-x: 14mm;
+  --pad-top: 11mm;
+  --pad-bottom: 9mm;
+  --gap: 3.2mm;
+
+  width: 210mm;
+  height: 296.8mm;
+  margin: 0 auto;
+  padding: var(--pad-top) var(--pad-x) var(--pad-bottom);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  overflow: hidden;
+  background: #fff;
+  color: #1f2933;
+  font-family: 'Microsoft JhengHei', 'Noto Sans TC', 'PingFang TC', sans-serif;
+  font-size: 10pt;
+  line-height: 1.55;
+  box-shadow: 0 12px 34px rgba(11, 37, 69, 0.18);
+}
+
+.sheet[data-density='compact'] {
+  --pad-x: 13mm;
+  --pad-top: 9.5mm;
+  --pad-bottom: 8mm;
+  --gap: 2.4mm;
+
+  font-size: 9.2pt;
+  line-height: 1.5;
+}
+
+.sheet[data-density='tiny'] {
+  --pad-x: 12mm;
+  --pad-top: 8mm;
+  --pad-bottom: 6.5mm;
+  --gap: 1.8mm;
+
+  font-size: 8.4pt;
+  line-height: 1.45;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8mm;
+  border-bottom: 1.6pt solid #0b2545;
+  padding-bottom: 2.4mm;
+}
+
+.school {
+  margin: 0 0 1mm;
+  font-size: 0.85em;
+  letter-spacing: 0.08em;
+  color: #5c6b7a;
+}
+
+h1 {
+  margin: 0;
+  font-family: 'Noto Serif TC', 'DFKai-SB', '標楷體', 'PMingLiU', 'Songti TC', serif;
+  font-size: 1.8em;
+  letter-spacing: 0.08em;
+  color: #0b2545;
+}
+
+.meta {
+  border-collapse: collapse;
+  max-width: 58%;
+  font-size: 0.9em;
+}
+
+.meta th,
+.meta td {
+  padding: 0.6mm 2mm;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.meta td[colspan] {
+  white-space: normal;
+}
+
+.meta th {
+  color: #5c6b7a;
+  font-weight: 500;
+}
+
+h2 {
+  margin: 0 0 0.55em;
+  font-size: 1.05em;
+  color: #13315c;
+  padding-left: 2.4mm;
+  border-left: 2.4pt solid #c0392b;
+}
+
+.score-row {
+  display: flex;
+  align-items: center;
+  gap: 1.8em;
+  padding: 0.55em 0.9em;
+  background: #f7f1e3;
+  border-radius: 2mm;
+}
+
+.score-value {
+  font-size: 2.4em;
+  font-weight: 700;
+  color: #c0392b;
+  line-height: 1;
+}
+
+.score-max {
+  margin-left: 1.5mm;
+  font-size: 0.85em;
+  color: #5c6b7a;
+}
+
+.grade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 1.4em;
+  border-left: 1pt solid #d9cfbb;
+  border-right: 1pt solid #d9cfbb;
+}
+
+.grade-label {
+  font-size: 0.78em;
+  color: #5c6b7a;
+}
+
+.grade-value {
+  font-size: 1.6em;
+  font-weight: 700;
+  color: #0b2545;
+  line-height: 1.1;
+}
+
+.deduction {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4em 1.6em;
+  font-size: 0.82em;
+  color: #5c6b7a;
+}
+
+.items {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.items th {
+  width: 32mm;
+  text-align: left;
+  font-weight: 500;
+  font-size: 0.9em;
+  padding: 0.45em 0;
+  white-space: nowrap;
+}
+
+.items td {
+  padding: 0.45em 0;
+}
+
+.bar {
+  width: 100%;
+}
+
+.bar span {
+  display: block;
+  height: 2.4mm;
+  border-radius: 1.2mm;
+  background: #2b6cb0;
+}
+
+.items .num {
+  width: 22mm;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9em;
+  white-space: nowrap;
+}
+
+.comment {
+  margin: 0;
+  padding: 0.7em 0.9em;
+  background: #fbf8f0;
+  border: 0.6pt solid #e2d9c7;
+  border-radius: 1.6mm;
+  font-size: 0.9em;
+  line-height: 1.6;
+  text-align: justify;
+  white-space: pre-wrap;
+}
+
+.rewrites {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+}
+
+.rewrites li {
+  padding: 0.45em 0.9em;
+  border-left: 2pt solid #b7791f;
+  background: #fdfaf3;
+  border-radius: 0 1.4mm 1.4mm 0;
+}
+
+.rewrites p {
+  margin: 0;
+  font-size: 0.88em;
+  line-height: 1.45;
+}
+
+.revised {
+  color: #2e7d5b;
+}
+
+.tag {
+  display: inline-block;
+  min-width: 10mm;
+  margin-right: 2.4mm;
+  padding: 0.2mm 1.4mm;
+  border-radius: 0.8mm;
+  font-size: 0.76em;
+  text-align: center;
+}
+
+.tag--before {
+  background: #ece5d6;
+  color: #7a6a52;
+}
+
+.tag--after {
+  background: #d9eee3;
+  color: #2e7d5b;
+}
+
+.reason {
+  margin-left: 2mm;
+  color: #5c6b7a;
+  font-size: 0.95em;
+}
+
+.muted {
+  color: #8b98a5;
+}
+
+.two-col {
+  display: grid;
+  grid-template-columns: 62mm 1fr;
+  gap: 5mm;
+}
+
+.two-col--single {
+  grid-template-columns: 1fr;
+}
+
+.typos {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88em;
+}
+
+.typos th,
+.typos td {
+  padding: 0.35em 1.6mm;
+  border-bottom: 0.5pt solid #e7dfd0;
+  text-align: left;
+}
+
+.typos th {
+  color: #5c6b7a;
+  font-weight: 500;
+  font-size: 0.9em;
+}
+
+.typos .wrong {
+  color: #c0392b;
+  text-decoration: line-through;
+}
+
+.typos .correct {
+  color: #2e7d5b;
+  font-weight: 600;
+}
+
+.typos .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.praise {
+  margin: 0;
+  padding-left: 4.5mm;
+  font-size: 0.86em;
+  line-height: 1.5;
+}
+
+.praise li + li {
+  margin-top: 0.5em;
+}
+
+.truncated {
+  margin: 0.35em 0 0;
+  font-size: 0.76em;
+  color: #8b98a5;
+}
+
+.foot {
+  margin-top: auto;
+  padding-top: 1.4mm;
+  border-top: 0.6pt solid #e7dfd0;
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  font-size: 0.76em;
+  color: #5c6b7a;
+}
+
+/* ---- 列印 -------------------------------------------------------------- */
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .toolbar,
+  .banner,
+  .loading {
+    display: none !important;
+  }
+
+  .stage {
+    padding: 0;
+  }
+
+  .sheet {
+    margin: 0;
+    box-shadow: none;
+  }
+}

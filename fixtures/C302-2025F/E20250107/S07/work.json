@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "class_id": "C302-2025F",
+  "assignment_id": "E20250107",
+  "seat": "07",
+  "name": "王小明",
+  "status": "done",
+  "pages": [
+    { "id": "p1", "file": "p1.jpg", "width": 1200, "height": 1600 },
+    { "id": "p2", "file": "p2.jpg", "width": 1200, "height": 1600 }
+  ],
+  "annotations": [
+    {
+      "id": "01J00000000000000000000001",
+      "page_id": "p1",
+      "anchor": { "x": 0.42, "y": 0.31 },
+      "shape": { "type": "underline", "x": 0.18, "y": 0.3, "w": 0.55, "h": 0.03 },
+      "category": "sentence",
+      "subtype": "awkward",
+      "text": "「因為……所以……」重複使用，句子可以更緊湊。",
+      "meta": {
+        "original": "我因為下雨的關係所以沒有去學校。",
+        "revised": "因為下雨，我沒有去學校。",
+        "reason": "刪去冗贅的因果連接詞"
+      },
+      "created_at": "2026-11-19T14:32:00+08:00"
+    },
+    {
+      "id": "01J00000000000000000000002",
+      "page_id": "p1",
+      "anchor": { "x": 0.63, "y": 0.44 },
+      "category": "typo",
+      "text": "應為「再」。",
+      "meta": { "wrong": "在", "correct": "再" },
+      "created_at": "2026-11-19T14:33:00+08:00"
+    }
+  ],
+  "scores": {
+    "items": { "content": 32, "structure": 24, "language": 25 },
+    "deduction": { "typo": 0.5, "punct": 0, "override": null },
+    "total": 80.5,
+    "grade": "A"
+  },
+  "final_comment": {
+    "text": "取材真切，母親的形象清楚。若能多寫一個具體事件，情感會更有層次。",
+    "library_id": "C-21",
+    "library_version": "2026.1"
+  },
+  "updated_at": "2026-11-19T14:40:00+08:00"
+}

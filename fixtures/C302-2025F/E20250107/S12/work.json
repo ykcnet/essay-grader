@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "class_id": "C302-2025F",
+  "assignment_id": "E20250107",
+  "seat": "12",
+  "name": "林志豪",
+  "status": "pending",
+  "pages": [
+    { "id": "p1", "file": "p1.jpg", "width": 1200, "height": 1600 },
+    { "id": "p2", "file": "p2.jpg", "width": 1200, "height": 1600 }
+  ],
+  "annotations": [],
+  "updated_at": "2026-11-19T15:10:00+08:00"
+}
