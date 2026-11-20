@@ -44,7 +44,8 @@ npm run batch:check  # 整班批次回饋單驗收（輸出、跳過、溢頁失
 npm run compare:check # G4 與上次比較驗收（狀態、平均、弱項、排行、拒絕情境、UI）
 npm run junior:render  # 由 junior.draft.json 產生國中版評語庫 Markdown（草稿）
 npm run junior:validate # 國中版草稿檢查（條數、id、字數、標籤、與高中職版重複）
-npm run junior:check   # 國中版草稿完整檢查，含 Markdown 與 JSON 一致
+npm run junior:check   # 國中版草稿完整檢查，含 Markdown 與 JSON 一致與用語引號檢查
+npm run library:wording # 兩套評語庫用語檢查（總評／佳句／結構不得用引號）
 npm run soak         # 10 分鐘連續操作壓力測試（可用 --soak-minutes=1 縮短）
 npm run dist         # 同上，產出 NSIS 安裝檔與 portable（apps/desktop/release）
 npm run dist:win     # 建置後打包 Windows x64：Setup＋Portable
@@ -165,6 +166,8 @@ M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢�
 Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配座號、F2 整班批次回饋單、
 10 分鐘 soak、G4 與上次比較已完成。
 國中版評語庫草稿 126 條（未接入）亦已完成，待國中國文老師校閱。
+兩套評語庫已完成用語清洗：總評、佳句、結構不再以引號假設特定詞句，改用通用指稱；
+`npm run library:wording` 與 `junior:check` 會檢查此規則，違規即失敗。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`spike` 通過。
