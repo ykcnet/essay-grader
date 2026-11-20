@@ -33,6 +33,7 @@
     "junior:validate": "node tools/validate_junior_library.mjs",
     "junior:check": "node tools/validate_junior_library.mjs && node tools/validate_library_wording.mjs",
     "library:wording": "node tools/validate_library_wording.mjs",
+    "library:structure": "node tools/validate_library_structure.mjs",
     "soak": "electron apps/desktop --soak",
     "dist": "npm run dist:win",
     "dist:win": "npm run build && npm run dist -w @essay-grader/desktop",

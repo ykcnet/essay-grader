@@ -16,6 +16,7 @@
 | `tools/render_junior_library.mjs` | 由草稿 JSON 產生 Markdown，確保表格與條數一致 |
 | `tools/validate_junior_library.mjs` | 草稿檢查：126 條、分類／子類、id、字數、標籤、變數與高中職版重複 |
 | `tools/validate_library_wording.mjs` | 兩套評語庫用語檢查：總評／佳句／結構不得使用引號，錯字／語句不受限 |
+| `tools/validate_library_structure.mjs` | 兩套總評結構檢查：結構詞覆蓋、引號、字數與正規化重複 |
 | `plan.md` | 製作方案：技術棧比較、架構、資料模型、里程碑、風險 |
 | `progress.md` | 本檔，記錄決策與待辦 |
 | `icon.png` | 應用程式圖示 1024×1024 |
@@ -247,6 +248,7 @@ essay-grader-data/
 - [x] 決定跨裝置搬檔方式：**Google Drive 本機同步資料夾（僅 inbox，資料庫不進雲端）**（2026-11-19）
 - [x] 國中版評語庫草稿 126 條完成；待國中國文老師校閱與接入（2026-11-20）
 - [x] 兩套評語庫用語清洗：移除總評／佳句／結構的特定詞句引號，新增 `library:wording` 檢查（2026-11-20）
+- [x] 兩套 120 條總評改以文章結構為主，新增 `library:structure` 檢查（2026-11-20）
 - [ ] 批閱主畫面草圖（一頁）
 - [x] **M1 資料層**（2026-11-19）
 - [x] **M2 匯入與佇列**（2026-11-19）
@@ -381,7 +383,7 @@ essay-grader-data/
 - `junior.draft.json`：126 條，typo 10、sentence 23、structure 23、praise 10、comment 60；各子類數量全數比照高中職版。
 - 編號 JE-01…10、JS-01…23、JT-01…23、JG-01…10、JC-01…60；與 `senior.json` 的 126 個 id 完全不重複。
 - 每條 tags 至少含「國中」，source 一律 `builtin`、disabled `false`；未使用大括號變數。
-- comment 60 條去除標點與空白後 39–56 字，全部 ≥30；其餘類別不設下限。
+- comment 60 條去除標點與空白後 45–60 字，全部 ≥30；其餘類別不設下限。
 - 與 `senior.json` 比對：126 條正規化文字全部不同，沒有直接複製高中職版。
 - `comment-library-junior.md` 由 JSON 產生，表格、條數與統計一致；`npm run junior:check` 17/17。
 - 用語清洗：junior 修正 20 條、senior 修正 7 條；總評／佳句／結構移除「」與『』，改用抽象形容詞、感受、場景、人物、事件、段落、例子等通用指稱，錯字與語句仍保留引號標示具體錯誤。
@@ -389,6 +391,16 @@ essay-grader-data/
 - 草稿未接入 runtime：未改 `packages/core/src/library.ts` 或 `BUILTIN_LIBRARY`，批閱介面仍載入高中職版。
 - 待校閱：語氣是否適合七～九年級、會考知性／情意題對應、是否保留文言與應用文、七年級適用性、句型重複感。
 - 回歸：`typecheck`、`build`、`m3:check` 通過。
+
+### 總評結構改寫驗收（2026-11-20）
+
+- 國中 60 條（JC-01…60）、高中職 60 條（C-01…60）全部改寫，ID、分類與子類維持不變。
+- 改寫方向：以主旨、段落功能、順序、過渡、例證、首尾、比例與連貫為主；知性題談論點—理由—例證—反駁—結論，情意題談情感線、場景、節奏與轉折，應用文談格式、資訊順序與收信人需求。
+- 不再綁定特定題材、人物關係、地點或事件，也不引用特定詞句；總評不含引號。
+- 字數：junior 45–60 字、senior 45–57 字，全部落在建議的 45–90 字區間。
+- 新增 `npm run library:structure`：檢查結構詞覆蓋、引號、字數與正規化重複；兩套皆 60/60 通過。
+- 文件同步：兩份評語庫開頭加入結構導向規則，README／progress／plan 記錄本次改寫。
+- 回歸：`junior:render`、`junior:check` 17/17、`library:wording`、`library:structure`、`m3:check`、`typecheck`、`build` 通過；runtime 仍只載入 `senior.json`。
 
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4）
 
