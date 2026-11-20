@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-20
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較完成；國中版評語庫草稿、結構覆蓋率與體裁補充完成（未接入）；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較完成；國中版評語庫草稿、五面向平衡與體裁補充完成（未接入）；下一步 M8 手機**
 
 ---
 
@@ -13,14 +13,14 @@
 | `comment-library-senior.md` | 內建評語 138 條，含更新與輪替機制 |
 | `comment-library-junior.md` | 國中版評語庫草稿 138 條；由 JSON 產生，**尚未接入、待國中國文老師校閱** |
 | `packages/core/src/library/junior.draft.json` | 國中版草稿資料（`2026.2-draft`）；刻意不進 `library.ts`／`BUILTIN_LIBRARY` |
-| `docs/評語庫結構依據.md` | 官方結構規準摘述、19 類結構檢查（16 類通用＋3 類體裁補充；症狀→策略→ID）、來源與檢索日期 |
+| `docs/評語庫結構依據.md` | 五面向定義與最低條數、官方結構規準摘述、19 類結構輔助索引（16 類通用＋3 類體裁補充）、來源與檢索日期 |
 | `docs/評語參考_使用者提供.md` | 使用者提供 6 張評語表的整理、已採用概念對照、未採用原因與待校閱事項 |
-| `packages/core/src/library/comment-coverage.json` | 19 類結構錯誤對應的 junior／senior comment ID；覆蓋率唯一來源 |
-| `tools/validate_comment_coverage.mjs` | 覆蓋率檢查：每類 ≥2、ID 存在且 category=comment、同類不重複、無孤立條目、Markdown 摘要一致 |
-| `tools/render_junior_library.mjs` | 由草稿 JSON 產生 Markdown，確保表格與條數一致 |
+| `packages/core/src/library/comment-coverage.json` | 五面向 junior／senior comment ID 與最低條數，另保留 19 類結構輔助索引；覆蓋率唯一來源 |
+| `tools/validate_comment_coverage.mjs` | 覆蓋率檢查：五面向 minimum 與 ID、每條 comment 至少一個面向、19 類各 ≥2、Markdown 含五面向分布與結構摘要 |
+| `tools/render_junior_library.mjs` | 由草稿 JSON 產生 Markdown，確保五面向分布、結構摘要與條數一致 |
 | `tools/validate_junior_library.mjs` | 草稿檢查：138 條、分類／子類、id、字數、標籤、變數與高中職版重複 |
 | `tools/validate_library_wording.mjs` | 兩套評語庫用語檢查：總評／佳句／結構不得使用引號，錯字／語句不受限 |
-| `tools/validate_library_structure.mjs` | 兩套總評結構檢查：結構詞覆蓋、引號、字數與正規化重複 |
+| `tools/validate_library_structure.mjs` | 兩套總評五面向詞彙檢查：依 dimensions 驗證所屬面向用語、引號、字數與正規化重複 |
 | `plan.md` | 製作方案：技術棧比較、架構、資料模型、里程碑、風險 |
 | `progress.md` | 本檔，記錄決策與待辦 |
 | `icon.png` | 應用程式圖示 1024×1024 |
@@ -167,6 +167,7 @@
 | 92 | G4 驗收 | `npm run compare:check` 15/15：5 人、上次 S07 70／S08 85／S12 80／S15 60，本次 S07 79／S08 80／S12 80／S20 75／S15 缺；compared=3、平均 78.3→79.7（Δ +1.4）、弱項 1.3→1.0／0.7→0.3／0.3→0.7；換 previousId、同份、跨班、不存在、純函式不改來源與 UI 皆通過 |
 | 93 | 評語庫結構覆蓋 | 依官方規準、教學歸納與使用者提供評語表建立 19 類（16 類通用＋3 類體裁補充）；每類至少 2 條、實際 3–5 條；每個 comment 至少被一類覆蓋；`library:coverage` 納入驗收 |
 | 94 | 體裁補充評語 | 由使用者提供的 6 張評語表抽取結構概念，兩套庫各新增 12 條（記敘 4、抒情 4、議論 4）；不直接收錄短標籤、特定題材、修辭標籤或學習態度評語 |
+| 95 | 總評五面向平衡 | 總評改以結構、立意取材、語言表達、情感體驗、格式應用編寫；結構只是其中之一。junior 33／21／12／20／10、senior 33／25／12／18／10，兩套各改寫 23 條，維持 138 條與 comment 72 條；非結構評語不硬塞結構詞 |
 
 ---
 
@@ -257,6 +258,7 @@ essay-grader-data/
 - [x] 兩套 120 條總評改以文章結構為主，新增 `library:structure` 檢查（2026-11-20）
 - [x] 建立 `docs/評語庫結構依據.md` 與 16 類結構覆蓋表（初始版）；junior 修正 18 條、senior 修正 5 條；新增 `library:coverage`（2026-11-20）
 - [x] 收入使用者提供評語表：整理 6 張掃描檔、新增參考文件，兩套庫各加 12 條體裁補充，覆蓋分類擴為 19 類（2026-11-20）
+- [x] 總評改為五面向平衡：結構 33 條為上限主軸，另補立意取材、語言表達、情感體驗、格式應用；更新 coverage JSON、兩個驗證腳本、Markdown、文件與 README（2026-11-20）
 - [ ] 批閱主畫面草圖（一頁）
 - [x] **M1 資料層**（2026-11-19）
 - [x] **M2 匯入與佇列**（2026-11-19）

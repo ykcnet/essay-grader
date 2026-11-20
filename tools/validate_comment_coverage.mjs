@@ -1,5 +1,5 @@
-// 總評結構覆蓋率檢查：確認 19 類結構錯誤在國中與高中職兩套庫都至少有 2 條 comment，
-// 且每個 comment 至少被一個分類涵蓋。
+// 評語覆蓋率檢查：五面向最低條數、ID 對應、每條 comment 至少屬於一個面向，
+// 以及 19 類結構分類的 ID 對應。Markdown 需同時包含面向分布與結構覆蓋摘要。
 // 用法：node tools/validate_comment_coverage.mjs
 
 import { readFile } from 'node:fs/promises'
@@ -34,6 +34,19 @@ export function buildCoverageTable(categories) {
   return lines.join('\n')
 }
 
+export function buildDimensionTable(dimensions) {
+  const lines = []
+  lines.push('| 面向 | 最低條數 | junior 條數 | senior 條數 |')
+  lines.push('|---|---:|---:|---:|')
+  for (const dimension of dimensions) {
+    lines.push(`| ${dimension.label} | ${dimension.minimum} | ${dimension.junior.length} | ${dimension.senior.length} |`)
+  }
+  const juniorTotal = dimensions.reduce((sum, dimension) => sum + dimension.junior.length, 0)
+  const seniorTotal = dimensions.reduce((sum, dimension) => sum + dimension.senior.length, 0)
+  lines.push(`| **面向歸屬次數（同一條可跨面向）** | | **${juniorTotal}** | **${seniorTotal}** |`)
+  return lines.join('\n')
+}
+
 function normalize(text) {
   return text.normalize('NFKC').replace(/[\s\p{P}\p{S}]/gu, '')
 }
@@ -52,34 +65,40 @@ function loadCommentMap(library, name, failures) {
   return map
 }
 
-function checkCategorySide(category, side, commentMap, name, failures, covered) {
-  const ids = category[side]
+function checkIds(ids, side, key, commentMap, failures, covered) {
   if (!Array.isArray(ids)) {
-    failures.push(`${category.key}／${side} 必須是陣列`)
+    failures.push(`${key}／${side} 必須是陣列`)
     return
-  }
-  if (ids.length < MIN_PER_CATEGORY) {
-    failures.push(`${category.key}／${side} 只有 ${ids.length} 條，至少需要 ${MIN_PER_CATEGORY} 條`)
-  }
-  if (ids.length < 3 || ids.length > 5) {
-    console.log(`[WARN] ${category.key}／${side} 有 ${ids.length} 條；建議 3–5 條`)
   }
   const seen = new Set()
   for (const id of ids) {
     if (seen.has(id)) {
-      failures.push(`${category.key}／${side} 重複列出 ${id}`)
+      failures.push(`${key}／${side} 重複列出 ${id}`)
       continue
     }
     seen.add(id)
     const entry = commentMap.get(id)
     if (!entry) {
-      failures.push(`${category.key}／${side} 找不到 category=comment 的 ${id}`)
+      failures.push(`${key}／${side} 找不到 category=comment 的 ${id}`)
       continue
     }
     if (typeof entry.text !== 'string' || normalize(entry.text).length === 0) {
-      failures.push(`${category.key}／${side} 的 ${id} 沒有有效文字`)
+      failures.push(`${key}／${side} 的 ${id} 沒有有效文字`)
     }
     covered.add(id)
+  }
+}
+
+function checkCategory(category, side, commentMap, failures) {
+  const ids = category[side]
+  checkIds(ids, side, category.key, commentMap, failures, new Set())
+  if (Array.isArray(ids)) {
+    if (ids.length < MIN_PER_CATEGORY) {
+      failures.push(`${category.key}／${side} 只有 ${ids.length} 條，至少需要 ${MIN_PER_CATEGORY} 條`)
+    }
+    if (ids.length < 3 || ids.length > 5) {
+      console.log(`[WARN] ${category.key}／${side} 有 ${ids.length} 條；建議 3–5 條`)
+    }
   }
 }
 
@@ -94,7 +113,9 @@ async function main() {
   }
   const coverage = JSON.parse(coverageRaw)
   const categories = Array.isArray(coverage.categories) ? coverage.categories : []
+  const dimensions = Array.isArray(coverage.dimensions) ? coverage.dimensions : []
   if (categories.length === 0) failures.push('coverage.categories 不可為空')
+  if (dimensions.length !== 5) failures.push(`coverage.dimensions 應為 5 項，目前 ${dimensions.length} 項`)
 
   const keys = new Set()
   const labels = new Set()
@@ -110,6 +131,26 @@ async function main() {
     labels.add(category.label)
   }
 
+  const dimensionKeys = new Set()
+  const dimensionLabels = new Set()
+  for (const dimension of dimensions) {
+    for (const field of ['key', 'label']) {
+      if (typeof dimension[field] !== 'string' || dimension[field].trim() === '') {
+        failures.push(`面向缺少 ${field}：${dimension.key ?? '(未命名)'}`)
+      }
+    }
+    if (typeof dimension.minimum !== 'number' || dimension.minimum < 1) {
+      failures.push(`面向 ${dimension.key ?? '(未命名)'} 的 minimum 必須是正整數`)
+    }
+    if (dimensionKeys.has(dimension.key)) failures.push(`面向 key 重複：${dimension.key}`)
+    dimensionKeys.add(dimension.key)
+    if (dimensionLabels.has(dimension.label)) failures.push(`面向 label 重複：${dimension.label}`)
+    dimensionLabels.add(dimension.label)
+  }
+  if (!dimensionKeys.has('structure') || !dimensionKeys.has('content') || !dimensionKeys.has('language') || !dimensionKeys.has('emotion') || !dimensionKeys.has('format')) {
+    failures.push('面向必須包含 structure、content、language、emotion、format')
+  }
+
   const juniorLibrary = JSON.parse(await readFile(LIBRARIES.junior, 'utf8'))
   const seniorLibrary = JSON.parse(await readFile(LIBRARIES.senior, 'utf8'))
   const juniorMap = loadCommentMap(juniorLibrary, 'junior', failures)
@@ -117,8 +158,22 @@ async function main() {
 
   const covered = { junior: new Set(), senior: new Set() }
   for (const category of categories) {
-    checkCategorySide(category, 'junior', juniorMap, 'junior', failures, covered.junior)
-    checkCategorySide(category, 'senior', seniorMap, 'senior', failures, covered.senior)
+    checkCategory(category, 'junior', juniorMap, failures)
+    checkCategory(category, 'senior', seniorMap, failures)
+  }
+
+  for (const dimension of dimensions) {
+    for (const side of ['junior', 'senior']) {
+      const ids = dimension[side]
+      if (!Array.isArray(ids)) {
+        failures.push(`${dimension.key}／${side} 必須是陣列`)
+        continue
+      }
+      if (ids.length < dimension.minimum) {
+        failures.push(`${dimension.key}／${side} 只有 ${ids.length} 條，低於最低 ${dimension.minimum} 條`)
+      }
+      checkIds(ids, side, dimension.key, side === 'junior' ? juniorMap : seniorMap, failures, covered[side])
+    }
   }
 
   for (const [side, map] of [
@@ -127,29 +182,40 @@ async function main() {
   ]) {
     const orphans = [...map.keys()].filter((id) => !covered[side].has(id))
     if (orphans.length > 0) {
-      failures.push(`${side} 有 ${orphans.length} 條未被任何分類覆蓋：${orphans.join('、')}`)
+      failures.push(`${side} 有 ${orphans.length} 條未屬於任何面向：${orphans.join('、')}`)
     }
   }
 
-  const table = buildCoverageTable(categories)
+  const dimensionTable = buildDimensionTable(dimensions)
+  const categoryTable = buildCoverageTable(categories)
   for (const side of ['junior', 'senior']) {
     const markdown = await readFile(MARKDOWN[side], 'utf8').catch(() => null)
     if (markdown === null) {
       failures.push(`找不到 ${MARKDOWN[side]}`)
-    } else if (!markdown.includes(table)) {
-      failures.push(`${side} Markdown 的結構覆蓋摘要與 coverage JSON 不一致`)
+      continue
     }
+    if (!markdown.includes('面向分布')) failures.push(`${side} Markdown 缺少面向分布段落`)
+    if (!markdown.includes(dimensionTable)) failures.push(`${side} Markdown 的面向分布表與 coverage JSON 不一致`)
+    if (!markdown.includes('結構覆蓋摘要')) failures.push(`${side} Markdown 缺少結構覆蓋摘要段落`)
+    if (!markdown.includes(categoryTable)) failures.push(`${side} Markdown 的結構覆蓋摘要與 coverage JSON 不一致`)
   }
 
+  console.log('五面向分布：')
+  for (const dimension of dimensions) {
+    console.log(`  ${dimension.key.padEnd(10)} ${dimension.label.padEnd(6, '　')} 最低 ${String(dimension.minimum).padStart(2)}｜junior ${dimension.junior.length}、senior ${dimension.senior.length}`)
+  }
+  console.log('')
+  console.log(dimensionTable)
+  console.log('')
   console.log('結構分類覆蓋：')
   for (const category of categories) {
     console.log(`  ${category.key.padEnd(22)} ${category.label.padEnd(14, '　')} junior ${category.junior.length}、senior ${category.senior.length}`)
   }
   console.log('')
-  console.log(table)
+  console.log(categoryTable)
   console.log('')
-  console.log(`junior comment 覆蓋：${covered.junior.size}/${juniorMap.size}`)
-  console.log(`senior comment 覆蓋：${covered.senior.size}/${seniorMap.size}`)
+  console.log(`junior comment 面向覆蓋：${covered.junior.size}/${juniorMap.size}`)
+  console.log(`senior comment 面向覆蓋：${covered.senior.size}/${seniorMap.size}`)
 
   if (failures.length > 0) {
     console.log('')

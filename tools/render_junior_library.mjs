@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { buildCoverageTable } from './validate_comment_coverage.mjs'
+import { buildCoverageTable, buildDimensionTable } from './validate_comment_coverage.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..')
@@ -14,6 +14,7 @@ const coverageSource = join(repoRoot, 'packages', 'core', 'src', 'library', 'com
 const target = join(repoRoot, 'comment-library-junior.md')
 const coverage = JSON.parse(readFileSync(coverageSource, 'utf8'))
 const coverageTable = buildCoverageTable(coverage.categories)
+const dimensionTable = buildDimensionTable(coverage.dimensions)
 
 const SUBTYPE_LABELS = {
   general: '一般',
@@ -105,14 +106,17 @@ export function buildMarkdown(library) {
   lines.push('>')
   lines.push('> 適用：國中七～九年級、國中教育會考寫作測驗')
   lines.push('>')
-  lines.push('> 結構依據：[docs/評語庫結構依據.md](docs/評語庫結構依據.md)。總評依國中教育會考寫作測驗評分規準、學測國寫評分原則與常見結構錯誤編寫；來源與檢索日期見該檔。')
+  lines.push('> 總評以五個面向編寫：結構、立意取材、語言表達、情感體驗、格式應用；結構只是其中之一。')
+  lines.push('>')
+  lines.push('> 依據：[docs/評語庫結構依據.md](docs/評語庫結構依據.md)。總評依國中教育會考寫作測驗評分規準、學測國寫評分原則與教學常見症狀編寫；來源與檢索日期見該檔。')
   lines.push('>')
   lines.push('> 程式目前仍只載入高中職版 `senior.json`；本檔與 `junior.draft.json` 不會進入 runtime。')
   lines.push('')
   lines.push('**使用規則**')
   lines.push('')
   lines.push('- 總評（JC）每條去除標點與空白後至少 30 字，建議 45–90 字；接入後沿用「同批最多 2 次」的既有規則。')
-  lines.push('- 總評以文章結構為主：主旨、段落功能、順序、過渡、例證、首尾、比例與連貫；避免特定題材、人物或詞句。')
+  lines.push('- 總評以五個面向編寫：結構、立意取材、語言表達、情感體驗、格式應用；結構只是其中之一，讓老師依文章問題選擇合適的評語。')
+  lines.push('- 每條總評至少屬於一個面向，可跨兩個面向；`面向-結構`、`面向-立意`、`面向-語言`、`面向-情感`、`面向-格式` 標籤供搜尋使用。')
   lines.push('- 其餘類別（錯字、語句、結構、佳句）不設字數下限，重複僅提示、不阻擋。')
   lines.push('- 每條 `tags` 至少含「國中」，可再依題材細分為會考、記敘、抒情、議論、說明、應用等。')
   lines.push('- 本庫不使用 `{姓名}`、`{分數}` 等變數，避免 UI 直接顯示大括號。')
@@ -135,9 +139,15 @@ export function buildMarkdown(library) {
   }
   lines.push(`| **合計** | **${entries.length}** | |`)
   lines.push('')
+  lines.push('## 五面向分布')
+  lines.push('')
+  lines.push('> 總評分為結構、立意取材、語言表達、情感體驗、格式應用五個面向；同一條可支援多個面向，結構不是唯一主軸。完整 ID 清單見 `packages/core/src/library/comment-coverage.json`。')
+  lines.push('')
+  lines.push(dimensionTable)
+  lines.push('')
   lines.push('## 結構覆蓋摘要')
   lines.push('')
-  lines.push(`> 依 \`docs/評語庫結構依據.md\` 的 ${coverage.categories.length} 類結構錯誤對應實際總評；同一條可支援多個分類。完整 ID 清單見 \`packages/core/src/library/comment-coverage.json\`。`)
+  lines.push(`> 另依 \`docs/評語庫結構依據.md\` 的 ${coverage.categories.length} 類結構症狀對應實際總評；同一條可支援多個分類。完整 ID 清單見 \`packages/core/src/library/comment-coverage.json\`。`)
   lines.push('')
   lines.push(coverageTable)
   lines.push('')

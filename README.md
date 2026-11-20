@@ -46,8 +46,8 @@ npm run junior:render  # 由 junior.draft.json 產生國中版評語庫 Markdown
 npm run junior:validate # 國中版草稿檢查（條數、id、字數、標籤、與高中職版重複）
 npm run junior:check   # 國中版草稿完整檢查，含 Markdown 與 JSON 一致與用語引號檢查
 npm run library:wording # 兩套評語庫用語檢查（總評／佳句／結構不得用引號）
-npm run library:structure # 兩套總評結構詞覆蓋、引號、字數與重複檢查
-npm run library:coverage # 19 類結構錯誤在兩套庫的覆蓋率、ID 與孤立條目檢查
+npm run library:structure # 兩套總評五面向詞彙、引號、字數與重複檢查
+npm run library:coverage # 五面向最低條數、19 類結構覆蓋率與 ID 對應檢查
 npm run soak         # 10 分鐘連續操作壓力測試（可用 --soak-minutes=1 縮短）
 npm run dist         # 同上，產出 NSIS 安裝檔與 portable（apps/desktop/release）
 npm run dist:win     # 建置後打包 Windows x64：Setup＋Portable
@@ -102,16 +102,21 @@ Google Drive 外部 inbox：在匯入佇列表按「設定／變更」選擇 Goo
 `npm run junior:validate` 會檢查條數、子類、id、字數、標籤、變數與高中職版重複，
 `npm run junior:check` 另外確認 Markdown 與 JSON 完全一致。
 
-國中與高中職兩套總評已改以文章結構為主：優先談主旨、段落功能、順序、過渡、例證、首尾、
-比例與連貫，避免綁定特定題材、人物或詞句。覆蓋率與依據見
-`docs/評語庫結構依據.md` 與 `packages/core/src/library/comment-coverage.json`。`npm run library:structure` 會檢查 144 條總評的
-結構詞覆蓋、引號、字數與重複情形。
+國中與高中職兩套總評已改以五個面向編寫：結構、立意取材、語言表達、情感體驗、格式應用。
+結構只是其中之一，老師可依文章問題選擇合適的評語；非結構評語不硬塞結構詞。覆蓋率與依據見
+`docs/評語庫結構依據.md` 與 `packages/core/src/library/comment-coverage.json`。
+`npm run library:structure` 會依面向檢查 144 條總評的詞彙、引號、字數與重複情形。
+
+五面向分布：junior 為結構 33、立意取材 21、語言表達 12、情感體驗 20、格式應用 10；
+senior 為結構 33、立意取材 25、語言表達 12、情感體驗 18、格式應用 10。
+每條 comment 至少屬於一個面向，可跨兩個面向，兩套皆 72/72 條被覆蓋。
 
 結構依據與覆蓋率：`docs/評語庫結構依據.md` 整理國中教育會考寫作測驗、學測國寫的官方結構
-描述，以及教學現場歸納的 16 類通用結構錯誤，另加 3 類體裁補充（記敘、抒情、議論；症狀、調整策略、對應評語）。分類與 ID 對應
-放在 `packages/core/src/library/comment-coverage.json`；`npm run library:coverage` 會確認
-每類在 junior 與 senior 都至少 2 條、ID 存在且 category=comment、同分類不重複、每個
-comment 至少被一類覆蓋。目前 junior 與 senior 皆 72/72 條被覆蓋，分類對應次數為 88 與 84。
+描述，以及教學現場歸納的 16 類通用結構症狀，另加 3 類體裁補充（記敘、抒情、議論）。
+19 類分類保留為輔助索引，不要求每條 comment 都被結構分類覆蓋；分類與 ID 對應
+放在 `packages/core/src/library/comment-coverage.json`。`npm run library:coverage` 會確認
+五面向最低條數、每類在 junior 與 senior 都至少 2 條、ID 存在且 category=comment、
+同分類不重複，以及兩份 Markdown 同時含五面向分布與結構覆蓋摘要。
 
 體裁補充由使用者提供的 6 張作文評語表掃描檔抽取結構概念改寫，不直接收錄短標籤、特定題材
 或學習態度評語；來源摘要、已採用概念與未採用原因見 `docs/評語參考_使用者提供.md`。
@@ -184,11 +189,12 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 國中版評語庫草稿 138 條（未接入）亦已完成，待國中國文老師校閱。
 兩套評語庫已完成用語清洗：總評、佳句、結構不再以引號假設特定詞句，改用通用指稱；
 `npm run library:wording` 與 `junior:check` 會檢查此規則，違規即失敗。
-兩套 144 條總評也改以文章結構為主，移除特定題材與人物假設；
-`npm run library:structure` 會檢查結構詞覆蓋、引號、字數與重複，兩套皆 72/72 通過。
-另依官方規準與常見結構錯誤建立 19 類覆蓋表，junior 修正 18 條、senior 修正 5 條，
-並由使用者提供評語表新增 24 條體裁補充；
-`npm run library:coverage` 確認兩套 comment 皆 72/72 被覆蓋，沒有孤立條目。
+兩套 144 條總評已改為五面向平衡：結構、立意取材、語言表達、情感體驗、格式應用；
+結構不是唯一主軸，兩套各保留 33 條結構評語，其餘分配至立意、語言、情感與格式。
+`npm run library:structure` 會依面向檢查詞彙覆蓋、引號、字數與重複，兩套皆 72/72 通過。
+另依官方規準與常見結構症狀建立 19 類輔助覆蓋表，並由使用者提供評語表新增 24 條體裁補充；
+`npm run library:coverage` 確認五面向皆達最低條數、兩套 comment 皆 72/72 有面向歸屬。
+本輪共改寫 junior 23 條、senior 23 條總評，維持 138 條與 comment 72 條不變。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`spike` 通過。

@@ -20,7 +20,7 @@
 | 資料庫 | 本地資料夾為唯一資料庫；**Google Drive 本機同步資料夾僅作外部 inbox，資料庫不進雲端** |
 | 手機角色 | 只寫 inbox，不直接寫 `work.json` |
 | 第一版核心 | 批一份 → 批一班 → 出回饋單 |
-| 評語庫結構覆蓋 | 依官方規準、教學歸納與使用者提供評語表建立 19 類；每類在 junior／senior 至少 2 條，每個 comment 至少被一類覆蓋，`library:coverage` 納入驗收 |
+| 評語庫五面向 | 總評分為結構、立意取材、語言表達、情感體驗、格式應用；結構**不是唯一主軸**。每條至少屬於一個面向，可跨兩個；各面向最低條數與 19 類結構輔助索引由 `library:coverage` 驗收 |
 
 ---
 
@@ -33,7 +33,7 @@
 | 功能清單 | 77 項：P0 39／P1 22／P2 16 |
 | 核心主線 | 拍照匯入 → 批注 → 評分 → 回饋單 |
 | 資料夾契約 | 全 ASCII、中文存 JSON |
-| 評語庫 | 高中職 138 條已接入；國中 138 條草稿完成、尚未接入；兩套總評已改以文章結構為主，各含 12 條體裁補充 |
+| 評語庫 | 高中職 138 條已接入；國中 138 條草稿完成、尚未接入；兩套總評已改為五面向平衡，各含 12 條體裁補充 |
 | 圖示 | Windows ICO、各尺寸 PNG、Android mipmap |
 | 工具 | `tools/make_icon.py`、`tools/trace_circle.py` |
 
@@ -406,7 +406,7 @@ essay-grader/
 - 不存 `used_count`／`last_used_at`；由所有 `work.json` 推導。
 - 內建條目可改寫、可停用、不刪除；舊批注存文字快照。
 - 匯入新版只新增缺少的 id，不覆蓋已自訂與已停用。
-- 總評結構覆蓋由 `packages/core/src/library/comment-coverage.json` 管理，依據見 `docs/評語庫結構依據.md`；`npm run library:coverage` 檢查每類至少 2 條、ID 存在且 category=comment、同分類不重複、無孤立條目，並核對兩份 Markdown 的摘要。
+- 總評五面向由 `packages/core/src/library/comment-coverage.json` 管理，依據見 `docs/評語庫結構依據.md`；`npm run library:coverage` 檢查五面向 minimum 與 ID、每條 comment 至少屬於一個面向、19 類各至少 2 條、同分類不重複，並核對兩份 Markdown 的五面向分布與結構摘要。
 
 ### 4.6 手機產出
 
@@ -686,6 +686,7 @@ essay-grader/
 - [x] 總評結構改寫：junior 60 條、senior 60 條改以主旨／段落／順序／過渡／例證／首尾為主，新增 `library:structure` 檢查（2026-11-20）
 - [x] 評語庫結構依據與覆蓋率（初始版）：16 類、junior／senior 各 60/60 覆蓋，新增 `library:coverage`（2026-11-20）
 - [x] 體裁補充：整理使用者提供 6 張評語表，兩套庫各新增 12 條（記敘／抒情／議論各 4），分類擴為 19 類、comment 72/72 覆蓋（2026-11-20）
+- [x] 總評五面向平衡：結構／立意取材／語言表達／情感體驗／格式應用；junior 33／21／12／20／10、senior 33／25／12／18／10，各改寫 23 條，維持 138 條與 72 條 comment（2026-11-20）
 - [ ] 目標電腦螢幕解析度（1366×768 是否為最低）
 
 ---
