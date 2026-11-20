@@ -19,8 +19,10 @@ import {
   appendMissingPageIssues,
   auditWorks,
   buildAssignmentStats,
+  compareAssignmentStats,
   statsToCsvFiles,
   type AssignmentAudit,
+  type AssignmentComparison,
   type AssignmentFile,
   type AssignmentStats,
   type AssignmentSummary,
@@ -543,6 +545,61 @@ export async function getAssignmentStats(
   }
 
   return buildAssignmentStats(assignmentResult.data, classResult.data.students, works)
+}
+
+async function requireAssignmentForCompare(
+  root: string,
+  classId: string,
+  assignmentId: string,
+  label: string
+): Promise<AssignmentFile> {
+  if (!ASSIGNMENT_DIR.test(assignmentId)) {
+    throw new Error(`${label}作業 id 格式不正確：${assignmentId}`)
+  }
+
+  const assignmentPath = join(root, classId, assignmentId, 'assignment.json')
+  if (!(await pathExists(assignmentPath))) {
+    throw new Error(`找不到${label}作業 ${assignmentId}`)
+  }
+
+  const { data } = await loadAssignment(classId, assignmentId)
+  if (data.id !== assignmentId) {
+    throw new Error(`${label}作業 ${assignmentId} 的內容與資料夾不符`)
+  }
+  return data
+}
+
+/**
+ * G4：比較同班兩份作業的統計。
+ * 兩份作業都必須存在且位於同一班級資料夾；不允許拿同一份跟自己比。
+ */
+export async function compareAssignments(
+  classId: string,
+  currentId: string,
+  previousId: string
+): Promise<AssignmentComparison> {
+  const root = requireRoot()
+
+  if (!CLASS_DIR.test(classId)) throw new Error(`班級 id 格式不正確：${classId}`)
+  if (!(await pathExists(join(root, classId, 'class.json')))) {
+    throw new Error(`找不到班級 ${classId}`)
+  }
+  if (!currentId || !previousId) throw new Error('請選擇目前作業與上次作業')
+  if (currentId === previousId) {
+    throw new Error('目前作業與上次作業不能是同一份')
+  }
+
+  await Promise.all([
+    requireAssignmentForCompare(root, classId, currentId, '目前'),
+    requireAssignmentForCompare(root, classId, previousId, '上次')
+  ])
+
+  const [currentStats, previousStats] = await Promise.all([
+    getAssignmentStats(classId, currentId),
+    getAssignmentStats(classId, previousId)
+  ])
+
+  return compareAssignmentStats(currentStats, previousStats)
 }
 
 export interface StatsExportResult {

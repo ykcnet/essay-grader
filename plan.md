@@ -521,6 +521,7 @@ essay-grader/
 | M4 評分＋防重複 | 1 週 | 分項給分、自動扣分、總分／等第、總評 30 字、同批重複提示／阻擋、完成檢查表 | 45 份批次檢查不會漏；第 3 次總評被擋 |
 | M5 回饋單 | 1–1.5 週 | 一頁 A4 預覽、單份 PDF、列印、檔名規則 | 中文不缺字、不溢頁；PDF 開啟正常 |
 | M6 統計（已完成） | 1 週 | G1 弱項排行、G2 常錯字、G3 個人弱項、CSV | 數字與批注一致；可匯出 |
+| G4 與上次比較（已完成） | 0.5 週 | `compare.ts` 純函式、`stats:compare` IPC、StatsPanel 比較區塊 | `compare:check` 15/15：狀態、平均、弱項、排行、拒絕與 UI |
 | M7 打磨＋交付（已完成） | 1 週 | 安裝檔、portable、備份／還原、日誌與錯誤處理、使用者說明 | 乾淨 Windows 10/11 可安裝、可批完一班 |
 | Drive 外部 inbox（已完成） | 0.5 週 | 監看 Google Drive 本機同步資料夾、子資料夾／扁平擺法、去重、`_unmatched`／`_duplicates`、UI 與設定 | `drive:check` 23/23；成功匯入刪除雲端來源；資料庫不進雲端 |
 | M8 Android 掃描器 | 3–4 週 | 選班級／作業／學生、ML Kit 掃描、多頁排序、重拍、離線佇列、Google Drive inbox 寫入 | 手機拍 3 頁 → 桌機 10 秒內出現在佇列 |
@@ -528,7 +529,7 @@ essay-grader/
 
 **粗估**：桌機 MVP 6–8 週；桌機 P0 約 9–11 週；加 Android 與 QA 約 14–17 週。需求不再變動的估算，誤差約 ±30%。
 
-> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）、M7（打磨＋交付）、Drive 外部 inbox、E6（成績寫回 Excel）、未匹配照片手動分配、F2（整班批次回饋單）、10 分鐘 soak 已於 2026-11-20 完成；M1 11/11、M2 13/13、M3 25/25、M4 17/17、M5 19/19、M6 17/17、M7 25/25、drive 23/23、excel 25/25、match 21/21、batch 17/17、soak 通過。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出；M7 補上備份／還原、日誌與錯誤處理、ErrorBoundary、使用者說明、electron-builder 設定與 NSIS／portable 打包；Drive 外部 inbox 補上 Google Drive 本機同步資料夾監看、兩種上傳擺法、sidecar／檔名座號、去重、PDF 擋下、來源清理、狀態與 UI；E6 補上成績表設定與自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV 與 UI 面板。
+> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）、M7（打磨＋交付）、Drive 外部 inbox、E6（成績寫回 Excel）、未匹配照片手動分配、F2（整班批次回饋單）、10 分鐘 soak、G4（與上次比較）已於 2026-11-20 完成；M1 11/11、M2 13/13、M3 25/25、M4 17/17、M5 19/19、M6 17/17、M7 25/25、drive 23/23、excel 25/25、match 21/21、batch 17/17、compare 15/15、soak 通過。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出；M7 補上備份／還原、日誌與錯誤處理、ErrorBoundary、使用者說明、electron-builder 設定與 NSIS／portable 打包；Drive 外部 inbox 補上 Google Drive 本機同步資料夾監看、兩種上傳擺法、sidecar／檔名座號、去重、PDF 擋下、來源清理、狀態與 UI；E6 補上成績表設定與自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV 與 UI 面板；G4 補上座號對齊、進步／退步／持平／新作品／缺資料、只計 compared 的班級平均、弱項四類每份平均、進步／退步前 5 與比較 UI。
 
 **M3 驗收備註**
 
@@ -568,7 +569,18 @@ essay-grader/
 - **CSV**：固定輸出 `scores.csv`、`weakness-ranking.csv`、`common-typos.csv`、`student-weakness.csv` 到作業資料夾的 `_stats/`；UTF-8 BOM＋CRLF，Excel 可直接開，逗號與引號正確轉義，重新匯出覆寫同名檔。
 - **UI**：匯入佇列面板加「統計」按鈕；面板含摘要、等第／分項平均、G1／G2／G3、匯出 CSV 與開啟統計資料夾。`spike-out/m6-stats.png` 已能完整拍到四個區塊。
 - `npm run m6:check` 17/17：6 人、5 份作品、4 份 `done`、13 個弱項批注、在→再×3、平均 81、四份 CSV（`scores.csv` 633 bytes）、統計 UI 與匯出皆通過。
-- 已知限制：只做單一作業，尚未跨作業比較（G4／G5 未做）；G1 佔比以弱項批注總數為分母；CSV 未做 Excel 樣式；成績寫回已於 E6 補上；整班批次 PDF 已於 F2 補上；10 分鐘 soak 已於 2026-11-20 補上。
+- 已知限制：只做單一作業的 G1／G2／G3，跨作業比較已於 G4 補上（G5 題目間整體比較未做）；G1 佔比以弱項批注總數為分母；CSV 未做 Excel 樣式；成績寫回已於 E6 補上；整班批次 PDF 已於 F2 補上；10 分鐘 soak 已於 2026-11-20 補上。
+
+**G4 驗收備註**
+
+- **核心**：`packages/core/src/compare.ts` 的 `compareAssignmentStats(current, previous, generatedAt?)` 為純函式，以座號對齊兩份 `AssignmentStats` 的所有在學學生，不改來源。
+- **狀態**：兩邊都有 `done` 分數才比進步／退步／持平；本次有、上次沒有為新作品，上次有、本次沒有為缺資料，兩邊都沒有為資料不足。每筆含 previousScore／currentScore、delta、grades、counted 與 status。
+- **平均**：`averagePrevious`／`averageCurrent` 只以 compared（兩邊都有分數）學生為母體；兩個平均各自四捨五入到一位小數後再相減得到 `averageDelta`，避免新作品或缺考造成假進步。
+- **弱項**：只比 typo／sentence／structure／other，使用 `StudentStatsRow.counts`；以 compared 人數為分母計算每份平均次數。Δ 為本次－上次，負值代表改善、正值代表變多。
+- **排行與 UI**：進步／退步前 5 依 Δ 排序（同分依座號）。UI 在統計面板加「與上次比較（G4）」，下拉依作業 id 由小到大列出同班其他作業，預設目前作業之前最近的一份（同日 `-02` 正確）；沒有其他作業顯示「這是第一份作業，尚無可比較資料」。摘要 chips、排行、弱項表、可滾動學生表與載入／失敗／無資料狀態皆有；切換作業以 key 重置。
+- **IPC／preload**：`stats:compare(classId, currentId, previousId)`；preload `stats.compare`。repository 會驗證班級存在、兩份作業都在同班、id 格式正確且 currentId ≠ previousId。
+- `npm run compare:check` 15/15：5 人、3 份作業（含同日 -02）；compared=3、improved=1（S07 +9）、declined=1（S08 −5）、same=1、new=1（S20）、missing=1（S15）；平均 78.3→79.7（Δ +1.4）；弱項 1.3→1.0、0.7→0.3、0.3→0.7；換 previousId 後 73.3→79.7（Δ +6.4）；同份、跨班、不存在皆被拒絕；純函式不改來源；UI 下拉預設、摘要、表格、切換重置與 preload API 通過。
+- 已知限制：一次只比一組（目前 vs 一份上次作業），沒有多份趨勢；弱項只到類別層級；比較結果未匯出 CSV／PDF；G5 題目間整體比較未做。
 
 **M7 驗收備註**
 
@@ -618,6 +630,7 @@ essay-grader/
 ### 0.2 版
 
 - G1／G2／G3 統計
+- G4 與上次比較（已完成，2026-11-20）
 - F2 全班批次 PDF（已完成，2026-11-20）
 - 匯入／匯出 CSV
 - 完整錯誤處理與安裝檔

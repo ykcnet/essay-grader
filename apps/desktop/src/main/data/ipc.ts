@@ -35,6 +35,7 @@ import {
   createClass,
   currentRoot,
   auditAssignment,
+  compareAssignments,
   exportAssignmentStats,
   getAssignmentStats,
   getState,
@@ -179,6 +180,12 @@ export function registerDataIpc(): void {
 
   ipcMain.handle('stats:get', (_event, classId: string, assignmentId: string) =>
     getAssignmentStats(classId, assignmentId)
+  )
+
+  ipcMain.handle(
+    'stats:compare',
+    (_event, classId: string, currentId: string, previousId: string) =>
+      compareAssignments(classId, currentId, previousId)
   )
 
   ipcMain.handle('stats:export', (_event, classId: string, assignmentId: string) =>

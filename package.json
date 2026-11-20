@@ -28,6 +28,7 @@
     "excel:check": "electron apps/desktop --excel-check",
     "match:check": "electron apps/desktop --match-check",
     "batch:check": "electron apps/desktop --batch-check",
+    "compare:check": "electron apps/desktop --compare-check",
     "soak": "electron apps/desktop --soak",
     "dist": "npm run dist:win",
     "dist:win": "npm run build && npm run dist -w @essay-grader/desktop",

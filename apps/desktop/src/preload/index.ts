@@ -66,6 +66,8 @@ const api = {
   stats: {
     get: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('stats:get', classId, assignmentId),
+    compare: (classId: string, currentId: string, previousId: string) =>
+      ipcRenderer.invoke('stats:compare', classId, currentId, previousId),
     exportCsv: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('stats:export', classId, assignmentId),
     reveal: (dir: string) => ipcRenderer.invoke('stats:reveal', dir)

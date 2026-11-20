@@ -2,13 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent, JSX } from 'react'
 import {
   AUDIT_ISSUE_LABELS,
+  COMPARE_STATUS_LABELS,
   RUBRIC_PRESET_LABELS,
   RUBRIC_PRESET_ORDER,
   RUBRIC_PRESETS,
   type AssignmentAudit,
+  type AssignmentComparison,
   type AssignmentStats,
   type AssignmentSummary,
   type ClassFile,
+  type CompareStatus,
   type CreateAssignmentInput,
   type CreateClassInput,
   type DatabaseState,
@@ -825,6 +828,7 @@ export default function App(): JSX.Element {
                   <ImportPanel
                     classId={classFile.id}
                     assignment={selectedAssignment}
+                    assignments={assignments}
                     students={students}
                     works={works}
                     status={importStatus}
@@ -1298,6 +1302,7 @@ function CreateAssignmentForm({
 function ImportPanel({
   classId,
   assignment,
+  assignments,
   students,
   works,
   status,
@@ -1334,6 +1339,7 @@ function ImportPanel({
 }: {
   classId: string
   assignment: AssignmentSummary
+  assignments: AssignmentSummary[]
   students: Student[]
   works: WorkSummary[]
   status: ImportStatus | null
@@ -1535,6 +1541,9 @@ function ImportPanel({
 
       {statsOpen && (
         <StatsPanel
+          classId={classId}
+          assignmentId={assignment.id}
+          assignments={assignments}
           stats={stats}
           busy={statsBusy}
           elapsedMs={statsMs}
@@ -2676,8 +2685,11 @@ function GradebookPanel({
   )
 }
 
-/** 作業層級統計面板：G1 弱項排行、G2 常錯字、G3 個人弱項與 CSV 匯出。 */
+/** 作業層級統計面板：G1 弱項排行、G2 常錯字、G3 個人弱項、G4 與上次比較與 CSV 匯出。 */
 function StatsPanel({
+  classId,
+  assignmentId,
+  assignments,
   stats,
   busy,
   elapsedMs,
@@ -2687,6 +2699,9 @@ function StatsPanel({
   onExport,
   onReveal
 }: {
+  classId: string
+  assignmentId: string
+  assignments: AssignmentSummary[]
   stats: AssignmentStats | null
   busy: boolean
   elapsedMs: number | null
@@ -2929,6 +2944,13 @@ function StatsPanel({
             </div>
           </section>
 
+          <StatsComparePanel
+            key={`${classId}:${assignmentId}`}
+            classId={classId}
+            assignmentId={assignmentId}
+            assignments={assignments}
+          />
+
           {exported && (
             <p className="audit-meta">
               CSV：{exported.dir}（{exported.files.join('、')}）
@@ -2937,6 +2959,272 @@ function StatsPanel({
         </>
       )}
     </div>
+  )
+}
+
+/** G4 比較區塊：選一份同班的其他作業，和目前作業比成績與弱項類別。 */
+function StatsComparePanel({
+  classId,
+  assignmentId,
+  assignments
+}: {
+  classId: string
+  assignmentId: string
+  assignments: AssignmentSummary[]
+}): JSX.Element {
+  const candidates = assignments
+    .filter((item) => item.id !== assignmentId)
+    .slice()
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+
+  const defaultPreviousId = (): string | null => {
+    let found: string | null = null
+    for (const item of candidates) {
+      if (item.id < assignmentId) found = item.id
+      else break
+    }
+    return found
+  }
+
+  const hasEarlier = candidates.some((item) => item.id < assignmentId)
+
+  const [previousId, setPreviousId] = useState<string | null>(() => defaultPreviousId())
+  const [comparison, setComparison] = useState<AssignmentComparison | null>(null)
+  const [compareBusy, setCompareBusy] = useState(false)
+  const [compareError, setCompareError] = useState<string | null>(null)
+  const compareSeq = useRef(0)
+
+  useEffect(() => {
+    if (!previousId) {
+      compareSeq.current += 1
+      setComparison(null)
+      setCompareBusy(false)
+      setCompareError(null)
+      return
+    }
+
+    const seq = ++compareSeq.current
+    setComparison(null)
+    setCompareError(null)
+    setCompareBusy(true)
+
+    void window.electronAPI.stats
+      .compare(classId, assignmentId, previousId)
+      .then((result) => {
+        if (compareSeq.current !== seq) return
+        setComparison(result as AssignmentComparison)
+      })
+      .catch((error: unknown) => {
+        if (compareSeq.current !== seq) return
+        setComparison(null)
+        setCompareError(errorText(error))
+      })
+      .finally(() => {
+        if (compareSeq.current === seq) setCompareBusy(false)
+      })
+  }, [classId, assignmentId, previousId])
+
+  const score = (input: number | null | undefined): string =>
+    input === null || input === undefined
+      ? '—'
+      : Number.isInteger(input)
+        ? String(input)
+        : input.toFixed(1)
+
+  /** 弱項每份平均固定一位小數，連 1 也顯示 1.0。 */
+  const average = (input: number | null | undefined): string =>
+    input === null || input === undefined ? '—' : input.toFixed(1)
+
+  const signed = (input: number | null | undefined): string => {
+    if (input === null || input === undefined) return '—'
+    if (input > 0) return `+${score(input)}`
+    return score(input)
+  }
+
+  const deltaClass = (input: number | null | undefined): string => {
+    if (input === null || input === undefined || input === 0) return 'compare-flat'
+    return input > 0 ? 'compare-up' : 'compare-down'
+  }
+
+  const statusClass = (status: CompareStatus): string => {
+    if (status === 'improved') return 'compare-up'
+    if (status === 'declined') return 'compare-down'
+    return 'compare-flat'
+  }
+
+  return (
+    <section className="stats-block compare-block">
+      <div className="compare-head">
+        <div>
+          <h5>與上次比較（G4）</h5>
+          <p className="compare-note">
+            以座號對齊；班級平均只計兩邊都有分數的學生，新作品與缺資料不列入平均。
+          </p>
+        </div>
+        {candidates.length > 0 && (
+          <label className="compare-picker">
+            <span>上次作業</span>
+            <select
+              className="compare-select"
+              value={previousId ?? ''}
+              onChange={(event) => setPreviousId(event.target.value || null)}
+            >
+              <option value="">請選擇…</option>
+              {candidates.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.id} · {item.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+
+      {candidates.length === 0 ? (
+        <p className="muted compare-empty">這是第一份作業，尚無可比較資料</p>
+      ) : !previousId ? (
+        <p className="muted compare-empty">
+          {hasEarlier
+            ? '請從下拉選擇要比較的作業。'
+            : '這份作業之前沒有其他作業，請從下拉選擇要比較的作業。'}
+        </p>
+      ) : compareBusy ? (
+        <p className="muted compare-empty" data-compare-state="loading">
+          比較資料載入中…
+        </p>
+      ) : compareError ? (
+        <p className="compare-error" data-compare-state="error">
+          比較失敗：{compareError}
+        </p>
+      ) : !comparison ? (
+        <p className="muted compare-empty" data-compare-state="empty">
+          尚無比較資料
+        </p>
+      ) : (
+        <>
+          <p className="compare-note" data-compare-state="ready">
+            目前：{comparison.currentAssignmentId} · {comparison.currentTitle}　上次：
+            {comparison.previousAssignmentId} · {comparison.previousTitle}
+          </p>
+
+          <div className="queue-counts compare-summary">
+            <span className="queue-chip">已比較 {comparison.summary.compared} 份</span>
+            <span className={`queue-chip ${deltaClass(comparison.summary.averageDelta)}`}>
+              平均 {score(comparison.summary.averagePrevious)} →{' '}
+              {score(comparison.summary.averageCurrent)}（
+              {signed(comparison.summary.averageDelta)}）
+            </span>
+            <span className="queue-chip compare-up">進步 {comparison.summary.improved}</span>
+            <span className="queue-chip compare-down">退步 {comparison.summary.declined}</span>
+            <span className="queue-chip compare-flat">持平 {comparison.summary.same}</span>
+            <span className="queue-chip">新作品 {comparison.summary.new}</span>
+            <span className="queue-chip">缺資料 {comparison.summary.missing}</span>
+            {comparison.summary.incomplete > 0 && (
+              <span className="queue-chip">資料不足 {comparison.summary.incomplete}</span>
+            )}
+          </div>
+
+          <div className="compare-ranks">
+            <div className="compare-rank-block">
+              <p className="compare-rank-title">進步前 5</p>
+              {comparison.summary.topImproved.length === 0 ? (
+                <p className="muted small-text">無</p>
+              ) : (
+                comparison.summary.topImproved.map((item) => (
+                  <p key={`up-${item.seat}`} className="compare-rank compare-up">
+                    <span className="mono">{item.seat}</span> {item.name}
+                    <strong>{signed(item.delta)}</strong>
+                  </p>
+                ))
+              )}
+            </div>
+            <div className="compare-rank-block">
+              <p className="compare-rank-title">退步前 5</p>
+              {comparison.summary.topDeclined.length === 0 ? (
+                <p className="muted small-text">無</p>
+              ) : (
+                comparison.summary.topDeclined.map((item) => (
+                  <p key={`down-${item.seat}`} className="compare-rank compare-down">
+                    <span className="mono">{item.seat}</span> {item.name}
+                    <strong>{signed(item.delta)}</strong>
+                  </p>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="stats-scroll compare-scroll">
+            <table className="table stats-table compare-weakness-table">
+              <thead>
+                <tr>
+                  <th>類別</th>
+                  <th>上次每份平均</th>
+                  <th>本次每份平均</th>
+                  <th>Δ</th>
+                  <th>方向</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparison.weaknesses.map((row) => {
+                  const direction =
+                    row.delta === null
+                      ? '—'
+                      : row.delta > 0
+                        ? '變多'
+                        : row.delta < 0
+                          ? '改善'
+                          : '持平'
+                  return (
+                    <tr key={row.category}>
+                      <td>{row.label}</td>
+                      <td className="mono">{average(row.previousPerStudent)}</td>
+                      <td className="mono">{average(row.currentPerStudent)}</td>
+                      <td className={`mono ${deltaClass(row.delta)}`}>{signed(row.delta)}</td>
+                      <td className={deltaClass(row.delta)}>{direction}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="stats-scroll stats-scroll--tall compare-scroll">
+            <table className="table stats-table compare-student-table">
+              <thead>
+                <tr>
+                  <th className="w-seat">座號</th>
+                  <th>姓名</th>
+                  <th>上次分數</th>
+                  <th>本次分數</th>
+                  <th>Δ</th>
+                  <th>等第</th>
+                  <th>狀態</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comparison.students.map((row) => (
+                  <tr key={row.seat}>
+                    <td className="mono">{row.seat}</td>
+                    <td>{row.name}</td>
+                    <td className="mono">{score(row.previousScore)}</td>
+                    <td className="mono">{score(row.currentScore)}</td>
+                    <td className={`mono ${deltaClass(row.delta)}`}>{signed(row.delta)}</td>
+                    <td>
+                      {row.previousGrade ?? '—'} → {row.currentGrade ?? '—'}
+                    </td>
+                    <td>
+                      <span className={`compare-status ${statusClass(row.status)}`}>
+                        {COMPARE_STATUS_LABELS[row.status]}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
   )
 }
 

@@ -3,7 +3,7 @@
 紙本作文掃描 → 桌機批閱 → 評分 → 一頁回饋單 → 分數寫回 Excel。
 
 - 技術棧：**Electron + React + TypeScript**（2026-11-19 定案）
-- 版本：**0.1.0（M7 打磨＋交付＋Google Drive 外部 inbox＋成績寫回 Excel＋整班批次回饋單＋10 分鐘 soak）**
+- 版本：**0.1.0（M7 打磨＋交付＋Google Drive 外部 inbox＋成績寫回 Excel＋整班批次回饋單＋10 分鐘 soak＋G4 與上次比較）**
 - 手機端：Kotlin + ML Kit（第二階段，只寫 inbox）；現階段可先用手機 Google Drive App 上傳照片
 - 資料庫：本地資料夾，全 ASCII，中文只存在 JSON
 - 外部 inbox：Google Drive 本機同步資料夾，只搬圖片，資料庫不進雲端
@@ -41,6 +41,7 @@ npm run drive:check  # Google Drive 外部 inbox 驗收（兩種擺法、去重�
 npm run excel:check  # 成績寫回 Excel 驗收（副本、座號、驗證、重複、匯出模式、CSV、UI）
 npm run match:check  # 未匹配照片驗收（內外清單、meta、縮圖、指定座號、去重、路徑防護、UI）
 npm run batch:check  # 整班批次回饋單驗收（輸出、跳過、溢頁失敗、報告、取消、重複啟動、UI）
+npm run compare:check # G4 與上次比較驗收（狀態、平均、弱項、排行、拒絕情境、UI）
 npm run soak         # 10 分鐘連續操作壓力測試（可用 --soak-minutes=1 縮短）
 npm run dist         # 同上，產出 NSIS 安裝檔與 portable（apps/desktop/release）
 npm run dist:win     # 建置後打包 Windows x64：Setup＋Portable
@@ -109,8 +110,10 @@ Google Drive 外部 inbox：在匯入佇列表按「設定／變更」選擇 Goo
 路徑、原因與耗時。批次期間可取消，會在下一份開始前停止；同一時間只允許一個批次。
 
 統計：匯入佇列面板按「統計」，可看班級分數摘要、等第分布、分項平均、G1 弱項排行、
-G2 常錯字與 G3 每人前三弱項。按「匯出 CSV」會在該作業資料夾的 `_stats/` 產生
-`scores.csv`、`weakness-ranking.csv`、`common-typos.csv`、`student-weakness.csv`，
+G2 常錯字、G3 每人前三弱項與 G4「與上次比較」。G4 可選同班另一份作業，以座號對齊，
+顯示進步／退步／持平／新作品／缺資料、平均（只計兩邊都有分數的學生）、進步與退步前 5、
+弱項四類每份平均與學生明細；切換作業會重置比較選擇。按「匯出 CSV」會在該作業資料夾的
+`_stats/` 產生 `scores.csv`、`weakness-ranking.csv`、`common-typos.csv`、`student-weakness.csv`，
 可直接用 Excel 開啟（UTF-8 BOM）。統計只計已批（`done`）作品；未完成與未匯入的學生
 仍列在個人表，但標示「不計入」，不影響班級數字。
 
@@ -146,10 +149,10 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 
 M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付、
 Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配座號、F2 整班批次回饋單、
-10 分鐘 soak 已完成。
+10 分鐘 soak、G4 與上次比較已完成。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
-`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`spike` 通過。
+`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`spike` 通過。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），
@@ -166,6 +169,9 @@ E6 以合成成績表驗證：座號 `7`／`08`／`S12` 正確寫回、S15 未�
 F2 以 5 位學生驗證：3 份正常 `done`、1 份 `grading` 跳過、1 份 `done` 但總評超長造成溢頁失敗；
 批次結果 3 輸出／1 跳過／1 失敗，3 份 canonical PDF 均為 1 頁、135–136 KB，
 `_feedback/` 有 3 份中文檔名 PDF，報告統計一致且 CSV 有 BOM；取消、重複啟動與 UI 煙霧皆通過。
+G4 以 5 位學生、3 份作業（含同日 `-02`）驗證：已比較 3 份，進步 1（S07 +9）、退步 1（S08 −5）、
+持平 1、新作品 1、缺資料 1；平均 78.3→79.7（Δ +1.4）；弱項錯字 1.3→1.0、語句 0.7→0.3、
+結構 0.3→0.7；換上次作業會重算，同一份、跨班與不存在的作業皆被拒絕；UI 下拉預設與切換重置通過。
 soak 以 45 人、每圈 45 份回饋單跑滿 10 分鐘：15 圈、16 次批次、720 份 PDF；private 291→291 MB、
 peak 426 MB、growth 0 MB，視窗批次後回到 0，45 份作品與最後一輪 PDF 驗證皆通過。
 已知限制見 `progress.md`；下一步為 M8 手機掃描。

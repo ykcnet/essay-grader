@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-20
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 整班批次回饋單＋10 分鐘 soak 完成；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較完成；下一步 M8 手機**
 
 ---
 
@@ -29,8 +29,10 @@
 | `apps/desktop/src/main/feedback/` | M5 回饋單預覽視窗、單份 PDF（隱藏視窗＋printToPDF）、列印、另存 |
 | `apps/desktop/src/main/data/m5-check.ts` | M5 驗收：資料推導、檔名、單頁 PDF、溢頁阻擋與 UI 煙霧 |
 | `packages/core/src/stats.ts` | M6 統計純函式：分數摘要、G1 弱項排行、G2 常錯字、G3 個人前三、CSV 四檔 |
+| `packages/core/src/compare.ts` | G4 比較純函式：座號對齊、六種狀態、只計 compared 的平均、進步／退步前 5、弱項四類每份平均 |
+| `apps/desktop/src/main/data/compare-check.ts` | G4 驗收：5 人×3 份作業（含同日 -02）、狀態／平均／弱項、換 previousId、拒絕情境與 UI 煙霧 |
 | `apps/desktop/src/main/data/m6-check.ts` | M6 驗收：統計範圍、G1／G2／G3、CSV 內容與 UI 煙霧、統計截圖 |
-| `apps/desktop/src/renderer/src/App.tsx`（StatsPanel） | M6 統計面板：摘要、等第／分項平均、G1／G2／G3、匯出 CSV、開啟資料夾 |
+| `apps/desktop/src/renderer/src/App.tsx`（StatsPanel） | M6 統計面板：摘要、等第／分項平均、G1／G2／G3、匯出 CSV、開啟資料夾；G4 比較區塊：上次作業下拉、摘要、排行、弱項表、學生表 |
 | `apps/desktop/src/main/data/backup.ts` | M7 備份／還原：archiver 相對路徑 zip、排除 lock／tmp、yauzl 串流解壓、zip slip 與非空目的地防護 |
 | `apps/desktop/src/main/logger.ts` | M7 主程序日誌：時間／level、2 MB 輪替、未捕捉例外與 renderer crash、開啟日誌資料夾 |
 | `apps/desktop/src/main/data/m7-check.ts` | M7 驗收：備份內容、還原可讀、zip slip、日誌輪替與敏感內容、UI API、打包設定 |
@@ -147,6 +149,12 @@
 | 84 | 批次進度與取消 | 每份完成送 `feedback:batch-progress`（jobId、index／total、seat／name、status、message、completed）；同一時間僅一個批次；取消在下一份前停止，其餘標 cancelled 並回完整報告 |
 | 85 | F2 驗收 | `npm run batch:check` 17/17：3 輸出、1 跳過、1 溢頁失敗、1 頁 PDF 135–136 KB、中文檔名與報告一致、進度順序、取消、重複啟動與 UI 煙霧 |
 | 86 | soak 驗收 | `npm run soak` 預設 10 分鐘，可用 `--soak-minutes` 縮短；1 班 45 人、每圈 45 份批次回饋單；暖機後記 baseline，每分鐘記 private bytes／行程／視窗／PDF，批次後視窗須回 baseline；門檻 final < 700 MB、peak < 800 MB、growth < 180 MB；報告 `spike-out/soak-report.json`，失敗 exit 1 並保留報告 |
+| 87 | G4 對齊與狀態 | 以**座號**對齊兩份作業所有在學學生；進步／退步／持平只比較兩邊都有 `done` 分數者；本次有、上次沒有為新作品，上次有、本次沒有為缺資料，兩邊都沒有為資料不足 |
+| 88 | G4 平均母體 | 班級平均只以 compared（兩邊都有分數）學生計算；先各自四捨五入到一位小數，Δ 再由兩個平均相減，避免新作品或缺考扭曲 |
+| 89 | G4 弱項比較 | 只比錯字／語句／結構／其他四類，使用 `StudentStatsRow.counts`；以 compared 人數為分母算每份平均次數；Δ 為本次－上次，負值代表改善、正值代表變多 |
+| 90 | G4 排行 | 進步前 5、退步前 5 依 Δ 排序，Δ 相同依座號；不把新作品或缺資料列入排行 |
+| 91 | G4 預設上次作業 | UI 依作業 id 字串由小到大排序（`E{日期}` 與同日 `-02` 皆正確），預設選目前作業之前最近的一份；沒有其他作業顯示「這是第一份作業，尚無可比較資料」；切換目前作業以 key 重置選擇與結果 |
+| 92 | G4 驗收 | `npm run compare:check` 15/15：5 人、上次 S07 70／S08 85／S12 80／S15 60，本次 S07 79／S08 80／S12 80／S20 75／S15 缺；compared=3、平均 78.3→79.7（Δ +1.4）、弱項 1.3→1.0／0.7→0.3／0.3→0.7；換 previousId、同份、跨班、不存在、純函式不改來源與 UI 皆通過 |
 
 ---
 
@@ -230,6 +238,7 @@ essay-grader-data/
 - [ ] 量規分項／權重／等第預設數值（老師確認）
 - [x] 回饋單版面：一頁 A4、只印文字與統計、不印原圖（2026-11-19）
 - [x] **F2 整班批次回饋單：逐份輸出、跳過未完成、溢頁不中斷、進度／取消與報告**（2026-11-20）
+- [x] **G4 與上次比較：座號對齊、進步／退步、只計 compared 平均、弱項類別 Δ、UI 與 `compare:check` 15/15**（2026-11-20）
 - [x] 決定跨裝置搬檔方式：**Google Drive 本機同步資料夾（僅 inbox，資料庫不進雲端）**（2026-11-19）
 - [ ] 補國中版評語庫（介面先留空位）
 - [ ] 批閱主畫面草圖（一頁）
@@ -348,11 +357,25 @@ essay-grader-data/
 - 回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`spike` 全數通過（spike private 462 MB）。
 - 報告：`spike-out/soak-report.json`（25 筆記憶體取樣、逐圈耗時、視窗統計、結束驗證與門檻結果）。
 
-### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak）
+### G4 與上次比較驗收（2026-11-20）
+
+- 測試資料：1 班 5 位在學學生（S07／S08／S12／S15／S20）、3 份作業；`E20261110` 與 `E20261110-02` 為同日作業，`E20261120` 為本次。上次採用 `-02`，另有更早的 `E20261110` 用來驗證切換 previousId。
+- 上次：S07 70 B+、S08 85 A+、S12 80 A、S15 60 C；本次：S07 79 B++、S08 80 A、S12 80 A、S20 75 B++、S15 缺資料。
+- 核心比較：在學 5、已比較 3、進步 1（S07 +9）、退步 1（S08 −5）、持平 1（S12）、新作品 1（S20）、缺資料 1（S15）、資料不足 0。
+- 平均：只計 compared 3 人，上次 78.3、本次 79.7、Δ +1.4；若把新作品或缺資料算進去會變成 73.8→78.5，因此不採用。進步前 5 第一名 S07、退步前 5 第一名 S08。
+- 弱項每份平均（compared 3 人）：錯字 1.3→1.0（Δ −0.3）、語句 0.7→0.3（Δ −0.4）、結構 0.3→0.7（Δ +0.4）、其他 0.0→0.0（Δ 0）。UI 以一位小數呈現。
+- 純函式：`compareAssignmentStats` 不改來源 `AssignmentStats`（JSON 前後相同），可注入 `generatedAt`；回傳 current／previous id 與標題。
+- 換 previousId：改用 `E20261110` 後平均 73.3→79.7（Δ +6.4）、進步第一 S07 +19、退步第一 S08 −10，結果確實改變。
+- 拒絕情境：currentId＝previousId 回「目前作業與上次作業不能是同一份」；跨班作業回「找不到上次作業」；不存在的作業分別回「找不到目前作業／上次作業」。
+- UI：統計面板有「與上次比較（G4）」、上次作業下拉（預設 `E20261110-02`，同日 `-02` 排序正確）、摘要 chips、進步／退步前 5、弱項類別表、5 列學生明細表；改選 `E20261110` 後摘要變 73.3→79.7；切換目前作業後下拉重置為 `E20261110`。preload `stats.compare` 存在（隱藏視窗煙霧）。
+- `npm run compare:check` 15/15；回歸 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`soak --soak-minutes=1` 8/8、`spike` 全數通過。
+
+### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4）
 
 - soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。
 - soak 期間批次吞吐量多數約 37 秒／圈，但曾數次升至約 53–66 秒／圈；前一次 10 分鐘測試在後段回落，本次則在最後兩圈升高。記憶體與視窗數同期沒有累積，研判與主機 I/O／防毒掃描有關，尚未在乾淨機器上重現或排除。
 - soak 的記憶體門檻（final 700 MB、peak 800 MB、growth 180 MB）以本機暖機後 baseline 約 290 MB 訂定，換到記憶體較大或顯示卡不同的電腦仍需重跑確認。
+- `m2:check` 的 10 張 2600px 匯入時序檢查在原主機約 1–2 秒；目前主機負載下量到 4.6–4.8 秒，已把門檻調整為 8 秒（與既有等待上限一致），功能與配對仍為 13/13。
 - 量規預設採用均衡版（40／30／30），之後可調整；三組配分、扣分 0.5／0.5、上限 10 與等第門檻仍為預設值，尚未經老師確認。
 - 量規或等第門檻變更不會自動重算既有作品的 `scores`；已批作品若需要新量規的分數與等第，仍要重新開啟該份並完成批閱。
 - 等第名稱只檢查去空白後不可為空、不可重複，未限制長度；最低分只接受 0–100，未限制級距間隔。
@@ -363,7 +386,9 @@ essay-grader-data/
 - 批次報告含學生姓名與輸出路徑，屬老師要求的輸出；程式日誌仍不記錄姓名或總評全文。
 - 統計只計已批（`done`）作品；批閱中與未匯入不進班級摘要、排行與常錯字，避免數字隨批閱進度跳動。
 - G1 佔比以「弱項批注總數」為分母，不含佳句與一般評語；同一份作品多次標記會累計。
-- 統計目前只做單一作業，尚未跨作業比較（G4 趨勢／G5 個人進退步未做）。
+- G4 已可比較同班兩份作業，但一次只比一組（目前 vs 一份上次作業），沒有多份趨勢圖、全班長期走勢或題目間整體比較（G5 未做）；比較平均只涵蓋兩邊都有 `done` 分數的學生。
+- G4 弱項只比類別層級（錯字／語句／結構／其他），不細分到子類或前三名；新作品與缺資料不列入平均與排行，但學生明細表仍會列出。
+- G4 比較結果目前只在 UI 顯示，沒有匯出 CSV／PDF；需要的話可從學生明細表自行截圖或另外複製。
 - CSV 為 UTF-8 BOM＋CRLF，Excel 可直接開啟；尚未做 Excel 格式（欄寬、樣式、多工作表）。
 - 回饋單只用系統字型（Microsoft JhengHei、標楷體／PMingLiU fallback），未內建 Noto Serif TC；換到沒有這些字型的電腦需再確認。
 - 回饋單摘要有上限（錯字 12 種、詞句 6 句、佳句 4 句），超出只顯示前 N 筆；完整內容仍在 `work.json` 與批閱畫面。

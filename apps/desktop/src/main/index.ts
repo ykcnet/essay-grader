@@ -11,6 +11,7 @@ import { autoOpenLastDatabase } from './data/repository'
 import { readSettings } from './data/settings'
 import { registerFeedbackIpc } from './feedback/ipc'
 import { runBatchCheck } from './feedback/batch-check'
+import { runCompareCheck } from './data/compare-check'
 import { runDriveCheck } from './import/drive-check'
 import { runMatchCheck } from './import/match-check'
 import { runM2Check } from './import/m2-check'
@@ -34,6 +35,7 @@ const driveMode = process.argv.includes('--drive-check')
 const excelMode = process.argv.includes('--excel-check')
 const matchMode = process.argv.includes('--match-check')
 const batchMode = process.argv.includes('--batch-check')
+const compareMode = process.argv.includes('--compare-check')
 const soakMode = process.argv.includes('--soak')
 const checkMode =
   m1Mode ||
@@ -47,6 +49,7 @@ const checkMode =
   excelMode ||
   matchMode ||
   batchMode ||
+  compareMode ||
   soakMode ||
   spikeMode ||
   fixturesOnly
@@ -224,6 +227,12 @@ if (!gotLock) {
       return
     }
 
+    if (compareMode) {
+      const code = await runCompareCheck()
+      app.exit(code)
+      return
+    }
+
     if (soakMode) {
       const code = await runSoak()
       app.exit(code)
@@ -264,6 +273,7 @@ if (!gotLock) {
       !excelMode &&
       !matchMode &&
       !batchMode &&
+      !compareMode &&
       !soakMode &&
       process.platform !== 'darwin'
     ) {
