@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-20
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 整班批次回饋單完成；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 整班批次回饋單＋10 分鐘 soak 完成；下一步 M8 手機**
 
 ---
 
@@ -45,6 +45,7 @@
 | `apps/desktop/src/main/import/match-check.ts` | 未匹配照片驗收：meta／reason、舊檔、縮圖、指定 3 張頁序、去重、拒絕情境與 UI 煙霧 |
 | `apps/desktop/src/main/feedback/batch.ts` | F2 整班批次：逐份輸出、跳過未完成、單份失敗不中斷、進度／取消、`_feedback/` 中文檔名與 JSON／CSV 報告 |
 | `apps/desktop/src/main/feedback/batch-check.ts` | F2 驗收：5 人輸出／跳過／溢頁失敗、報告、進度順序、取消、重複啟動與 UI 煙霧 |
+| `apps/desktop/src/main/soak.ts` | 10 分鐘 soak：45 人暫存資料庫、每圈批次檢查／統計／45 份回饋單／autosave、private bytes 與視窗數取樣、結束資料驗證 |
 | `apps/desktop/src/renderer/src/App.tsx`（BatchFeedbackPanel） | F2 批次面板：已批／未完成、輸出位置、開始／取消／開啟資料夾、進度條與明細表 |
 | `apps/desktop/src/renderer/src/review/` | M3 三欄式批閱介面：Konva 縮放平移、五類批注、評語庫、評分、總評、autosave |
 | `apps/desktop/src/renderer/src/feedback/` | M5 一頁 A4 回饋單：真實資料、密度調整、列印工具列 |
@@ -145,6 +146,7 @@
 | 83 | 批次報告 | `_feedback/report.json` 與 `report.csv`（UTF-8 BOM＋CRLF），含 generatedAt、總數、成功／跳過／失敗／取消、每筆座號／姓名／狀態／路徑／原因／耗時；重跑覆蓋同名檔 |
 | 84 | 批次進度與取消 | 每份完成送 `feedback:batch-progress`（jobId、index／total、seat／name、status、message、completed）；同一時間僅一個批次；取消在下一份前停止，其餘標 cancelled 並回完整報告 |
 | 85 | F2 驗收 | `npm run batch:check` 17/17：3 輸出、1 跳過、1 溢頁失敗、1 頁 PDF 135–136 KB、中文檔名與報告一致、進度順序、取消、重複啟動與 UI 煙霧 |
+| 86 | soak 驗收 | `npm run soak` 預設 10 分鐘，可用 `--soak-minutes` 縮短；1 班 45 人、每圈 45 份批次回饋單；暖機後記 baseline，每分鐘記 private bytes／行程／視窗／PDF，批次後視窗須回 baseline；門檻 final < 700 MB、peak < 800 MB、growth < 180 MB；報告 `spike-out/soak-report.json`，失敗 exit 1 並保留報告 |
 
 ---
 
@@ -223,7 +225,7 @@ essay-grader-data/
 - [x] M4 批次檢查與評分收斂：均衡版預設、整班問題掃描、45 份流程驗收（2026-11-19）
 - [x] **M5 回饋單：一頁 A4、單份 PDF、列印、檔名規則、溢頁阻擋**（2026-11-19）
 - [x] **M6 統計：G1 弱項排行、G2 常錯字、G3 個人弱項、CSV 四檔**（2026-11-19）
-- [ ] 10 分鐘連續操作 soak（自動化目前只跑短時間壓力與 UI 煙霧）
+- [x] 10 分鐘連續操作 soak（`npm run soak`，2026-11-20 完成）
 - [x] **E6 成績寫回 Excel：`excel:check` 25/25 通過**（2026-11-20）
 - [ ] 量規分項／權重／等第預設數值（老師確認）
 - [x] 回饋單版面：一頁 A4、只印文字與統計、不印原圖（2026-11-19）
@@ -334,9 +336,23 @@ essay-grader-data/
 - 打包：以同版號 0.1.0 重新產出 `EssayGrader-0.1.0-Setup.exe`（134,137,825 bytes）與 `EssayGrader-0.1.0-Portable.exe`（120,788,287 bytes），已確認 app.asar 內含批次 IPC。
 - `npm run batch:check` 17/17；回歸 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`spike` 全數通過。
 
-### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2）
+### 10 分鐘 soak 驗收（2026-11-20）
 
-- 10 分鐘連續操作 soak 尚未執行，目前只有 `m3:check`、`m4:check`、`m5:check` 的短時間 UI 煙霧與 45 份批次檢查。
+- 指令與資料：`npm run soak` 預設 10 分鐘，`--soak-minutes` 可縮短；暫存資料庫在 `spike-out/soak/db`，1 班 45 位在學學生、1 份作業、45 份 `done` 作品。每份 1 頁小 JPG，分數 62–90，總評皆不同且 ≥30 字，另有錯字×2、語句、結構、佳句共 5 個批注。
+- 每圈流程：`auditAssignment` 確認 done=45、問題與提醒皆 0；`getAssignmentStats` 確認 done=45；整班批次回饋單 45 份，確認 exported=45、failed=0；輪替 3 位學生 `loadWork` → 固定長度總評 → `saveWork` → 重讀驗證；等待 700–850ms；批次後比對視窗數。
+- 正式結果：15 圈、16 次批次（含暖機 1 次）、720 份 PDF、15 次批次檢查、15 次統計、45 次 autosave；實際歷時 10.78 分鐘（含暖機 37.7 秒）。
+- 記憶體：以 `app.getAppMetrics()` 逐行程加總 `memory.privateBytes`。baseline 291 MB、final 291 MB、peak 426 MB、growth 0 MB；全部低於 final 700／peak 800／growth 180 MB 門檻，無逐圈累積。
+- 視窗：baseline 0；批次進行中最多 1 個隱藏視窗；每圈批次結束後最多 0、結束時 0，沒有泄漏。行程數在批次中最多 4–5 個，批次結束回到 3 個。
+- 結束驗證：45/45 份 `work.json` 可讀、頁數仍為 1、分數與初始值相同；最後一輪 `_feedback/` 45/45 份 PDF 皆 1 頁且 >20 KB；沒有未捕捉例外、沒有 failed；關閉資料庫後程序正常結束，exit code 0。
+- 吞吐量：暖機 37.7 秒；各圈 36.0–65.8 秒，多數約 37 秒。第 14–15 圈升至 52.7／65.8 秒；同期 private bytes 與視窗數沒有上升，前一次 10 分鐘測試也在少數圈數出現類似升幅後回落，研判為主機 I/O／防毒掃描等外部因素，非程式累積泄漏，列為已知限制。
+- 回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`spike` 全數通過（spike private 462 MB）。
+- 報告：`spike-out/soak-report.json`（25 筆記憶體取樣、逐圈耗時、視窗統計、結束驗證與門檻結果）。
+
+### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak）
+
+- soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。
+- soak 期間批次吞吐量多數約 37 秒／圈，但曾數次升至約 53–66 秒／圈；前一次 10 分鐘測試在後段回落，本次則在最後兩圈升高。記憶體與視窗數同期沒有累積，研判與主機 I/O／防毒掃描有關，尚未在乾淨機器上重現或排除。
+- soak 的記憶體門檻（final 700 MB、peak 800 MB、growth 180 MB）以本機暖機後 baseline 約 290 MB 訂定，換到記憶體較大或顯示卡不同的電腦仍需重跑確認。
 - 量規預設採用均衡版（40／30／30），之後可調整；三組配分、扣分 0.5／0.5、上限 10 與等第門檻仍為預設值，尚未經老師確認。
 - 量規或等第門檻變更不會自動重算既有作品的 `scores`；已批作品若需要新量規的分數與等第，仍要重新開啟該份並完成批閱。
 - 等第名稱只檢查去空白後不可為空、不可重複，未限制長度；最低分只接受 0–100，未限制級距間隔。

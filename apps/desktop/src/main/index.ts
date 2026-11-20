@@ -17,6 +17,7 @@ import { runM2Check } from './import/m2-check'
 import { runExcelCheck } from './data/gradebook-check'
 import { installErrorHandlers, logError, logInfo, logWarn, openLogsFolder } from './logger'
 import { registerSpikeIpc, runSpike } from './spike'
+import { runSoak } from './soak'
 import { validateFixtures } from './validate-fixtures'
 
 const isDev = !app.isPackaged
@@ -33,6 +34,7 @@ const driveMode = process.argv.includes('--drive-check')
 const excelMode = process.argv.includes('--excel-check')
 const matchMode = process.argv.includes('--match-check')
 const batchMode = process.argv.includes('--batch-check')
+const soakMode = process.argv.includes('--soak')
 const checkMode =
   m1Mode ||
   m2Mode ||
@@ -45,6 +47,7 @@ const checkMode =
   excelMode ||
   matchMode ||
   batchMode ||
+  soakMode ||
   spikeMode ||
   fixturesOnly
 
@@ -221,6 +224,12 @@ if (!gotLock) {
       return
     }
 
+    if (soakMode) {
+      const code = await runSoak()
+      app.exit(code)
+      return
+    }
+
     // 開發模式啟動時驗證 fixtures；--validate-fixtures 只驗證不開窗。
     if (isDev || fixturesOnly) {
       const ok = await validateFixtures()
@@ -255,6 +264,7 @@ if (!gotLock) {
       !excelMode &&
       !matchMode &&
       !batchMode &&
+      !soakMode &&
       process.platform !== 'darwin'
     ) {
       app.quit()
