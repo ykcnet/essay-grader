@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, shell } from 'electron'
+import { mkdir } from 'node:fs/promises'
 import { feedbackExportFileName } from '@essay-grader/core'
 import {
   assertFeedbackExportable,
@@ -7,6 +8,12 @@ import {
   exportFeedbackPdf,
   openFeedbackPreview
 } from './service'
+import {
+  cancelBatchFeedback,
+  currentBatchJobId,
+  getBatchFeedbackInfo,
+  startBatchFeedback
+} from './batch'
 
 export function registerFeedbackIpc(): void {
   ipcMain.handle('feedback:load', (_event, classId: string, assignmentId: string, seat: string) =>
@@ -54,6 +61,45 @@ export function registerFeedbackIpc(): void {
 
       const exported = await exportFeedbackPdf(classId, assignmentId, seat, result.filePath)
       return { canceled: false as const, ...exported }
+    }
+  )
+
+  ipcMain.handle(
+    'feedback:batch-info',
+    (_event, classId: string, assignmentId: string) =>
+      getBatchFeedbackInfo(classId, assignmentId)
+  )
+
+  ipcMain.handle(
+    'feedback:batch-start',
+    async (event, classId: string, assignmentId: string) => {
+      const sender = event.sender
+      const report = await startBatchFeedback({
+        classId,
+        assignmentId,
+        onProgress: (progress) => {
+          if (!sender.isDestroyed()) {
+            sender.send('feedback:batch-progress', progress)
+          }
+        }
+      })
+      return report
+    }
+  )
+
+  ipcMain.handle('feedback:batch-cancel', async (_event, jobId?: string) => {
+    const id = jobId?.trim() || currentBatchJobId()
+    if (!id) return { canceled: false, reason: '目前沒有執行中的批次回饋單' }
+    return cancelBatchFeedback(id)
+  })
+
+  ipcMain.handle(
+    'feedback:batch-reveal',
+    async (_event, classId: string, assignmentId: string) => {
+      const info = await getBatchFeedbackInfo(classId, assignmentId)
+      await mkdir(info.outputDir, { recursive: true })
+      await shell.openPath(info.outputDir)
+      return { dir: info.outputDir }
     }
   )
 

@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-20
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配完成；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 整班批次回饋單完成；下一步 M8 手機**
 
 ---
 
@@ -43,6 +43,9 @@
 | `apps/desktop/src/main/import/drive-check.ts` | Drive 驗收：兩種擺法、sidecar 優先、PDF、錯誤路徑、設定持久化與 UI 煙霧 |
 | `apps/desktop/src/main/import/unmatched.ts` | 未匹配照片：內外清單、`.meta.json` 解析、320px 縮圖、路徑 realpath 防護、複製到 `_inbox` 與來源清理 |
 | `apps/desktop/src/main/import/match-check.ts` | 未匹配照片驗收：meta／reason、舊檔、縮圖、指定 3 張頁序、去重、拒絕情境與 UI 煙霧 |
+| `apps/desktop/src/main/feedback/batch.ts` | F2 整班批次：逐份輸出、跳過未完成、單份失敗不中斷、進度／取消、`_feedback/` 中文檔名與 JSON／CSV 報告 |
+| `apps/desktop/src/main/feedback/batch-check.ts` | F2 驗收：5 人輸出／跳過／溢頁失敗、報告、進度順序、取消、重複啟動與 UI 煙霧 |
+| `apps/desktop/src/renderer/src/App.tsx`（BatchFeedbackPanel） | F2 批次面板：已批／未完成、輸出位置、開始／取消／開啟資料夾、進度條與明細表 |
 | `apps/desktop/src/renderer/src/review/` | M3 三欄式批閱介面：Konva 縮放平移、五類批注、評語庫、評分、總評、autosave |
 | `apps/desktop/src/renderer/src/feedback/` | M5 一頁 A4 回饋單：真實資料、密度調整、列印工具列 |
 | `apps/desktop/src/renderer/src/spike/` | 手動驗證頁（縮放、標記、日誌） |
@@ -137,6 +140,11 @@
 | 78 | 外部狀態 | `ImportStatus` 增加 `externalRoot`／`externalWatching`／`externalError`；事件加 `source: 'drive'`，訊息以「Drive：」開頭 |
 | 79 | 外部設定 | `settings.json` 增加 `externalInboxRoot`；設定／清除立即套用，重開保留；資料夾選擇器只在 UI 層，核心流程可直接指定路徑 |
 | 80 | Drive 驗收 | `npm run drive:check` 23/23：兩種擺法、sidecar 優先、去重、PDF、錯誤路由、根目錄不存在、設定持久化、UI 與 preload API |
+| 81 | 批次輸出範圍 | 只處理 `done` 且有分數的作品；`pending`／`grading`／已批未評分列為 skipped，單份溢頁或錯誤列為 failed，皆不中斷整批；依座號逐份處理 |
+| 82 | 批次輸出位置 | 保留 `S{座號}/S{座號}_feedback.pdf`；另複製到作業資料夾 `_feedback/S{座號}_{姓名}_回饋單.pdf`，姓名空白退回 `S{座號}_回饋單.pdf`，沿用 `sanitizeFileName` |
+| 83 | 批次報告 | `_feedback/report.json` 與 `report.csv`（UTF-8 BOM＋CRLF），含 generatedAt、總數、成功／跳過／失敗／取消、每筆座號／姓名／狀態／路徑／原因／耗時；重跑覆蓋同名檔 |
+| 84 | 批次進度與取消 | 每份完成送 `feedback:batch-progress`（jobId、index／total、seat／name、status、message、completed）；同一時間僅一個批次；取消在下一份前停止，其餘標 cancelled 並回完整報告 |
+| 85 | F2 驗收 | `npm run batch:check` 17/17：3 輸出、1 跳過、1 溢頁失敗、1 頁 PDF 135–136 KB、中文檔名與報告一致、進度順序、取消、重複啟動與 UI 煙霧 |
 
 ---
 
@@ -171,6 +179,10 @@ essay-grader-data/
         weakness-ranking.csv
         common-typos.csv
         student-weakness.csv
+      _feedback/
+        S07_王小明_回饋單.pdf
+        report.json
+        report.csv
 ```
 
 **命名規則**：全 ASCII，中文只存在 JSON
@@ -215,7 +227,7 @@ essay-grader-data/
 - [x] **E6 成績寫回 Excel：`excel:check` 25/25 通過**（2026-11-20）
 - [ ] 量規分項／權重／等第預設數值（老師確認）
 - [x] 回饋單版面：一頁 A4、只印文字與統計、不印原圖（2026-11-19）
-- [ ] 回饋單整班批次 PDF
+- [x] **F2 整班批次回饋單：逐份輸出、跳過未完成、溢頁不中斷、進度／取消與報告**（2026-11-20）
 - [x] 決定跨裝置搬檔方式：**Google Drive 本機同步資料夾（僅 inbox，資料庫不進雲端）**（2026-11-19）
 - [ ] 補國中版評語庫（介面先留空位）
 - [ ] 批閱主畫面草圖（一頁）
@@ -264,7 +276,7 @@ essay-grader-data/
 - 日誌：每筆含 ISO timestamp 與 `[INFO]`／`[WARN]`／`[ERROR]`；連續寫入後 `app.1.log` 2,098,947 bytes、`app.log` 164,250 bytes，確認超過 2 MB 會輪替；日誌不含測試學生姓名與總評全文。主程序另捕捉 `uncaughtException`、`unhandledRejection`、`render-process-gone`、載入失敗，React ErrorBoundary 已進建置產物。
 - UI／API：主畫面有「備份資料庫」「還原備份」「開啟日誌」；preload 的 `backup.create`、`backup.restore`、`logs.open`、`logs.path`、`logs.write` 皆存在（隱藏視窗煙霧）。
 - 打包設定：`apps/desktop/electron-builder.yml` 具 appId `tw.edu.essaygrader`、productName 作文批閱、win x64 的 nsis＋portable、NSIS 非 oneClick 且可選安裝路徑、桌面捷徑、asar、sharp／@img asarUnpack、`npmRebuild: false`、ASCII 產物名、輸出到 `apps/desktop/release`；根目錄 `app.ico` 410,598 bytes；三份 package.json 版本一致 0.1.0。
-- 打包產物：`EssayGrader-0.1.0-Setup.exe` 134,125,323 bytes（約 127.9 MB）、`EssayGrader-0.1.0-Portable.exe` 120,775,376 bytes（約 115.2 MB）、`EssayGrader-0.1.0-Setup.exe.blockmap` 141,143 bytes；`win-unpacked` 以 `--user-data-dir` 啟動成功，packaged 版日誌正常寫入。E6 完成後於 2026-11-20 以同版號重新打包，兩份產物都含成績寫回。第一次打包因 GitHub 下載 Electron 卡住，改用本機已安裝的 `electronDist` 後完成；快取中的 NSIS／7zip 可重用。
+- 打包產物：`EssayGrader-0.1.0-Setup.exe` 134,137,825 bytes（約 127.9 MB）、`EssayGrader-0.1.0-Portable.exe` 120,788,287 bytes（約 115.2 MB）、`EssayGrader-0.1.0-Setup.exe.blockmap`；`win-unpacked` 以 `--user-data-dir` 啟動成功，packaged 版日誌正常寫入。E6 完成後於 2026-11-20 以同版號重新打包；F2 完成後再次以同版號打包，產物已含批次回饋單。第一次打包因 GitHub 下載 Electron 卡住，改用本機已安裝的 `electronDist` 後完成；快取中的 NSIS／7zip 可重用。
 - 完整回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`spike` 全通過（FPS 60.0、A4 PDF 178 KB／105 ms、監看 10/10 78 ms、private 446 MB）。
 
 ### Google Drive 外部 inbox 驗收（2026-11-19）
@@ -309,14 +321,30 @@ essay-grader-data/
 - UI：匯入佇列有「未匹配照片」按鈕；面板可開、有縮圖卡片、在學學生下拉（2 人）、全選／清除、指定按鈕與「來源會刪除」確認文字；preload 的 `listUnmatched`／`unmatchedThumbnail`／`assignUnmatched` 皆存在（隱藏視窗煙霧）。
 - `npm run match:check` 21/21；回歸 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`spike` 全數通過。
 
-### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配）
+### F2 整班批次回饋單驗收（2026-11-20）
+
+- 測試資料：5 位學生。S07／S08／S09 為正常 `done`，其中 S09 姓名含 `/`、`:`、`?` 用來驗證檔名清洗；S10 為 `grading`；S11 為 `done` 但總評超長（約 9,000 字）造成溢頁。另建取消、重複啟動與空作業三份測試作業。
+- 批次結果：total 5、exported 3、skipped 1、failed 1，流程未因 S11 溢頁中斷。S10 原因為「批閱中，尚未完成」，S11 原因為「回饋單內容超過一頁，請縮短總評或減少批注」。
+- Canonical PDF：S07／S08／S09 都存在 `S{座號}/S{座號}_feedback.pdf`，皆 1 頁、135–136 KB；S10、S11 不產生 canonical PDF。
+- `_feedback/`：3 份 PDF，`S07_王小明_回饋單.pdf`、`S08_陳怡君_回饋單.pdf`、`S09_林_小_美__回饋單.pdf`；`report.json` 的 jobId、統計與每筆欄位和報告一致；`report.csv` 約 725 bytes、UTF-8 BOM、CRLF、6 列，S11 列為 failed。
+- 進度 callback：5 筆依序為 `1/5 S07 exported`、`2/5 S08 exported`、`3/5 S09 exported`、`4/5 S10 skipped`、`5/5 S11 failed`，completed 由 1 累加到 5。
+- 取消：第 1 份完成後觸發，結果 total 3、exported 1、cancelled 2，S08／S09 沒有 canonical PDF，`_feedback/` 只有 1 份 PDF。
+- 重複啟動：第一個批次尚未結束時再啟動會回「已有批次回饋單正在進行」，第一個批次仍正常完成 2 份。
+- UI：匯入佇列有「批次回饋單」按鈕；面板顯示已批 4 份、未完成 1 份、`_feedback` 輸出路徑、開始／取消／開啟資料夾與進度條；空作業時開始按鈕停用；preload 的 `batchInfo`／`batchStart`／`batchCancel`／`batchReveal`／`onBatchProgress` 皆存在（隱藏視窗煙霧）。
+- 打包：以同版號 0.1.0 重新產出 `EssayGrader-0.1.0-Setup.exe`（134,137,825 bytes）與 `EssayGrader-0.1.0-Portable.exe`（120,788,287 bytes），已確認 app.asar 內含批次 IPC。
+- `npm run batch:check` 17/17；回歸 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`spike` 全數通過。
+
+### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2）
 
 - 10 分鐘連續操作 soak 尚未執行，目前只有 `m3:check`、`m4:check`、`m5:check` 的短時間 UI 煙霧與 45 份批次檢查。
 - 量規預設採用均衡版（40／30／30），之後可調整；三組配分、扣分 0.5／0.5、上限 10 與等第門檻仍為預設值，尚未經老師確認。
 - 量規或等第門檻變更不會自動重算既有作品的 `scores`；已批作品若需要新量規的分數與等第，仍要重新開啟該份並完成批閱。
 - 等第名稱只檢查去空白後不可為空、不可重複，未限制長度；最低分只接受 0–100，未限制級距間隔。
 - 內建評語庫只有高中職版 126 條；國中版尚未補。
-- 成績寫回以單一作業、單一工作表為範圍；ExcelJS 可能微調樣式，含圖表／樞紐／巨集的檔案改走匯出新檔，不直接改原檔。回饋單目前只支援單份，尚未做整班批次 PDF。
+- 成績寫回以單一作業、單一工作表為範圍；ExcelJS 可能微調樣式，含圖表／樞紐／巨集的檔案改走匯出新檔，不直接改原檔。整班批次回饋單已於 F2 補上，但仍以單一作業為範圍。
+- 批次回饋單逐份開啟隱藏視窗，份數多時需要時間；失敗或跳過的份數要修正後重跑整批，尚未提供只重跑失敗項。
+- 批次取消只在下一份開始前生效，正在產生的那一份會完成；已輸出的 PDF 不會因取消而刪除。
+- 批次報告含學生姓名與輸出路徑，屬老師要求的輸出；程式日誌仍不記錄姓名或總評全文。
 - 統計只計已批（`done`）作品；批閱中與未匯入不進班級摘要、排行與常錯字，避免數字隨批閱進度跳動。
 - G1 佔比以「弱項批注總數」為分母，不含佳句與一般評語；同一份作品多次標記會累計。
 - 統計目前只做單一作業，尚未跨作業比較（G4 趨勢／G5 個人進退步未做）。

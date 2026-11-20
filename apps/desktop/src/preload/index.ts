@@ -9,6 +9,12 @@ ipcRenderer.on('import:event', (_event, payload) => {
   for (const listener of importListeners.values()) listener(payload)
 })
 
+const batchListeners = new Map<number, ImportEventListener>()
+
+ipcRenderer.on('feedback:batch-progress', (_event, payload) => {
+  for (const listener of batchListeners.values()) listener(payload)
+})
+
 const api = {
   platform: process.platform,
   versions: {
@@ -86,7 +92,22 @@ const api = {
     saveAs: (classId: string, assignmentId: string, seat: string) =>
       ipcRenderer.invoke('feedback:save-as', classId, assignmentId, seat),
     print: () => ipcRenderer.invoke('feedback:print'),
-    reveal: (path: string) => ipcRenderer.invoke('feedback:reveal', path)
+    reveal: (path: string) => ipcRenderer.invoke('feedback:reveal', path),
+    batchInfo: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('feedback:batch-info', classId, assignmentId),
+    batchStart: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('feedback:batch-start', classId, assignmentId),
+    batchCancel: (jobId: string) => ipcRenderer.invoke('feedback:batch-cancel', jobId),
+    batchReveal: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('feedback:batch-reveal', classId, assignmentId),
+    onBatchProgress: (listener: ImportEventListener) => {
+      const id = nextListenerId++
+      batchListeners.set(id, listener)
+      return id
+    },
+    offBatchProgress: (id: number) => {
+      batchListeners.delete(id)
+    }
   },
   library: {
     get: () => ipcRenderer.invoke('library:get')

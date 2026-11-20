@@ -1,6 +1,6 @@
 # Essay Grader — 製作方案（草案）
 
-> 版本 v1.0 ｜ 2026-11-19 ｜ 狀態：**M0–M7＋Google Drive 外部 inbox 完成；下一步 M8 手機**
+> 版本 v1.0 ｜ 2026-11-19 ｜ 狀態：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 批次回饋單完成；下一步 M8 手機**
 >
 > 需求本體仍以 `features.md` 為準；本檔整理技術棧比較、架構、資料模型、里程碑與待決事項。
 > 「已定」代表本次確認；「建議」代表尚未拍板。
@@ -575,9 +575,20 @@ essay-grader/
 - **還原**：`restoreBackupZip` 先以 yauzl 列出並驗證所有 entry，再用串流解壓；拒絕絕對路徑、磁碟代號、`..`、ADS、符號連結、重複路徑與非資料庫 zip。目的地非空一律拒絕；解壓失敗會清掉本次寫入內容。還原成功後由 IPC 以新資料夾 `openDatabase`，舊資料庫不動。
 - **日誌**：`apps/desktop/src/main/logger.ts` 寫 `app.getPath('userData')/logs/app.log`，格式為 ISO timestamp＋level＋訊息；`app.log` 超過 2 MB 輪替為 `app.1.log`。只記錄事件與錯誤，不記錄學生姓名、總評、批注全文或圖片。`uncaughtException`、`unhandledRejection`、`render-process-gone`、載入失敗皆入日誌；嚴重錯誤顯示「開啟日誌／結束」視窗。
 - **ErrorBoundary**：React 根層包 `ErrorBoundary`，顯示友善錯誤畫面、重新載入與開啟日誌，並把錯誤名稱／訊息寫入日誌（不含 props 或作品內容）。
-- **打包**：`apps/desktop/electron-builder.yml`，appId `tw.edu.essaygrader`、productName「作文批閱」、win x64、nsis（非 oneClick、可選路徑、桌面捷徑）＋portable、asar、sharp／@img asarUnpack、`npmRebuild: false`；產物 `EssayGrader-0.1.0-Setup.exe`（134,125,323 bytes）、`EssayGrader-0.1.0-Portable.exe`（120,775,376 bytes），E6 完成後於 2026-11-20 以同版號重新打包，輸出 `apps/desktop/release`。指令：`npm run dist`、`npm run dist:win`、`npm run dist:portable`。設定以 `electronDist` 使用已安裝的 Electron runtime；第一次打包可能需要下載 NSIS／7zip。
+- **打包**：`apps/desktop/electron-builder.yml`，appId `tw.edu.essaygrader`、productName「作文批閱」、win x64、nsis（非 oneClick、可選路徑、桌面捷徑）＋portable、asar、sharp／@img asarUnpack、`npmRebuild: false`；產物 `EssayGrader-0.1.0-Setup.exe`（134,137,825 bytes）、`EssayGrader-0.1.0-Portable.exe`（120,788,287 bytes），F2 完成後於 2026-11-20 以同版號重新打包，輸出 `apps/desktop/release`。指令：`npm run dist`、`npm run dist:win`、`npm run dist:portable`。設定以 `electronDist` 使用已安裝的 Electron runtime；第一次打包可能需要下載 NSIS／7zip。
 - `npm run m7:check` 25/25：備份內容與排除規則、相對路徑、非空目的地、zip slip、還原後可讀、日誌格式與輪替、敏感內容、ErrorBoundary、UI 入口、preload API、打包設定、版本與產物檢查。
 - 已知限制：只提供 Windows x64 安裝檔；備份為完整快照且未加密；還原只能到新的空資料夾；日誌只留一份輪替檔；portable 的設定與日誌仍在 `%APPDATA%`。
+
+**F2 驗收備註**
+
+- **批次範圍**：只處理目前作業 `status === 'done'` 且有 `scores` 的作品；`pending`、`grading`、已批未評分列為 skipped，內容溢頁或其他錯誤列為 failed，單份失敗不中斷整批。依座號排序、逐份開啟隱藏視窗輸出，避免同時占用量測資源。
+- **輸出位置**：保留 `S{座號}/S{座號}_feedback.pdf`；另複製到作業資料夾 `_feedback/S{座號}_{姓名}_回饋單.pdf`，姓名空白退回 `S{座號}_回饋單.pdf`，沿用 `sanitizeFileName`。重跑覆蓋同名 PDF 與報告，不動原始作品。
+- **報告**：`_feedback/report.json` 與 `report.csv`（UTF-8 BOM＋CRLF）；含 generatedAt、總數、成功／跳過／失敗／取消、每筆座號／姓名／狀態／輸出路徑／原因／耗時。CSV 正確轉義逗號與引號。
+- **進度與取消**：`feedback:batch-progress` 每份完成送出 jobId、index／total、seat／name、status、message、completed；同一時間只允許一個批次；`feedback:batch-cancel(jobId)` 在下一份開始前停止，已完成保留，未處理標 cancelled，回傳完整報告。主流程接受 `onProgress`／`shouldCancel` callback，自動驗收不經 IPC。
+- **UI**：匯入佇列新增「批次回饋單」；面板顯示已批／未完成份數、預估輸出位置、開始／取消／開啟資料夾、進度條與目前座號姓名，完成後顯示統計與明細表。空作業停用開始；切換作業以 key 重置面板。
+- `npm run batch:check` 17/17：5 位學生（3 份正常 `done`、1 份 `grading`、1 份 `done` 但總評超長），結果 exported=3、skipped=1、failed=1；canonical PDF 皆 1 頁、135–136 KB；`_feedback/` 3 份中文檔名 PDF；`report.json` 與 `report.csv`（約 725 bytes、BOM、6 列）一致；進度順序、取消（1 exported＋2 cancelled）、重複啟動拒絕與 UI 煙霧皆通過。
+- 已知限制：批次以單一作業為範圍；失敗或跳過後需重跑整批，尚未提供只重跑失敗項；取消不刪除已完成 PDF；份數多時需等待逐份輸出。
+- 已以同版號 0.1.0 重新打包，Setup 134,137,825 bytes、Portable 120,788,287 bytes。
 
 ---
 
@@ -595,7 +606,7 @@ essay-grader/
 ### 0.2 版
 
 - G1／G2／G3 統計
-- F2 全班批次 PDF
+- F2 全班批次 PDF（已完成，2026-11-20）
 - 匯入／匯出 CSV
 - 完整錯誤處理與安裝檔
 
@@ -639,6 +650,7 @@ essay-grader/
 - [x] CSV 格式：四檔、UTF-8 BOM＋CRLF、寫入作業資料夾 `_stats/`（2026-11-19）
 - [x] 跨裝置搬檔方式：**Google Drive 本機同步資料夾（僅 inbox，資料庫不進雲端）**（2026-11-19）
 - [x] 未匹配照片可手動指定座號，複製到 `_inbox` 交由既有 watcher 匯入；來源刪除、重複去重、無復原（2026-11-20）
+- [x] 整班批次回饋單：逐份輸出、跳過未完成、溢頁不中斷、進度／取消、`_feedback/` 報告（2026-11-20）
 - [ ] 是否先產出三張畫面草圖再進程式
 - [ ] 國中版評語庫時程（介面先留空位）
 - [ ] 目標電腦螢幕解析度（1366×768 是否為最低）
@@ -651,7 +663,7 @@ essay-grader/
 2. M1、M2、M3、M4、M5、M6、M7 已完成。M3 交付三欄式批閱介面、縮放／平移／翻頁、五類批注、評語庫、復原、快捷鍵、autosave、基本評分與總評重複提示；M4 交付作業層級批次檢查（未匯入、總評不足、重複超限、未評分、缺頁檔案、尚未完成）與 45 份流程驗收；M5 交付一頁 A4 回饋單、單份 PDF、列印、另存中文檔名與溢頁阻擋；M6 交付統計面板（分數摘要、G1／G2／G3）與 CSV 四檔匯出；M7 交付備份／還原、zip slip 防護、日誌輪替、錯誤處理、ErrorBoundary、使用說明與 NSIS／portable 打包設定。
 3. 圖片前處理（EXIF 轉正、移除 GPS／中繼資料、長邊 2600、縮圖）已隨 M3 完成。
 4. 量規預設採用均衡版，建立作業可改選其他 preset、評分前可調整配分與等第門檻；變更只影響之後的計算，已有分數不自動改寫。
-5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。未匹配照片手動分配已完成：`.meta.json` 結構化資訊、內外清單、320px 縮圖、realpath 路徑防護、選取學生後複製到 `_inbox` 並產生 sidecar、依 mtime／檔名排序、來源與附屬檔刪除、重複去重、`match:check` 21/21。下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 inbox。並行補 10 分鐘 soak 與整班批次 PDF。
+5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。未匹配照片手動分配已完成：`.meta.json` 結構化資訊、內外清單、320px 縮圖、realpath 路徑防護、選取學生後複製到 `_inbox` 並產生 sidecar、依 mtime／檔名排序、來源與附屬檔刪除、重複去重、`match:check` 21/21。F2 整班批次回饋單已完成：逐份輸出、跳過未完成、溢頁不中斷、`_feedback/` 中文檔名與 JSON／CSV 報告、進度與取消、`batch:check` 17/17。下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 inbox。並行補 10 分鐘 soak。
 6. M7 打包已完成；若換電腦或離線打包，electron-builder 需要重新下載 Electron／NSIS，失敗時不影響 `npm run dev`、`m1:check`–`m7:check` 與既有資料。
 
-> 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7 已完成並建立對應 commit。
+> 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7＋F2 已完成並建立對應 commit。

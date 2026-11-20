@@ -273,3 +273,12 @@ export async function exportFeedbackPdf(
 export function defaultSavePath(fileName: string): string {
   return join(app.getPath('documents'), fileName)
 }
+
+/** 整班批次回饋單的固定輸出資料夾。 */
+export function feedbackBatchDir(
+  root: string,
+  classId: string,
+  assignmentId: string
+): string {
+  return join(root, classId, assignmentId, '_feedback')
+}

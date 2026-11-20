@@ -371,6 +371,8 @@ input[type='checkbox'] {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
@@ -383,6 +385,8 @@ input[type='checkbox'] {
 
 .card-actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -1540,4 +1544,124 @@ input[type='checkbox'] {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 12px;
+}
+
+/* ---------- �妸�^�X�� ---------- */
+
+.batch-feedback-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid #d8cfbd;
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.batch-feedback-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.batch-feedback-head h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.batch-feedback-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.batch-output {
+  flex: 1 1 260px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.batch-feedback-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.batch-progress {
+  margin-bottom: 10px;
+}
+
+.batch-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #efe8da;
+  overflow: hidden;
+}
+
+.batch-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green);
+  transition: width 0.2s ease;
+}
+
+.batch-current {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.batch-error {
+  margin: 0 0 8px;
+  padding: 6px 9px;
+  border-radius: 4px;
+  background: rgba(192, 57, 43, 0.1);
+  color: var(--red);
+  font-size: 12px;
+}
+
+.batch-table td {
+  vertical-align: top;
+}
+
+.batch-file {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.batch-status {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(92, 107, 122, 0.12);
+  color: var(--muted);
+}
+
+.batch-status--exported {
+  background: rgba(46, 125, 91, 0.14);
+  color: var(--green);
+}
+
+.batch-status--skipped {
+  background: rgba(183, 121, 31, 0.14);
+  color: var(--amber);
+}
+
+.batch-status--failed {
+  background: rgba(192, 57, 43, 0.12);
+  color: var(--red);
+}
+
+.batch-status--cancelled {
+  background: rgba(43, 108, 176, 0.14);
+  color: var(--blue);
 }

@@ -79,6 +79,51 @@ type UnmatchedAssignmentResult = {
   inbox: string
 }
 
+type BatchFeedbackStatus = 'exported' | 'skipped' | 'failed' | 'cancelled'
+
+type BatchFeedbackItem = {
+  seat: string
+  name: string
+  status: BatchFeedbackStatus
+  fileName: string
+  path: string
+  reason: string
+  ms: number
+}
+
+type BatchFeedbackReport = {
+  jobId: string
+  generatedAt: string
+  total: number
+  exported: number
+  skipped: number
+  failed: number
+  cancelled: number
+  elapsedMs: number
+  outputDir: string
+  items: BatchFeedbackItem[]
+}
+
+type BatchFeedbackInfo = {
+  outputDir: string
+  exportable: number
+  unfinished: number
+  total: number
+}
+
+type BatchFeedbackProgress = {
+  jobId: string
+  classId: string
+  assignmentId: string
+  index: number
+  total: number
+  seat: string
+  name: string
+  status: BatchFeedbackStatus
+  message: string
+  completed: number
+}
+
 type GradebookReport = {
   ok: boolean
   mode: 'copy' | 'export'
@@ -124,6 +169,13 @@ const STATUS_LABELS: Record<WorkSummary['status'], string> = {
   pending: '待批',
   grading: '批閱中',
   done: '已批'
+}
+
+const BATCH_STATUS_LABELS: Record<BatchFeedbackStatus, string> = {
+  exported: '已輸出',
+  skipped: '跳過',
+  failed: '失敗',
+  cancelled: '已取消'
 }
 
 const padSeat = (value: string): string => value.replace(/\D/g, '').padStart(2, '0').slice(-2)
@@ -1320,6 +1372,7 @@ function ImportPanel({
   for (const work of works) counts[work.status] += 1
 
   const [unmatchedOpen, setUnmatchedOpen] = useState(false)
+  const [batchOpen, setBatchOpen] = useState(false)
 
   const events = [...(status?.events ?? [])].slice(-6).reverse()
 
@@ -1351,6 +1404,13 @@ function ImportPanel({
             onClick={() => setUnmatchedOpen((value) => !value)}
           >
             {unmatchedOpen ? '收起未匹配照片' : '未匹配照片'}
+          </button>
+          <button
+            className="small batch-feedback-toggle"
+            disabled={busy}
+            onClick={() => setBatchOpen((value) => !value)}
+          >
+            {batchOpen ? '收起批次回饋單' : '批次回饋單'}
           </button>
           <button className="small" disabled={busy} onClick={onRefresh}>
             重新整理
@@ -1503,6 +1563,17 @@ function ImportPanel({
           assignment={assignment}
           students={students}
           onClose={() => setUnmatchedOpen(false)}
+          onToast={onToast}
+        />
+      )}
+
+      {batchOpen && (
+        <BatchFeedbackPanel
+          key={`${classId}:${assignment.id}`}
+          classId={classId}
+          assignment={assignment}
+          works={works}
+          onClose={() => setBatchOpen(false)}
           onToast={onToast}
         />
       )}
@@ -1797,6 +1868,238 @@ function UnmatchedPanel({
               : '指定並排入匯入'}
         </button>
       </div>
+    </section>
+  )
+}
+
+/** 整班批次回饋單：逐份輸出、顯示進度，跳過未完成、單份失敗不中斷。 */
+function BatchFeedbackPanel({
+  classId,
+  assignment,
+  works,
+  onClose,
+  onToast
+}: {
+  classId: string
+  assignment: AssignmentSummary
+  works: WorkSummary[]
+  onClose: () => void
+  onToast: (kind: 'ok' | 'error' | 'info', text: string) => void
+}): JSX.Element {
+  const [info, setInfo] = useState<BatchFeedbackInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [running, setRunning] = useState(false)
+  const [cancelling, setCancelling] = useState(false)
+  const [progress, setProgress] = useState<BatchFeedbackProgress | null>(null)
+  const [report, setReport] = useState<BatchFeedbackReport | null>(null)
+  const [error, setError] = useState('')
+  const jobIdRef = useRef('')
+
+  const loadInfo = useCallback(async (): Promise<void> => {
+    setLoading(true)
+    try {
+      const data = (await window.electronAPI.feedback.batchInfo(
+        classId,
+        assignment.id
+      )) as BatchFeedbackInfo
+      setInfo(data)
+    } catch (cause) {
+      setError(`讀取批次資訊：${errorText(cause)}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [classId, assignment.id])
+
+  useEffect(() => {
+    void loadInfo()
+  }, [loadInfo, works])
+
+  useEffect(() => {
+    const id = window.electronAPI.feedback.onBatchProgress((raw) => {
+      const payload = raw as BatchFeedbackProgress
+      if (payload.classId !== classId || payload.assignmentId !== assignment.id) return
+      jobIdRef.current = payload.jobId
+      setProgress(payload)
+    })
+    return () => window.electronAPI.feedback.offBatchProgress(id)
+  }, [assignment.id, classId])
+
+  const start = async (): Promise<void> => {
+    if (running || !info || info.exportable === 0) return
+    setRunning(true)
+    setCancelling(false)
+    setError('')
+    setReport(null)
+    setProgress(null)
+    jobIdRef.current = ''
+    try {
+      const result = (await window.electronAPI.feedback.batchStart(
+        classId,
+        assignment.id
+      )) as BatchFeedbackReport
+      setReport(result)
+      jobIdRef.current = result.jobId
+      onToast(
+        result.failed > 0 || result.skipped > 0 ? 'info' : 'ok',
+        `批次回饋單完成：輸出 ${result.exported}、跳過 ${result.skipped}、失敗 ${result.failed}`
+      )
+    } catch (cause) {
+      setError(`批次回饋單：${errorText(cause)}`)
+    } finally {
+      setRunning(false)
+      setCancelling(false)
+      void loadInfo()
+    }
+  }
+
+  const cancel = async (): Promise<void> => {
+    if (!running || cancelling) return
+    setCancelling(true)
+    try {
+      const result = (await window.electronAPI.feedback.batchCancel(
+        jobIdRef.current
+      )) as { canceled: boolean; reason?: string; report?: BatchFeedbackReport }
+      if (result.report) setReport(result.report)
+      if (!result.canceled) {
+        setError(result.reason ?? '無法取消批次回饋單')
+      }
+    } catch (cause) {
+      setError(`取消批次回饋單：${errorText(cause)}`)
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  const reveal = async (): Promise<void> => {
+    try {
+      const result = (await window.electronAPI.feedback.batchReveal(
+        classId,
+        assignment.id
+      )) as { dir: string }
+      onToast('info', `批次回饋單資料夾：${result.dir}`)
+    } catch (cause) {
+      setError(`開啟輸出資料夾：${errorText(cause)}`)
+    }
+  }
+
+  const percent =
+    progress && progress.total > 0
+      ? Math.min(100, Math.round((progress.completed / progress.total) * 100))
+      : 0
+  const empty = !loading && (info?.exportable ?? 0) === 0
+
+  return (
+    <section className="batch-feedback-panel">
+      <div className="batch-feedback-head">
+        <div>
+          <h4>批次回饋單 · {assignment.title}</h4>
+          <p className="assignment-meta">依座號逐份輸出，只處理已批且有分數的作品</p>
+        </div>
+        <div className="card-actions">
+          <button
+            className="small batch-reveal"
+            disabled={running}
+            onClick={() => void reveal()}
+          >
+            開啟輸出資料夾
+          </button>
+          <button className="small" onClick={onClose}>
+            關閉
+          </button>
+        </div>
+      </div>
+
+      <div className="batch-feedback-info">
+        <span className="queue-chip done">已批 {info?.exportable ?? 0} 份</span>
+        <span className="queue-chip pending">未完成 {info?.unfinished ?? 0} 份</span>
+        <span className="queue-total">共 {info?.total ?? 0} 份</span>
+        <span className="batch-output" title={info?.outputDir ?? ''}>
+          輸出位置：{info?.outputDir ?? '讀取中…'}
+        </span>
+      </div>
+
+      <div className="batch-feedback-controls">
+        <button
+          className="primary batch-start"
+          disabled={running || loading || empty || !info}
+          onClick={() => void start()}
+        >
+          {running ? '輸出中…' : '開始批次輸出'}
+        </button>
+        <button
+          className="batch-cancel"
+          disabled={!running || cancelling}
+          onClick={() => void cancel()}
+        >
+          {cancelling ? '取消中…' : '取消'}
+        </button>
+        {empty && (
+          <span className="muted small-text">目前沒有已批且有分數的作品，無法開始。</span>
+        )}
+      </div>
+
+      {error && <p className="batch-error">{error}</p>}
+
+      <div className="batch-progress">
+        <div className="batch-progress-track">
+          <div className="batch-progress-bar" style={{ width: `${percent}%` }} />
+        </div>
+        <p className="batch-current">
+          {progress
+            ? `第 ${progress.index}／${progress.total} 份 · S${progress.seat} ${progress.name} · ${
+                BATCH_STATUS_LABELS[progress.status]
+              }（${progress.message}）`
+            : running
+              ? '準備輸出…'
+              : report
+                ? `已完成 ${report.total} 份`
+                : '尚未開始'}
+        </p>
+      </div>
+
+      {report && (
+        <div className="batch-result">
+          <div className="queue-counts">
+            <span className="queue-chip done">成功 {report.exported}</span>
+            <span className="queue-chip pending">跳過 {report.skipped}</span>
+            <span className="queue-chip missing">失敗 {report.failed}</span>
+            {report.cancelled > 0 && (
+              <span className="queue-chip grading">取消 {report.cancelled}</span>
+            )}
+            <span className="queue-total">
+              共 {report.total} 份 · {(report.elapsedMs / 1000).toFixed(1)} 秒
+            </span>
+          </div>
+          <table className="table batch-table">
+            <thead>
+              <tr>
+                <th className="w-seat">座號</th>
+                <th>姓名</th>
+                <th>狀態</th>
+                <th>檔名</th>
+                <th>原因</th>
+              </tr>
+            </thead>
+            <tbody>
+              {report.items.map((item) => (
+                <tr key={item.seat}>
+                  <td className="mono">{item.seat}</td>
+                  <td>{item.name}</td>
+                  <td>
+                    <span className={`batch-status batch-status--${item.status}`}>
+                      {BATCH_STATUS_LABELS[item.status]}
+                    </span>
+                  </td>
+                  <td className="batch-file" title={item.path}>
+                    {item.fileName || '—'}
+                  </td>
+                  <td className="muted small-text">{item.reason || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   )
 }
