@@ -108,6 +108,7 @@ export function buildMarkdown(library) {
   lines.push('- 其餘類別（錯字、語句、結構、佳句）不設字數下限，重複僅提示、不阻擋。')
   lines.push('- 每條 `tags` 至少含「國中」，可再依題材細分為會考、記敘、抒情、議論、說明、應用等。')
   lines.push('- 本庫不使用 `{姓名}`、`{分數}` 等變數，避免 UI 直接顯示大括號。')
+  lines.push('- 總評與佳句以通用說法為主，不假設作品一定出現某個物件、人物關係或事件；需要舉例時，使用「文中的人物」「這個動作」等指稱。')
   lines.push('- JSON 是唯一來源；修改後請執行 `npm run junior:render` 重新產生本檔。')
   lines.push('')
   lines.push('---')
