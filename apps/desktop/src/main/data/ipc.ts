@@ -22,6 +22,11 @@ import {
   stopExternalWatcher
 } from '../import/external'
 import { importRosterViaDialog } from '../import/roster-excel'
+import {
+  assignUnmatched,
+  getUnmatchedThumbnail,
+  listUnmatched
+} from '../import/unmatched'
 import { clearExternalInboxRoot, readSettings, writeSettings } from './settings'
 import {
   closeDatabase,
@@ -219,6 +224,27 @@ export function registerDataIpc(): void {
   )
 
   ipcMain.handle('import:status', () => getImportStatus())
+
+  ipcMain.handle('import:unmatched-list', (_event, classId: string, assignmentId: string) =>
+    listUnmatched(classId, assignmentId)
+  )
+
+  ipcMain.handle(
+    'import:unmatched-thumbnail',
+    (_event, classId: string, assignmentId: string, path: string) =>
+      getUnmatchedThumbnail(classId, assignmentId, path)
+  )
+
+  ipcMain.handle(
+    'import:unmatched-assign',
+    (
+      _event,
+      classId: string,
+      assignmentId: string,
+      seat: string,
+      paths: string[]
+    ) => assignUnmatched({ classId, assignmentId, seat, paths })
+  )
 
   ipcMain.handle('import:refresh', async () => {
     await refreshImportWatcher()

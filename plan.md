@@ -638,6 +638,7 @@ essay-grader/
 - [x] 統計範圍：只計已批（`done`）作品；未完成與未匯入列個人表但不計入（2026-11-19）
 - [x] CSV 格式：四檔、UTF-8 BOM＋CRLF、寫入作業資料夾 `_stats/`（2026-11-19）
 - [x] 跨裝置搬檔方式：**Google Drive 本機同步資料夾（僅 inbox，資料庫不進雲端）**（2026-11-19）
+- [x] 未匹配照片可手動指定座號，複製到 `_inbox` 交由既有 watcher 匯入；來源刪除、重複去重、無復原（2026-11-20）
 - [ ] 是否先產出三張畫面草圖再進程式
 - [ ] 國中版評語庫時程（介面先留空位）
 - [ ] 目標電腦螢幕解析度（1366×768 是否為最低）
@@ -650,7 +651,7 @@ essay-grader/
 2. M1、M2、M3、M4、M5、M6、M7 已完成。M3 交付三欄式批閱介面、縮放／平移／翻頁、五類批注、評語庫、復原、快捷鍵、autosave、基本評分與總評重複提示；M4 交付作業層級批次檢查（未匯入、總評不足、重複超限、未評分、缺頁檔案、尚未完成）與 45 份流程驗收；M5 交付一頁 A4 回饋單、單份 PDF、列印、另存中文檔名與溢頁阻擋；M6 交付統計面板（分數摘要、G1／G2／G3）與 CSV 四檔匯出；M7 交付備份／還原、zip slip 防護、日誌輪替、錯誤處理、ErrorBoundary、使用說明與 NSIS／portable 打包設定。
 3. 圖片前處理（EXIF 轉正、移除 GPS／中繼資料、長邊 2600、縮圖）已隨 M3 完成。
 4. 量規預設採用均衡版，建立作業可改選其他 preset、評分前可調整配分與等第門檻；變更只影響之後的計算，已有分數不自動改寫。
-5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 inbox。並行補 10 分鐘 soak 與整班批次 PDF。
+5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。未匹配照片手動分配已完成：`.meta.json` 結構化資訊、內外清單、320px 縮圖、realpath 路徑防護、選取學生後複製到 `_inbox` 並產生 sidecar、依 mtime／檔名排序、來源與附屬檔刪除、重複去重、`match:check` 21/21。下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 inbox。並行補 10 分鐘 soak 與整班批次 PDF。
 6. M7 打包已完成；若換電腦或離線打包，electron-builder 需要重新下載 Electron／NSIS，失敗時不影響 `npm run dev`、`m1:check`–`m7:check` 與既有資料。
 
 > 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7 已完成並建立對應 commit。

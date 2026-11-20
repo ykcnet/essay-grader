@@ -11,6 +11,7 @@ import { autoOpenLastDatabase } from './data/repository'
 import { readSettings } from './data/settings'
 import { registerFeedbackIpc } from './feedback/ipc'
 import { runDriveCheck } from './import/drive-check'
+import { runMatchCheck } from './import/match-check'
 import { runM2Check } from './import/m2-check'
 import { runExcelCheck } from './data/gradebook-check'
 import { installErrorHandlers, logError, logInfo, logWarn, openLogsFolder } from './logger'
@@ -29,6 +30,7 @@ const m6Mode = process.argv.includes('--m6-check')
 const m7Mode = process.argv.includes('--m7-check')
 const driveMode = process.argv.includes('--drive-check')
 const excelMode = process.argv.includes('--excel-check')
+const matchMode = process.argv.includes('--match-check')
 const checkMode =
   m1Mode ||
   m2Mode ||
@@ -39,6 +41,7 @@ const checkMode =
   m7Mode ||
   driveMode ||
   excelMode ||
+  matchMode ||
   spikeMode ||
   fixturesOnly
 
@@ -203,6 +206,12 @@ if (!gotLock) {
       return
     }
 
+    if (matchMode) {
+      const code = await runMatchCheck()
+      app.exit(code)
+      return
+    }
+
     // 開發模式啟動時驗證 fixtures；--validate-fixtures 只驗證不開窗。
     if (isDev || fixturesOnly) {
       const ok = await validateFixtures()
@@ -235,6 +244,7 @@ if (!gotLock) {
       !m7Mode &&
       !driveMode &&
       !excelMode &&
+      !matchMode &&
       process.platform !== 'darwin'
     ) {
       app.quit()

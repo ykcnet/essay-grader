@@ -4,6 +4,23 @@ import { basename, join } from 'node:path'
 import { WorkSchema } from '@essay-grader/core'
 import { readJsonRecovering } from '../data/atomic'
 
+/** 未匹配檔案的結構化 metadata，寫在圖片旁的 `<檔名>.meta.json`。 */
+export interface UnmatchedMeta {
+  schema_version: 1
+  classId?: string
+  assignmentId?: string
+  seat?: string
+  reason: string
+  source: 'inbox' | 'drive'
+  movedAt: string
+  originalName: string
+}
+
+export type UnmatchedMetaInput = Pick<
+  UnmatchedMeta,
+  'classId' | 'assignmentId' | 'seat' | 'source'
+>
+
 export const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -39,7 +56,8 @@ export async function moveToSubfolder(
   folder: '_unmatched' | '_duplicates',
   image: string,
   sidecar: string | null,
-  reason: string
+  reason: string,
+  meta?: UnmatchedMetaInput
 ): Promise<void> {
   const targetDir = join(baseDir, folder)
   await mkdir(targetDir, { recursive: true })
@@ -56,6 +74,20 @@ export async function moveToSubfolder(
     }
   }
   await writeFile(`${target}.reason.txt`, `${reason}\n`, 'utf8')
+
+  if (meta) {
+    const payload: UnmatchedMeta = {
+      schema_version: 1,
+      ...(meta.classId ? { classId: meta.classId } : {}),
+      ...(meta.assignmentId ? { assignmentId: meta.assignmentId } : {}),
+      ...(meta.seat ? { seat: meta.seat } : {}),
+      reason,
+      source: meta.source,
+      movedAt: new Date().toISOString(),
+      originalName: basename(image)
+    }
+    await writeFile(`${target}.meta.json`, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+  }
 }
 
 /** 以 SHA-256 找同作業是否已有相同頁面，回傳該頁座號。 */

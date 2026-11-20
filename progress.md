@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
-> 最後更新：2026-11-19
-> 階段：**M0–M7＋Google Drive 外部 inbox 完成；下一步 M8 手機**
+> 最後更新：2026-11-20
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配完成；下一步 M8 手機**
 
 ---
 
@@ -41,6 +41,8 @@
 | `apps/desktop/src/main/import/` | M2 匯入：inbox watcher、sidecar 配對、去重、Excel 名單、sharp 前處理；Drive 外部 inbox watcher 與驗收 |
 | `apps/desktop/src/main/import/external.ts` | Google Drive 外部 inbox：遞迴監看、子資料夾／扁平路由、grace、PDF 擋下、去重、來源清理與 `_unmatched`／`_duplicates` |
 | `apps/desktop/src/main/import/drive-check.ts` | Drive 驗收：兩種擺法、sidecar 優先、PDF、錯誤路徑、設定持久化與 UI 煙霧 |
+| `apps/desktop/src/main/import/unmatched.ts` | 未匹配照片：內外清單、`.meta.json` 解析、320px 縮圖、路徑 realpath 防護、複製到 `_inbox` 與來源清理 |
+| `apps/desktop/src/main/import/match-check.ts` | 未匹配照片驗收：meta／reason、舊檔、縮圖、指定 3 張頁序、去重、拒絕情境與 UI 煙霧 |
 | `apps/desktop/src/renderer/src/review/` | M3 三欄式批閱介面：Konva 縮放平移、五類批注、評語庫、評分、總評、autosave |
 | `apps/desktop/src/renderer/src/feedback/` | M5 一頁 A4 回饋單：真實資料、密度調整、列印工具列 |
 | `apps/desktop/src/renderer/src/spike/` | 手動驗證頁（縮放、標記、日誌） |
@@ -294,7 +296,20 @@ essay-grader-data/
 - UI：隱藏視窗確認「成績寫回」按鈕、面板、六個操作按鈕與七個 preload API（`getConfig`／`chooseFile`／`inspect`／`saveConfig`／`write`／`exportCsv`／`reveal`）。
 - `npm run excel:check` 25/25；回歸 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`spike` 全數通過。
 
-### 已知限制（M3–M7＋Drive inbox＋E6）
+### 未匹配照片手動分配座號驗收（2026-11-20）
+
+- 結構化 metadata：`moveToSubfolder` 可選擇在圖片旁寫 `<檔名>.meta.json`，內容含 `classId`、`assignmentId`、`seat`、`reason`、`source`、`movedAt`、`originalName`；既有 `.reason.txt` 與時間戳檔名規則不變。內部 watcher 的格式錯誤／指向錯誤／缺 sidecar／名單外／重複／work 損壞／前處理失敗，以及外部 watcher 的失敗與重複，都帶入已知班級、作業、座號與來源。
+- 清單：同時列出目前作業的 `_inbox/_unmatched` 與外部 Drive 根目錄 `_unmatched`；測試共 5 張（本機 3、Drive 2）。沒有 `.meta.json` 的舊檔仍會列出，`classId`／`assignmentId` 留空並顯示「未指定作業」，原因顯示「未記錄原因」。
+- 名稱與排序：顯示名稱會去掉 `YYYY-MM-DDTHH-MM-SS-sssZ__` 時間戳前綴；清單依 `modifiedAt`、再依檔名排序。失敗原因與 meta 的班級／作業／座號皆正確。
+- 縮圖：`sharp` 輸出 320px 內 JPEG data URL；測試縮圖 240×320、5,954 bytes，可解碼且尺寸合理。縮圖一次只讀一張，renderer 不直接接觸檔案系統。
+- 指定座號：3 張測試圖刻意亂序建立並設定不同 mtime，指定給 S07 後依 mtime 排序附加；`queued=3`、`failed=0`，`work.pages` 由 0 增加為 3，頁面 SHA-256 順序與來源一致。每張會等待 watcher 消化後再放下一張，避免 chokidar 事件順序造成頁序錯亂。
+- 來源清理：3 張來源圖片、`.reason.txt`、`.meta.json` 與殘留同名 sidecar 都在排入後刪除；`_inbox` 無殘留 `__manual__` 檔。
+- 去重：以已匯入頁面的相同位元組再指定一次，`queued=1`、頁數維持 3，收到 `duplicate` 事件，重複檔進 `_duplicates` 並有含 seat／source 的 meta。
+- 路徑與權限：非在學座號回「不在在學名單」；路徑穿越（`..`）、任意路徑（fixture 原圖）都回「不在允許的 _unmatched 資料夾內」；空選取回「請先選取至少一張」。
+- UI：匯入佇列有「未匹配照片」按鈕；面板可開、有縮圖卡片、在學學生下拉（2 人）、全選／清除、指定按鈕與「來源會刪除」確認文字；preload 的 `listUnmatched`／`unmatchedThumbnail`／`assignUnmatched` 皆存在（隱藏視窗煙霧）。
+- `npm run match:check` 21/21；回歸 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`spike` 全數通過。
+
+### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配）
 
 - 10 分鐘連續操作 soak 尚未執行，目前只有 `m3:check`、`m4:check`、`m5:check` 的短時間 UI 煙霧與 45 份批次檢查。
 - 量規預設採用均衡版（40／30／30），之後可調整；三組配分、扣分 0.5／0.5、上限 10 與等第門檻仍為預設值，尚未經老師確認。
@@ -321,6 +336,10 @@ essay-grader-data/
 - 外部 inbox 只支援 JPG／JPEG／PNG；PDF 會移到 `_unmatched`，不支援轉檔。
 - 外部 inbox 沒有全域「最近匯入」清單；事件只保留最近 100 筆，成功後來源即刪除，雲端版本紀錄與垃圾桶仍可能暫時保留。
 - 扁平模式沒有 sidecar 一律進 `_unmatched`；子資料夾模式若檔名沒有座號也不猜。
+- 未匹配照片手動分配沒有復原功能：指定成功後來源即刪除，老師需在按下前確認學生與頁序。
+- 未匹配照片只處理目前作業的內部 `_unmatched` 與全域 Drive `_unmatched`；其他作業的內部失敗檔需切換到該作業再處理。
+- 手動分配會逐張等待 watcher 消化以維持頁序；一次選取大量照片時，IPC 回應時間會隨張數增加。
+- 沒有 meta 的舊 `.meta.json` 之前檔案仍可列出，但無法還原原本班級／作業／座號，只能指定給目前作業。
 - 手機端 App（M8）尚未實作；目前需用手機 Google Drive App 手動上傳圖片與 sidecar。
 
 ---

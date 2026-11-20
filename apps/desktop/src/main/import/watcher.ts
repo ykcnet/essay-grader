@@ -76,7 +76,8 @@ async function processPair(
       '_unmatched',
       imagePath,
       sidecarPath,
-      `sidecar 格式錯誤：${reason}`
+      `sidecar 格式錯誤：${reason}`,
+      { classId, assignmentId, source: 'inbox' }
     )
     await emitEvent({
       type: 'unmatched',
@@ -90,7 +91,12 @@ async function processPair(
 
   if (sidecar.class_id !== classId || sidecar.assignment_id !== assignmentId) {
     const reason = `sidecar 指向 ${sidecar.class_id}/${sidecar.assignment_id}`
-    await moveToFolder(inboxDir, '_unmatched', imagePath, sidecarPath, reason)
+    await moveToFolder(inboxDir, '_unmatched', imagePath, sidecarPath, reason, {
+      classId,
+      assignmentId,
+      seat: sidecar.seat,
+      source: 'inbox'
+    })
     await emitEvent({
       type: 'unmatched',
       classId,
@@ -108,7 +114,12 @@ async function processPair(
       await readJsonRecovering(join(classDir, 'class.json'), ClassSchema)
     ).data
   } catch (error) {
-    await moveToFolder(inboxDir, '_unmatched', imagePath, sidecarPath, messageOf(error))
+    await moveToFolder(inboxDir, '_unmatched', imagePath, sidecarPath, messageOf(error), {
+      classId,
+      assignmentId,
+      seat: sidecar.seat,
+      source: 'inbox'
+    })
     await emitEvent({
       type: 'unmatched',
       classId,
@@ -125,7 +136,12 @@ async function processPair(
   )
   if (!student) {
     const reason = `座號 ${sidecar.seat} 不在名單`
-    await moveToFolder(inboxDir, '_unmatched', imagePath, sidecarPath, reason)
+    await moveToFolder(inboxDir, '_unmatched', imagePath, sidecarPath, reason, {
+      classId,
+      assignmentId,
+      seat: sidecar.seat,
+      source: 'inbox'
+    })
     await emitEvent({
       type: 'unmatched',
       classId,
@@ -145,7 +161,13 @@ async function processPair(
       '_duplicates',
       imagePath,
       sidecarPath,
-      `重複檔案（與 ${duplicateSeat} 的頁面相同）`
+      `重複檔案（與 ${duplicateSeat} 的頁面相同）`,
+      {
+        classId,
+        assignmentId,
+        seat: sidecar.seat,
+        source: 'inbox'
+      }
     )
     await emitEvent({
       type: 'duplicate',
@@ -172,7 +194,13 @@ async function processPair(
         '_unmatched',
         imagePath,
         sidecarPath,
-        `work.json 損壞：${messageOf(error)}`
+        `work.json 損壞：${messageOf(error)}`,
+        {
+          classId,
+          assignmentId,
+          seat: sidecar.seat,
+          source: 'inbox'
+        }
       )
       await emitEvent({
         type: 'error',
@@ -203,7 +231,12 @@ async function processPair(
     )
   } catch (error) {
     const reason = `圖片處理失敗：${messageOf(error)}`
-    await moveToFolder(inboxDir, '_unmatched', imagePath, sidecarPath, reason)
+    await moveToFolder(inboxDir, '_unmatched', imagePath, sidecarPath, reason, {
+      classId,
+      assignmentId,
+      seat: sidecar.seat,
+      source: 'inbox'
+    })
     await emitEvent({
       type: 'unmatched',
       classId,
@@ -307,7 +340,11 @@ async function handleAdd(inboxDir: string, file: string): Promise<void> {
         } else {
           const classId = basename(dirname(dirname(inboxDir)))
           const assignmentId = basename(dirname(inboxDir))
-          await moveToFolder(inboxDir, '_unmatched', image!, null, '缺少 sidecar')
+          await moveToFolder(inboxDir, '_unmatched', image!, null, '缺少 sidecar', {
+            classId,
+            assignmentId,
+            source: 'inbox'
+          })
           await emitEvent({
             type: 'unmatched',
             classId,

@@ -53,6 +53,32 @@ type GradebookInspection = {
   warning?: string
 }
 
+type UnmatchedPhoto = {
+  path: string
+  name: string
+  originalName: string
+  source: 'inbox' | 'drive'
+  reason: string
+  classId?: string
+  assignmentId?: string
+  seat?: string
+  modifiedAt: string
+  size: number
+  hasMeta: boolean
+}
+
+type UnmatchedListing = {
+  photos: UnmatchedPhoto[]
+  internalDir: string
+  externalDir: string | null
+}
+
+type UnmatchedAssignmentResult = {
+  queued: number
+  failed: Array<{ path: string; reason: string }>
+  inbox: string
+}
+
 type GradebookReport = {
   ok: boolean
   mode: 'copy' | 'export'
@@ -747,6 +773,7 @@ export default function App(): JSX.Element {
                   <ImportPanel
                     classId={classFile.id}
                     assignment={selectedAssignment}
+                    students={students}
                     works={works}
                     status={importStatus}
                     busy={busy}
@@ -1219,6 +1246,7 @@ function CreateAssignmentForm({
 function ImportPanel({
   classId,
   assignment,
+  students,
   works,
   status,
   busy,
@@ -1254,6 +1282,7 @@ function ImportPanel({
 }: {
   classId: string
   assignment: AssignmentSummary
+  students: Student[]
   works: WorkSummary[]
   status: ImportStatus | null
   busy: boolean
@@ -1290,6 +1319,8 @@ function ImportPanel({
   const counts = { pending: 0, grading: 0, done: 0 }
   for (const work of works) counts[work.status] += 1
 
+  const [unmatchedOpen, setUnmatchedOpen] = useState(false)
+
   const events = [...(status?.events ?? [])].slice(-6).reverse()
 
   return (
@@ -1313,6 +1344,13 @@ function ImportPanel({
           </button>
           <button className="small" disabled={busy} onClick={onOpenInbox}>
             開啟 inbox
+          </button>
+          <button
+            className="small unmatched-toggle"
+            disabled={busy}
+            onClick={() => setUnmatchedOpen((value) => !value)}
+          >
+            {unmatchedOpen ? '收起未匹配照片' : '未匹配照片'}
           </button>
           <button className="small" disabled={busy} onClick={onRefresh}>
             重新整理
@@ -1458,6 +1496,17 @@ function ImportPanel({
         />
       )}
 
+      {unmatchedOpen && (
+        <UnmatchedPanel
+          key={`${classId}:${assignment.id}`}
+          classId={classId}
+          assignment={assignment}
+          students={students}
+          onClose={() => setUnmatchedOpen(false)}
+          onToast={onToast}
+        />
+      )}
+
       <div className="event-log">
         <h4>最近事件</h4>
         {events.length === 0 ? (
@@ -1469,6 +1518,284 @@ function ImportPanel({
             </p>
           ))
         )}
+      </div>
+    </section>
+  )
+}
+
+/** 未匹配照片：列出、預覽縮圖，選取後指定給在學學生並排入既有 watcher。 */
+function UnmatchedPanel({
+  classId,
+  assignment,
+  students,
+  onClose,
+  onToast
+}: {
+  classId: string
+  assignment: AssignmentSummary
+  students: Student[]
+  onClose: () => void
+  onToast: (kind: 'ok' | 'error' | 'info', text: string) => void
+}): JSX.Element {
+  const [listing, setListing] = useState<UnmatchedListing | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const [thumbs, setThumbs] = useState<Record<string, string>>({})
+  const [seat, setSeat] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [working, setWorking] = useState(false)
+  const [error, setError] = useState('')
+  const [result, setResult] = useState('')
+  const loadedThumbs = useRef(new Set<string>())
+
+  const activeStudents = students.filter((student) => student.active)
+  const photos = listing?.photos ?? []
+
+  const load = useCallback(async (): Promise<void> => {
+    setLoading(true)
+    setError('')
+    try {
+      const data = (await window.electronAPI.imports.listUnmatched(
+        classId,
+        assignment.id
+      )) as UnmatchedListing
+      setListing(data)
+      setSelected((prev) => {
+        const alive = new Set(data.photos.map((photo) => photo.path))
+        return new Set([...prev].filter((path) => alive.has(path)))
+      })
+    } catch (cause) {
+      setError(`讀取未匹配照片：${errorText(cause)}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [classId, assignment.id])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  useEffect(() => {
+    if (!seat && activeStudents[0]) setSeat(activeStudents[0].seat)
+  }, [activeStudents, seat])
+
+  // 一次只向 main 要一張 320px 縮圖，避免把大圖全部載進 renderer。
+  useEffect(() => {
+    let cancelled = false
+    const run = async (): Promise<void> => {
+      for (const photo of photos) {
+        if (cancelled) return
+        if (loadedThumbs.current.has(photo.path)) continue
+        loadedThumbs.current.add(photo.path)
+        try {
+          const thumb = (await window.electronAPI.imports.unmatchedThumbnail(
+            classId,
+            assignment.id,
+            photo.path
+          )) as { dataUrl: string }
+          if (!cancelled) {
+            setThumbs((prev) => ({ ...prev, [photo.path]: thumb.dataUrl }))
+          }
+        } catch {
+          // 單張縮圖失敗不影響其餘照片
+        }
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+  }, [assignment.id, classId, photos])
+
+  const toggle = (path: string): void => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  const target = activeStudents.find((student) => student.seat === seat) ?? null
+  const orderedSelection = photos
+    .filter((photo) => selected.has(photo.path))
+    .map((photo) => photo.path)
+
+  const assign = async (): Promise<void> => {
+    if (!target) {
+      setError('請先選擇要指派的學生。')
+      return
+    }
+    if (orderedSelection.length === 0) {
+      setError('請先勾選至少一張照片。')
+      return
+    }
+
+    setWorking(true)
+    setError('')
+    setResult('')
+    try {
+      const outcome = (await window.electronAPI.imports.assignUnmatched(
+        classId,
+        assignment.id,
+        target.seat,
+        orderedSelection
+      )) as UnmatchedAssignmentResult
+
+      const failureText =
+        outcome.failed.length > 0
+          ? `；${outcome.failed.length} 筆失敗：${outcome.failed
+              .slice(0, 3)
+              .map((item) => `${item.path.split(/[\\/]/).pop() ?? item.path}（${item.reason}）`)
+              .join('、')}`
+          : ''
+      setResult(
+        `已排入匯入佇列 ${outcome.queued} 張，watcher 會依檔案時間附加為下一頁${failureText}`
+      )
+      setSelected(new Set())
+      onToast(
+        outcome.failed.length > 0 ? 'info' : 'ok',
+        `已排入 ${outcome.queued} 張未匹配照片`
+      )
+      await load()
+    } catch (cause) {
+      setError(`指定座號：${errorText(cause)}`)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  return (
+    <section className="unmatched-panel">
+      <div className="unmatched-head">
+        <div>
+          <h4>未匹配照片 · {photos.length} 張</h4>
+          <p className="assignment-meta">
+            來源：本機 `_inbox/_unmatched` 與 Google Drive `_unmatched`
+          </p>
+        </div>
+        <div className="card-actions">
+          <button className="small" disabled={loading || working} onClick={() => void load()}>
+            {loading ? '讀取中…' : '重新整理'}
+          </button>
+          <button className="small" onClick={onClose}>
+            關閉
+          </button>
+        </div>
+      </div>
+
+      <div className="unmatched-toolbar">
+        <label>
+          指定給
+          <select
+            className="unmatched-student"
+            value={seat}
+            disabled={activeStudents.length === 0 || working}
+            onChange={(event) => setSeat(event.target.value)}
+          >
+            {activeStudents.length === 0 && <option value="">沒有在學學生</option>}
+            {activeStudents.map((student) => (
+              <option key={student.seat} value={student.seat}>
+                {student.seat} {student.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="unmatched-select-actions">
+          <button
+            className="small"
+            disabled={photos.length === 0 || loading}
+            onClick={() => setSelected(new Set(photos.map((photo) => photo.path)))}
+          >
+            全選
+          </button>
+          <button
+            className="small"
+            disabled={selected.size === 0}
+            onClick={() => setSelected(new Set())}
+          >
+            清除選取
+          </button>
+          <span className="muted small-text">已選 {selected.size} 張</span>
+        </div>
+      </div>
+
+      {error && <p className="unmatched-error">{error}</p>}
+      {result && <p className="unmatched-result">{result}</p>}
+
+      {loading ? (
+        <p className="muted">讀取未匹配照片中…</p>
+      ) : photos.length === 0 ? (
+        <div className="unmatched-empty">
+          <p>目前沒有未匹配照片。</p>
+          <p className="muted small-text">
+            匯入失敗或缺座號的照片會出現在本機 `_inbox/_unmatched`；Google Drive 的失敗檔在外部根目錄的
+            `_unmatched`。
+          </p>
+        </div>
+      ) : (
+        <div className="unmatched-list">
+          {photos.map((photo) => (
+            <label
+              key={photo.path}
+              className={`unmatched-card${selected.has(photo.path) ? ' selected' : ''}`}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(photo.path)}
+                disabled={working}
+                onChange={() => toggle(photo.path)}
+              />
+              <span className="unmatched-thumb">
+                {thumbs[photo.path] ? (
+                  <img src={thumbs[photo.path]} alt={photo.name} />
+                ) : (
+                  <span className="muted small-text">縮圖載入中…</span>
+                )}
+              </span>
+              <span className="unmatched-info">
+                <span className="unmatched-name" title={photo.path}>
+                  {photo.name}
+                </span>
+                <span className="unmatched-tags">
+                  <span className={`queue-chip ${photo.source === 'drive' ? 'grading' : 'pending'}`}>
+                    {photo.source === 'drive' ? 'Drive' : '本機'}
+                  </span>
+                  <span className="muted small-text">
+                    {photo.classId && photo.assignmentId
+                      ? `${photo.classId}／${photo.assignmentId}${
+                          photo.seat ? ` · S${photo.seat}` : ''
+                        }`
+                      : '未指定作業'}
+                  </span>
+                </span>
+                <span className="unmatched-reason">原因：{photo.reason}</span>
+                <span className="unmatched-time muted small-text">
+                  {new Date(photo.modifiedAt).toLocaleString('zh-TW', { hour12: false })} ·{' '}
+                  {formatBytes(photo.size)}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      <div className="unmatched-actions">
+        <p className="unmatched-confirm">
+          {target
+            ? `會附加到 S${target.seat} ${target.name}，並依檔案時間排序；複製成功後來源會刪除。`
+            : '請先選擇學生，才會知道會附加到誰。'}
+        </p>
+        <button
+          className="primary unmatched-assign"
+          disabled={working || !target || orderedSelection.length === 0}
+          onClick={() => void assign()}
+        >
+          {working
+            ? '排入中…'
+            : target
+              ? `指定給 S${target.seat} ${target.name} 並排入匯入`
+              : '指定並排入匯入'}
+        </button>
       </div>
     </section>
   )

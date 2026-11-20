@@ -105,7 +105,12 @@ async function reject(
   route?: FolderRoute,
   seat?: string
 ): Promise<void> {
-  await moveToSubfolder(driveRoot, '_unmatched', imagePath, sidecarPath, reason)
+  await moveToSubfolder(driveRoot, '_unmatched', imagePath, sidecarPath, reason, {
+    ...(route?.classId ? { classId: route.classId } : {}),
+    ...(route?.assignmentId ? { assignmentId: route.assignmentId } : {}),
+    ...(seat ? { seat } : {}),
+    source: 'drive'
+  })
   await emitImportEvent({
     type: 'unmatched',
     source: 'drive',
@@ -307,7 +312,8 @@ async function processExternalFile(imagePath: string): Promise<void> {
         '_duplicates',
         imagePath,
         hasSidecar ? sidecarPath : null,
-        reason
+        reason,
+        { classId, assignmentId, seat, source: 'drive' }
       )
       await emitImportEvent({
         type: 'duplicate',

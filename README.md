@@ -39,6 +39,7 @@ npm run m6:check     # 統計驗收（G1／G2／G3、分數摘要、CSV 四檔�
 npm run m7:check     # 交付驗收（備份／還原、zip slip、日誌輪替、ErrorBoundary、打包設定）
 npm run drive:check  # Google Drive 外部 inbox 驗收（兩種擺法、去重、PDF、錯誤路徑、UI）
 npm run excel:check  # 成績寫回 Excel 驗收（副本、座號、驗證、重複、匯出模式、CSV、UI）
+npm run match:check  # 未匹配照片驗收（內外清單、meta、縮圖、指定座號、去重、路徑防護、UI）
 npm run dist         # 同上，產出 NSIS 安裝檔與 portable（apps/desktop/release）
 npm run dist:win     # 建置後打包 Windows x64：Setup＋Portable
 npm run dist:portable # 只產出 portable
@@ -128,10 +129,10 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 ## 目前進度
 
 M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付、
-Google Drive 外部 inbox、E6 成績寫回 Excel 已完成。
+Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配座號已完成。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
-`excel:check` 25/25。
+`excel:check` 25/25、`match:check` 21/21。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），
@@ -142,4 +143,7 @@ ErrorBoundary 與打包設定；安裝檔與 portable 的打包狀態見 `progre
 E6 以合成成績表驗證：座號 `7`／`08`／`S12` 正確寫回、S15 未匹配、S20 批閱中不寫、
 原檔位元組不變、副本重新開啟驗證、重複座號中止、`.xlsm` 與含 chart 字樣走匯出、
 失敗保留 CSV；報告列出變更前後值。
+未匹配照片以內外共 5 張驗證清單、來源、原因與 meta，舊檔無 meta 顯示未指定作業；
+縮圖 240×320；3 張依檔案時間指定給 S07 後正確附加 3 頁，來源與附屬檔刪除；
+重複照片不新增頁面，非在學座號、路徑穿越、任意路徑與空選取皆被拒絕。
 已知限制見 `progress.md`；下一步為 M8 手機掃描。

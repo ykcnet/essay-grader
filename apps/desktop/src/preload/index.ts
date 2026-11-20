@@ -103,6 +103,16 @@ const api = {
     openDriveRoot: () => ipcRenderer.invoke('import:drive-open'),
     ensureDriveFolder: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('import:drive-ensure-folder', classId, assignmentId),
+    listUnmatched: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('import:unmatched-list', classId, assignmentId),
+    unmatchedThumbnail: (classId: string, assignmentId: string, path: string) =>
+      ipcRenderer.invoke('import:unmatched-thumbnail', classId, assignmentId, path),
+    assignUnmatched: (
+      classId: string,
+      assignmentId: string,
+      seat: string,
+      paths: string[]
+    ) => ipcRenderer.invoke('import:unmatched-assign', classId, assignmentId, seat, paths),
     onEvent: (listener: ImportEventListener) => {
       const id = nextListenerId++
       importListeners.set(id, listener)
