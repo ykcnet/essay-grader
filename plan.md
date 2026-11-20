@@ -32,7 +32,7 @@
 | 功能清單 | 77 項：P0 39／P1 22／P2 16 |
 | 核心主線 | 拍照匯入 → 批注 → 評分 → 回饋單 |
 | 資料夾契約 | 全 ASCII、中文存 JSON |
-| 評語庫 | 高中職 126 條，含防罐頭化與輪替規則 |
+| 評語庫 | 高中職 126 條已接入；國中 126 條草稿完成、尚未接入 |
 | 圖示 | Windows ICO、各尺寸 PNG、Android mipmap |
 | 工具 | `tools/make_icon.py`、`tools/trace_circle.py` |
 
@@ -679,7 +679,7 @@ essay-grader/
 - [x] 整班批次回饋單：逐份輸出、跳過未完成、溢頁不中斷、進度／取消、`_feedback/` 報告（2026-11-20）
 - [x] 10 分鐘 soak：45 人、每圈 45 份回饋單、記憶體／視窗／資料驗證（2026-11-20）
 - [ ] 是否先產出三張畫面草圖再進程式
-- [ ] 國中版評語庫時程（介面先留空位）
+- [x] 國中版評語庫草稿 126 條完成（2026-11-20）；待國中國文老師校閱，校閱後再接入
 - [ ] 目標電腦螢幕解析度（1366×768 是否為最低）
 
 ---
@@ -692,5 +692,6 @@ essay-grader/
 4. 量規預設採用均衡版，建立作業可改選其他 preset、評分前可調整配分與等第門檻；變更只影響之後的計算，已有分數不自動改寫。
 5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。未匹配照片手動分配已完成：`.meta.json` 結構化資訊、內外清單、320px 縮圖、realpath 路徑防護、選取學生後複製到 `_inbox` 並產生 sidecar、依 mtime／檔名排序、來源與附屬檔刪除、重複去重、`match:check` 21/21。F2 整班批次回饋單已完成：逐份輸出、跳過未完成、溢頁不中斷、`_feedback/` 中文檔名與 JSON／CSV 報告、進度與取消、`batch:check` 17/17。10 分鐘 soak 已完成：45 人、每圈 45 份回饋單，15 圈、720 份 PDF，private 291→291 MB、peak 426 MB、視窗回 0，作品與 PDF 驗證全數通過。下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 inbox。
 6. M7 打包已完成；若換電腦或離線打包，electron-builder 需要重新下載 Electron／NSIS，失敗時不影響 `npm run dev`、`m1:check`–`m7:check` 與既有資料。
+7. 國中版評語庫校閱後接入：依班級學制選擇 `junior` 或 `senior` library，或加設定開關；接入前維持草稿，不改 `packages/core/src/library.ts` 與 `BUILTIN_LIBRARY`。
 
 > 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7＋F2＋10 分鐘 soak 已完成並建立對應 commit。

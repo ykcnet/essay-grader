@@ -42,6 +42,9 @@ npm run excel:check  # 成績寫回 Excel 驗收（副本、座號、驗證、�
 npm run match:check  # 未匹配照片驗收（內外清單、meta、縮圖、指定座號、去重、路徑防護、UI）
 npm run batch:check  # 整班批次回饋單驗收（輸出、跳過、溢頁失敗、報告、取消、重複啟動、UI）
 npm run compare:check # G4 與上次比較驗收（狀態、平均、弱項、排行、拒絕情境、UI）
+npm run junior:render  # 由 junior.draft.json 產生國中版評語庫 Markdown（草稿）
+npm run junior:validate # 國中版草稿檢查（條數、id、字數、標籤、與高中職版重複）
+npm run junior:check   # 國中版草稿完整檢查，含 Markdown 與 JSON 一致
 npm run soak         # 10 分鐘連續操作壓力測試（可用 --soak-minutes=1 縮短）
 npm run dist         # 同上，產出 NSIS 安裝檔與 portable（apps/desktop/release）
 npm run dist:win     # 建置後打包 Windows x64：Setup＋Portable
@@ -84,6 +87,17 @@ Google Drive 外部 inbox：在匯入佇列表按「設定／變更」選擇 Goo
 等第至少一筆、名稱不可空白或重複、最低分須為 0–100 且不可重複，儲存時由高到低排序；
 表單會即時顯示目前總分落在哪一級。若該作業已有評分，變更前會先確認；只影響之後的計算，
 已儲存的分數與等第不會自動改寫，目前這份的預覽會用新量規重算，完成批閱時才寫入。
+
+### 國中版評語庫（草稿，尚未接入）
+
+`packages/core/src/library/junior.draft.json` 與根目錄 `comment-library-junior.md` 是國中版
+126 條草稿，分類與子類數量比照高中職版，語氣與題材改以七～九年級、國中教育會考寫作測驗為主。
+**目前仍是草稿，未接入程式**：`packages/core/src/library.ts` 與 `BUILTIN_LIBRARY` 沒有改動，
+批閱介面仍只載入高中職版 `senior.json`；待國中國文老師校閱後，再依班級學制選擇評語庫或加設定開關。
+
+草稿的 JSON 是唯一來源，修改後執行 `npm run junior:render` 重新產生 Markdown；
+`npm run junior:validate` 會檢查條數、子類、id、字數、標籤、變數與高中職版重複，
+`npm run junior:check` 另外確認 Markdown 與 JSON 完全一致。
 
 批閱流程：匯入佇列每列按「批閱」進入三欄式介面。左側切換同作業作品，
 中間滾輪縮放、拖曳平移、PageUp／PageDown 翻頁，點畫布新增批注；
@@ -150,6 +164,7 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付、
 Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配座號、F2 整班批次回饋單、
 10 分鐘 soak、G4 與上次比較已完成。
+國中版評語庫草稿 126 條（未接入）亦已完成，待國中國文老師校閱。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`spike` 通過。

@@ -1,0 +1,1637 @@
+{
+  "schema_version": 1,
+  "library_version": "2026.2-draft",
+  "locale": "zh-TW",
+  "entries": [
+    {
+      "id": "JE-01",
+      "category": "typo",
+      "subtype": "general",
+      "text": "「的」與「得」要分清：接在動詞後面補充程度時用「得」，例如「跑得很快」。",
+      "tags": [
+        "國中",
+        "錯字",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JE-02",
+      "category": "typo",
+      "subtype": "general",
+      "text": "這裡要寫「再」表示第二次或重複，若是說明位置則用「在」；請依句意選字。",
+      "tags": [
+        "國中",
+        "錯字"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JE-03",
+      "category": "typo",
+      "subtype": "general",
+      "text": "「已」是已經完成，「以」是用來或憑藉；兩個字意思不同，請看上下文再確認。",
+      "tags": [
+        "國中",
+        "錯字",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JE-04",
+      "category": "typo",
+      "subtype": "general",
+      "text": "一句話裡逗號用太多，讀者會喘不過氣；在語氣完成的地方改成句號，句子才有呼吸。",
+      "tags": [
+        "國中",
+        "標點"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JE-05",
+      "category": "typo",
+      "subtype": "general",
+      "text": "引號要成對使用，前引號和後引號不可顛倒；請檢查這一段的引號是否都有閉合。",
+      "tags": [
+        "國中",
+        "標點"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JE-06",
+      "category": "typo",
+      "subtype": "general",
+      "text": "書名、書刊用《》，篇名、文章用〈〉；兩種符號功能不同，請依作品類型選用。",
+      "tags": [
+        "國中",
+        "標點",
+        "閱讀"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JE-07",
+      "category": "typo",
+      "subtype": "general",
+      "text": "每個段落開頭要空兩格，這是文章格式的基本要求；請把整篇的段落一起調整。",
+      "tags": [
+        "國中",
+        "格式"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JE-08",
+      "category": "typo",
+      "subtype": "general",
+      "text": "刪節號固定六點「……」；用三點或更多點都不合標準，請統一改正。",
+      "tags": [
+        "國中",
+        "標點"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JE-09",
+      "category": "typo",
+      "subtype": "general",
+      "text": "中文標點應使用全形，且標點前後不夾半形空格；請把這幾處一起修正。",
+      "tags": [
+        "國中",
+        "標點",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JE-10",
+      "category": "typo",
+      "subtype": "general",
+      "text": "「既然」和「竟然」意思差很多：前者表示前提，後者表示出乎意料；請依句意改正。",
+      "tags": [
+        "國中",
+        "錯字",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-01",
+      "category": "sentence",
+      "subtype": "awkward",
+      "text": "這句把好幾件事擠在一起，讀到一半會忘記主詞；拆成兩句，一句只說一個動作。",
+      "tags": [
+        "國中",
+        "語句",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-02",
+      "category": "sentence",
+      "subtype": "awkward",
+      "text": "前後兩句的主詞換來換去，視角也跟著跳動；先確定是誰在做這件事，再統一寫法。",
+      "tags": [
+        "國中",
+        "語句",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-03",
+      "category": "sentence",
+      "subtype": "awkward",
+      "text": "句子裡的「因為」和「所以」隔得太遠，因果被拉散；把原因和結果靠近一點會更清楚。",
+      "tags": [
+        "國中",
+        "語句",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-04",
+      "category": "sentence",
+      "subtype": "awkward",
+      "text": "這句缺了動作的對象，讀者不知道受到影響的是誰；補上人、事或物，意思才完整。",
+      "tags": [
+        "國中",
+        "語句"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-05",
+      "category": "sentence",
+      "subtype": "word_order",
+      "text": "時間和地點的順序放反了，讀起來卡卡的；中文習慣先說時間再說地點，請調整語序。",
+      "tags": [
+        "國中",
+        "語句",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-06",
+      "category": "sentence",
+      "subtype": "word_order",
+      "text": "「把」字句的動詞跑到很後面，中間又塞了長長的修飾語；把動詞提前，句子會站穩。",
+      "tags": [
+        "國中",
+        "語句",
+        "校園"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-07",
+      "category": "sentence",
+      "subtype": "word_order",
+      "text": "這句把否定詞放在句尾，容易讓人誤會意思；把「不」或「沒有」移到動詞前面會更清楚。",
+      "tags": [
+        "國中",
+        "語句",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-08",
+      "category": "sentence",
+      "subtype": "word_choice",
+      "text": "「拿」和「帶」用法不同：前者強調用手取，後者強調隨身攜帶；請依實際動作換詞。",
+      "tags": [
+        "國中",
+        "用詞",
+        "校園"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-09",
+      "category": "sentence",
+      "subtype": "word_choice",
+      "text": "「參觀」用在看展覽或場所，「參加」用在加入活動；這裡的對象是活動，應改為「參加」。",
+      "tags": [
+        "國中",
+        "用詞",
+        "應用"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-10",
+      "category": "sentence",
+      "subtype": "word_choice",
+      "text": "「發現」是原本不知道而看到，「發明」是創造出新事物；兩者不能互換，請再確認。",
+      "tags": [
+        "國中",
+        "用詞",
+        "閱讀"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-11",
+      "category": "sentence",
+      "subtype": "word_choice",
+      "text": "這句接連用了「很棒」「很好」「很厲害」，形容詞太靠近；換成具體表現來說明好在哪裡。",
+      "tags": [
+        "國中",
+        "用詞",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-12",
+      "category": "sentence",
+      "subtype": "redundant",
+      "text": "句子裡「大約」和「左右」意思重複，留一個就夠；刪掉其中一個，語氣會更肯定。",
+      "tags": [
+        "國中",
+        "冗贅",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-13",
+      "category": "sentence",
+      "subtype": "redundant",
+      "text": "「親眼目睹」已經包含看見的意思，前面再加「看到」就重複了；請刪去多餘的詞。",
+      "tags": [
+        "國中",
+        "冗贅"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-14",
+      "category": "sentence",
+      "subtype": "redundant",
+      "text": "這一段前後兩句都在說同一件事，只是換了說法；保留資訊較完整的那一句即可。",
+      "tags": [
+        "國中",
+        "冗贅",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-15",
+      "category": "sentence",
+      "subtype": "ambiguous",
+      "text": "這句的「他」可能指前面兩個人，讀者無法判斷；改成名字或更明確的稱呼。",
+      "tags": [
+        "國中",
+        "語句",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-16",
+      "category": "sentence",
+      "subtype": "ambiguous",
+      "text": "「這次比賽輸了」沒說清楚是個人還是團體，意思會不一樣；補上主語和範圍。",
+      "tags": [
+        "國中",
+        "語句",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-17",
+      "category": "sentence",
+      "subtype": "ambiguous",
+      "text": "「幾天後」沒有明確時間，讀者不知道隔了多久；改成具體天數或事件，例如「月考後第三天」。",
+      "tags": [
+        "國中",
+        "語句",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-18",
+      "category": "sentence",
+      "subtype": "cohesion",
+      "text": "這兩句之間少了連接，前面說困難、後面突然說收穫；補上「因此」或「後來」會順一些。",
+      "tags": [
+        "國中",
+        "連接",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-19",
+      "category": "sentence",
+      "subtype": "cohesion",
+      "text": "這段用「另外」接續，但前後其實是因果關係；改成「所以」或「因為如此」，邏輯才對得上。",
+      "tags": [
+        "國中",
+        "連接",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-20",
+      "category": "sentence",
+      "subtype": "cohesion",
+      "text": "句子一個接一個，卻沒有主次；用「首先」「接著」「最後」標出順序，讀者才好跟。",
+      "tags": [
+        "國中",
+        "連接",
+        "說明"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-21",
+      "category": "sentence",
+      "subtype": "colloquial",
+      "text": "「超」和「整個」是口語用法，放在作文裡會太像聊天；改成「非常」或直接寫出程度。",
+      "tags": [
+        "國中",
+        "口語",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-22",
+      "category": "sentence",
+      "subtype": "colloquial",
+      "text": "句尾的「欸」「喔」可以刪掉；書面作文不需要這些招呼語，刪去後語氣會更俐落。",
+      "tags": [
+        "國中",
+        "口語"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JS-23",
+      "category": "sentence",
+      "subtype": "mixed_register",
+      "text": "這句前半用「於是」、後半又接「然後」，文白語氣不一致；統一用白話，讀起來會更自然。",
+      "tags": [
+        "國中",
+        "文白",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-01",
+      "category": "structure",
+      "subtype": "off_topic",
+      "text": "第二段開始寫和題目無關的社團活動，雖然有趣，卻沒有回到主題；刪去，或說明它和題目的關係。",
+      "tags": [
+        "國中",
+        "結構",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-02",
+      "category": "structure",
+      "subtype": "off_topic",
+      "text": "開頭花了三段交代背景，真正回答題目的地方只有幾句；壓縮背景，把篇幅留給主要事件。",
+      "tags": [
+        "國中",
+        "結構",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-03",
+      "category": "structure",
+      "subtype": "off_topic",
+      "text": "結尾突然提到搬家，前面完全沒有鋪陳，讀者會覺得突兀；在前文先提一句，或把這段刪去。",
+      "tags": [
+        "國中",
+        "結構",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-04",
+      "category": "structure",
+      "subtype": "off_topic",
+      "text": "題目問的是「學到什麼」，文中卻只把過程說完，沒有寫出收穫；在結尾補上自己的體會。",
+      "tags": [
+        "國中",
+        "結構",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-05",
+      "category": "structure",
+      "subtype": "insufficient_evidence",
+      "text": "這裡說「大家都同意」，但沒有說明是誰、在什麼情況下同意；補一個具體例子會更有說服力。",
+      "tags": [
+        "國中",
+        "例證",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-06",
+      "category": "structure",
+      "subtype": "insufficient_evidence",
+      "text": "你提出「多運動有益健康」，接著卻沒有證據；補上自己的經驗或查到的資料，理由才站得住。",
+      "tags": [
+        "國中",
+        "例證",
+        "說明"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-07",
+      "category": "structure",
+      "subtype": "insufficient_evidence",
+      "text": "引用老師的話之後，沒有解釋它和你的想法有什麼關係；補一句自己的說明，讀者才看得懂。",
+      "tags": [
+        "國中",
+        "例證",
+        "閱讀"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-08",
+      "category": "structure",
+      "subtype": "insufficient_evidence",
+      "text": "這一段只有結論，缺少中間的推論；寫出「因為什麼，所以得到這個結果」，說理會更完整。",
+      "tags": [
+        "國中",
+        "例證",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-09",
+      "category": "structure",
+      "subtype": "paragraph_balance",
+      "text": "第二段只有短短兩行，卻單獨占一段；如果只是過渡，併入前段，或補足內容再獨立。",
+      "tags": [
+        "國中",
+        "段落",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-10",
+      "category": "structure",
+      "subtype": "paragraph_balance",
+      "text": "第一段寫得太長，讀者還沒進入事件就先累了；把背景縮短到三、四句，重點會更早出現。",
+      "tags": [
+        "國中",
+        "段落",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-11",
+      "category": "structure",
+      "subtype": "paragraph_balance",
+      "text": "這一段同時寫比賽和友誼，兩個重點互相搶戲；拆成兩段，各放一個中心想法。",
+      "tags": [
+        "國中",
+        "段落",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-12",
+      "category": "structure",
+      "subtype": "paragraph_balance",
+      "text": "各段長短差很多，讀起來忽快忽慢；在中間補一段承接，讓全文節奏比較穩。",
+      "tags": [
+        "國中",
+        "段落",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-13",
+      "category": "structure",
+      "subtype": "transition",
+      "text": "從「考試前」跳到「成績公布」，中間少了等待的過程；補一句時間過渡，讀者才跟得上。",
+      "tags": [
+        "國中",
+        "轉折",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-14",
+      "category": "structure",
+      "subtype": "transition",
+      "text": "前面還在寫開心，下一句立刻轉為難過，情緒轉得太快；加一句發生什麼事，轉折才會成立。",
+      "tags": [
+        "國中",
+        "轉折",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-15",
+      "category": "structure",
+      "subtype": "transition",
+      "text": "這一段和上一段之間沒有連接，像突然換話題；用「除此之外」或「另一方面」帶出新的內容。",
+      "tags": [
+        "國中",
+        "轉折",
+        "說明"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-16",
+      "category": "structure",
+      "subtype": "transition",
+      "text": "你用了「最後」收尾，但前面沒有「首先」「接著」；把順序詞補齊，段落層次會更清楚。",
+      "tags": [
+        "國中",
+        "轉折",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-17",
+      "category": "structure",
+      "subtype": "intro_outro",
+      "text": "開頭直接寫「今天天氣很好」，和主題關聯不強；從一個動作、聲音或問題開始，較能吸引讀者。",
+      "tags": [
+        "國中",
+        "首尾",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-18",
+      "category": "structure",
+      "subtype": "intro_outro",
+      "text": "結尾只寫「這就是我的心得」，太突然也沒有力量；回顧開頭的事件，說出真正的改變。",
+      "tags": [
+        "國中",
+        "首尾",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-19",
+      "category": "structure",
+      "subtype": "intro_outro",
+      "text": "第一段就把結論說完，後面像在重複；把結論留到最後，中間才有鋪陳的空間。",
+      "tags": [
+        "國中",
+        "首尾",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-20",
+      "category": "structure",
+      "subtype": "intro_outro",
+      "text": "結尾提到「希望以後更好」，但沒有說要怎麼做；補一個具體行動，會比口號更動人。",
+      "tags": [
+        "國中",
+        "首尾",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-21",
+      "category": "structure",
+      "subtype": "unclear_topic",
+      "text": "這一段一下寫朋友、一下寫家人，讀者抓不到重點；先想清楚這段只想說什麼，再刪去無關句子。",
+      "tags": [
+        "國中",
+        "主題",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-22",
+      "category": "structure",
+      "subtype": "unclear_topic",
+      "text": "段落開頭沒有主題句，要讀到最後才知道重點；把這段的中心想法移到第一句，會清楚很多。",
+      "tags": [
+        "國中",
+        "主題",
+        "說明"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JT-23",
+      "category": "structure",
+      "subtype": "unclear_topic",
+      "text": "段內句子各自獨立，沒有往前推進；按照「發生什麼、為什麼、學到什麼」重新排列。",
+      "tags": [
+        "國中",
+        "主題",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-01",
+      "category": "praise",
+      "subtype": "general",
+      "text": "你用「手心全是汗」寫緊張，沒有直接說害怕，讀者卻能感覺到，這種寫法很有畫面。",
+      "tags": [
+        "國中",
+        "佳句",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-02",
+      "category": "praise",
+      "subtype": "general",
+      "text": "開頭的聲音描寫很傳神，讓人一讀就進入現場，這是很成功的開場。",
+      "tags": [
+        "國中",
+        "佳句",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-03",
+      "category": "praise",
+      "subtype": "general",
+      "text": "這段對話簡短卻有力量，人物的個性從說話方式就看得出來。",
+      "tags": [
+        "國中",
+        "佳句",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-04",
+      "category": "praise",
+      "subtype": "general",
+      "text": "你把心情藏在動作裡，例如反覆整理書包，比直接說難過更耐讀。",
+      "tags": [
+        "國中",
+        "佳句",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-05",
+      "category": "praise",
+      "subtype": "general",
+      "text": "中間的轉折處理得自然，從誤會到理解只用了一個小動作，卻交代得很清楚。",
+      "tags": [
+        "國中",
+        "佳句",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-06",
+      "category": "praise",
+      "subtype": "general",
+      "text": "結尾回到開頭的雨景，前後呼應，讓整篇文章收得完整。",
+      "tags": [
+        "國中",
+        "佳句",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-07",
+      "category": "praise",
+      "subtype": "general",
+      "text": "你選的例子很貼近生活，讀者容易代入，也讓道理不顯得空泛。",
+      "tags": [
+        "國中",
+        "佳句",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-08",
+      "category": "praise",
+      "subtype": "general",
+      "text": "這段用了對比：熱鬧的教室和安靜的自己，張力一下子就出來了。",
+      "tags": [
+        "國中",
+        "佳句",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-09",
+      "category": "praise",
+      "subtype": "general",
+      "text": "句子長短交錯，讀起來有節奏，不會讓人覺得一路都在趕。",
+      "tags": [
+        "國中",
+        "佳句",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JG-10",
+      "category": "praise",
+      "subtype": "general",
+      "text": "你把抽象的「勇氣」寫成舉手前的那一秒猶豫，具體又準確，這是很難得的觀察。",
+      "tags": [
+        "國中",
+        "佳句",
+        "成長"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-01",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "取材真實，從每天搭公車的小事寫起，讀者很容易代入；這種從生活找材料的習慣請繼續保持，以後遇到抽象題目也能派上用場。",
+      "tags": [
+        "國中",
+        "總評",
+        "校園"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-02",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "段落分明，每一段都有一個清楚的重心，讀完能抓到你想表達的意思；這種先想好段落功能的寫法，是很穩的基本功。",
+      "tags": [
+        "國中",
+        "總評",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-03",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "願意寫出自己的猶豫和改變，沒有急著美化結果；這份誠實讓文章特別有說服力，也讓讀者願意跟著你一起思考。",
+      "tags": [
+        "國中",
+        "總評",
+        "成長"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-04",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "開頭和結尾都扣住「腳踏車」這個物件，前後照應自然；全文因此有一個完整的方向，不會讀到最後卻不知道重點在哪裡。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-05",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "對話生動，人物說話的方式不同，讀者不用看名字也能分辨是誰在開口；這種寫法請繼續保持，人物會越來越立體。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-06",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "很會用動作表達心情，例如握緊考卷、慢慢放下書包；這些細節比直接說「我很緊張」更有力，也讓畫面留在讀者心裡。",
+      "tags": [
+        "國中",
+        "總評",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-07",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "立場清楚，從第一段就能知道你想主張什麼，後面的例子也都沒有偏離主題；這種扣題的穩定度，在考場上很吃香。",
+      "tags": [
+        "國中",
+        "總評",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-08",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "句子多簡短有力，讀起來順暢，不會因為太長而讓人迷失重點；這種乾淨的節奏請保持，但偶爾也可用長句放慢速度。",
+      "tags": [
+        "國中",
+        "總評",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-09",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "從一次失敗寫到後來的調整，過程有變化也有反省，不是只停在抱怨；內容因此更完整，讀者也看得到你的成長。",
+      "tags": [
+        "國中",
+        "總評",
+        "挫折"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-10",
+      "category": "comment",
+      "subtype": "strength",
+      "text": "感情自然，沒有刻意催淚，卻能讓人感受到你對家人的在意；這種克制很不容易，也讓文章讀完之後還有餘味。",
+      "tags": [
+        "國中",
+        "總評",
+        "家庭"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-11",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "想法不錯，但多數段落只停在「我覺得」，沒有說明為什麼；每個想法後面補一個例子或理由，讀者才會被你說服。",
+      "tags": [
+        "國中",
+        "總評",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-12",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "事件寫得詳細，卻少了自己的判斷；敘事後加一段「我從這件事學到什麼」，文章會從記錄變成有想法的作品。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-13",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "開頭花太多篇幅介紹背景，主題出現得太晚；把前兩段合併，讓主要事件在第二段就登場，讀者才有耐心往下讀。",
+      "tags": [
+        "國中",
+        "總評",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-14",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "段落之間常直接跳接，讀者會突然失去方向；換段前補一句承接，說明時間、地點或因果的變化，全文會順很多。",
+      "tags": [
+        "國中",
+        "總評",
+        "結構"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-15",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "句子偏長，一句裡塞了好幾個想法；試著在語氣完成的地方斷句，一句只留一個重點，讀者會更容易跟上。",
+      "tags": [
+        "國中",
+        "總評",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-16",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "用詞比較籠統，常出現「很好」「很開心」；換成具體的動作、聲音或畫面，感受會更清楚，文章也更有味道。",
+      "tags": [
+        "國中",
+        "總評",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-17",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "結尾收得太快，問題才剛解決就結束；多寫一兩句後來的變化，讀者才知道這件事對你造成什麼影響，也讓結尾更有力量。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-18",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "例子只寫了結果，沒有交代過程；補上中間的努力或困難，讀者才會相信這個結果得來不易，而不是運氣好。",
+      "tags": [
+        "國中",
+        "總評",
+        "例證"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-19",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "重點分散在好幾件事上，讀完不容易記住；挑一個最想說的事件寫深，其他部分可以略寫或刪去，主題會更突出。",
+      "tags": [
+        "國中",
+        "總評",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-20",
+      "category": "comment",
+      "subtype": "weakness",
+      "text": "標點使用不夠穩定，有時一句話從頭逗到尾；先練習把完整的意思用句號收住，再檢查引號和刪節號是否正確。",
+      "tags": [
+        "國中",
+        "總評",
+        "標點"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-21",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "開頭很吸引人，可惜中段開始重複前面的內容；刪去相似段落，把篇幅留給後面的轉折，全文會更緊湊也更有層次。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-22",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "觀察細膩，幾個畫面寫得很好；但段落之間缺少連接，補上時間或因果的過渡，讀者才不會覺得你突然跳到另一件事。",
+      "tags": [
+        "國中",
+        "總評",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-23",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "取材有特色，能看出你認真想過題目；不過結尾的結論和前面例子連不起來，回到例子再收一次，會更有說服力。",
+      "tags": [
+        "國中",
+        "總評",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-24",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "情感真摯，讀來有感；但有些句子太口語，改成書面說法會更符合會考作文的要求，也讓情緒表達更精準。",
+      "tags": [
+        "國中",
+        "總評",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-25",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "結構清楚、分段適當，是很穩的基礎；每一段再補一個具體細節，內容會從「完整」變成「深刻」，分數也有機會再上來。",
+      "tags": [
+        "國中",
+        "總評",
+        "結構"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-26",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "看法有道理，例子也選得不錯；可惜推論跳得太快，補上中間的「為什麼」，讀者才容易被說服，論點也才站得住。",
+      "tags": [
+        "國中",
+        "總評",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-27",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "描述事件的能力很好，畫面感強；但全文偏重敘事，較少寫自己的心情，加入內心轉折會更動人，也更有深度。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-28",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "用字乾淨、錯字不多，基本功扎實；下一步可以嘗試變換句式，讓文章讀起來更有節奏，而不是一路平鋪直敘。",
+      "tags": [
+        "國中",
+        "總評",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-29",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "優點是誠實，缺點是太急著說完；放慢關鍵場景的速度，多寫一點當下的感受，文章會更有力量，也更能打動人。",
+      "tags": [
+        "國中",
+        "總評",
+        "成長"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-30",
+      "category": "comment",
+      "subtype": "mixed",
+      "text": "結尾的想法很好，但前面鋪陳不足，顯得有點突然；在中段先埋下伏筆，結尾會更合理，讀者也能理解你的轉變。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-31",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "能從題目提供的資料找出共同點，方向正確；再指出兩者的差異，分析會更完整，也更能顯示你真的讀懂了材料。",
+      "tags": [
+        "國中",
+        "知性",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-32",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "立場清楚，理由也分得開；最後補一句「所以我們應該怎麼做」，主張會更具體，也更容易拿到知性題的分數。",
+      "tags": [
+        "國中",
+        "知性",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-33",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "會用例子支持看法，這點很好；例子說完再補一句它和論點的關係，會更有力，讀者才不會覺得例子是硬塞進去的。",
+      "tags": [
+        "國中",
+        "知性",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-34",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "分析問題時，注意到原因和結果的不同，思考有層次；預想一個相反意見並回應，會更成熟，論證也更完整。",
+      "tags": [
+        "國中",
+        "知性",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-35",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "能把圖表裡的數字轉成文字說明，閱讀資料的能力不錯；標明數字來源，推論會更可靠，也方便讀者查證。",
+      "tags": [
+        "國中",
+        "知性",
+        "說明"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-36",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "能把抽象的概念說得淺白，讀者容易理解；可惜結論偏弱，回到題目再收一次，說明這些概念和生活的關係會更好。",
+      "tags": [
+        "國中",
+        "知性",
+        "說明"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-37",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "沒有照抄題目材料，而是用自己的話重述，這是很好的習慣；再加入一個生活例子，內容會更豐富，也更有說服力。",
+      "tags": [
+        "國中",
+        "知性",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-38",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "論點排列有順序，從個人到社會逐步擴大；但第三段跳得太快，補上中間的連結，讀者才跟得上你的思路。",
+      "tags": [
+        "國中",
+        "知性",
+        "議論"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-39",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "能區分「事實」和「想法」，不會把猜測當成結論；把推論步驟寫出來，說服力會更強，也能看出你的思考過程。",
+      "tags": [
+        "國中",
+        "知性",
+        "會考"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-40",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "說明清楚，適合當成介紹文；但缺少自己的評價，讀完不知道你支持哪一邊，補上立場和理由會更完整，也更符合題目要求。",
+      "tags": [
+        "國中",
+        "知性",
+        "說明"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-41",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "描寫家人準備晚餐的畫面很有溫度，味道和蒸氣都寫出來了；結尾多寫一句現在的感受，餘味會更長，也更能回扣主題。",
+      "tags": [
+        "國中",
+        "情意",
+        "家庭"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-42",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "談失去，卻沒有過度悲傷，節制得很好；中段多留一個安靜的畫面，情緒會更沉，讀者也會更願意停下來體會。",
+      "tags": [
+        "國中",
+        "情意",
+        "挫折"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-43",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "把緊張寫成「一直看時鐘」，具體又自然；這種用小動作代替直接抒情的方式，請繼續保持，會讓人物更真實。",
+      "tags": [
+        "國中",
+        "情意",
+        "校園"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-44",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "朋友之間的誤會寫得真實，對話也很生活化；補上你當時沒說出口的那句話，讀者會更懂你的心情，也更能感受和解的重量。",
+      "tags": [
+        "國中",
+        "情意",
+        "朋友"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-45",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "情感有起伏，從期待到失望再到釋懷，安排得很清楚；結尾的轉變再多鋪陳一句，會更自然，也比較不像是硬轉。",
+      "tags": [
+        "國中",
+        "情意",
+        "成長"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-46",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "很會寫家人的小動作，例如默默留一盞燈；這些細節比直接說「很感動」更有力量，也更耐讀，請繼續從生活裡找材料。",
+      "tags": [
+        "國中",
+        "情意",
+        "家庭"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-47",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "畫面感很強，讀者能看見當時的教室；若在關鍵處放慢速度，多寫一個動作或聲音，感染力會更強，情緒也更能累積。",
+      "tags": [
+        "國中",
+        "情意",
+        "校園"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-48",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "寫自己的害怕，沒有遮遮掩掩，這需要勇氣；寫出後來怎麼面對，文章會更完整，讀者也能從你的經驗得到力量。",
+      "tags": [
+        "國中",
+        "情意",
+        "成長"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-49",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "結尾沒有把話說盡，留下一些空白，處理得很好；前面少一點說明、多一點場景，會更耐讀，也更能讓讀者自己體會。",
+      "tags": [
+        "國中",
+        "情意",
+        "抒情"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-50",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "寫與同學的和解，語氣真誠；多寫對方的反應和你的回應，這段關係的變化會更明顯，文章也更有說服力。",
+      "tags": [
+        "國中",
+        "情意",
+        "朋友"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-51",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "這封書信的稱謂和署名位置大致正確；依收信人的身分調整敬語，語氣會更得體，也才符合書信的基本禮貌。",
+      "tags": [
+        "國中",
+        "應用",
+        "書信"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-52",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "留言條把時間、地點和事情都交代清楚了，實用性很高；補上自己的聯絡方式，方便對方回覆，也避免事情被耽誤。",
+      "tags": [
+        "國中",
+        "應用",
+        "留言"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-53",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "這則啟事的目的明確，讀者一看就知道要做什麼；把截止時間寫得更醒目，效果會更好，也比較不會有人錯過。",
+      "tags": [
+        "國中",
+        "應用",
+        "啟事"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-54",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "校園活動通知的段落安排清楚，重要資訊沒有漏掉；開頭加一句活動宗旨，會更有吸引力，讀者也更知道為什麼要參加。",
+      "tags": [
+        "國中",
+        "應用",
+        "通知"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-55",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "這篇人物介紹抓住主角的特長，也寫出相處的感受；補一個小故事，形象會更立體，讀者也會更容易記住這個人。",
+      "tags": [
+        "國中",
+        "應用",
+        "簡介"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-56",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "書信中的感謝寫得具體，不會只說「謝謝」；回應對方先前的幫助，會更顯得用心，也讓這封信更有溫度。",
+      "tags": [
+        "國中",
+        "應用",
+        "書信"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-57",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "這則道歉啟事的態度誠懇，也說明補救方式；把造成的不便寫清楚，讓對方感受到你的負責，會更容易得到諒解。",
+      "tags": [
+        "國中",
+        "應用",
+        "啟事"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-58",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "圖書推薦簡介有重點，讀者能快速了解內容；最後補上適合的讀者對象，會更實用，也更容易讓人願意翻開這本書。",
+      "tags": [
+        "國中",
+        "應用",
+        "簡介"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-59",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "採訪紀錄保留了受訪者的說法，也加入自己的觀察；標明時間和場合，資料會更完整，讀者也更能判斷內容可不可信。",
+      "tags": [
+        "國中",
+        "應用",
+        "採訪"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-60",
+      "category": "comment",
+      "subtype": "applied",
+      "text": "應用文的格式大致完整，語氣也合宜；但部分句子太像口語，改成書面說法會更符合正式場合，也更顯得尊重對方。",
+      "tags": [
+        "國中",
+        "應用",
+        "通知"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    }
+  ]
+}
