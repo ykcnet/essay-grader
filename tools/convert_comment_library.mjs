@@ -66,14 +66,23 @@ for (const line of lines) {
     continue
   }
 
-  const row = line.match(/^\|\s*([ESTGC]-\d{2})\s*\|\s*(.+?)\s*\|$/)
-  if (!row) continue
+  const cells = line
+    .split('|')
+    .slice(1, -1)
+    .map((cell) => cell.trim())
+  if (cells.length < 2 || !/^[ESTGC]-\d{2}$/.test(cells[0])) continue
 
-  const [, id, text] = row
+  const [id, text] = cells
+  const rowTags = cells[2]
+    ? cells[2]
+        .split(/[、,，]/)
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+    : []
   const prefix = id[0]
   let category = 'other'
   let subtype = 'general'
-  let entryTags = [...tags]
+  let entryTags = [...new Set([...tags, ...rowTags])]
 
   if (prefix === 'E') {
     category = 'typo'

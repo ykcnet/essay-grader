@@ -1632,6 +1632,186 @@
       ],
       "disabled": false,
       "source": "builtin"
+    },
+    {
+      "id": "JC-61",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "敘事大體依時間推進，但回溯的段落放得太早，讀者還沒站穩主要事件就被帶走；把回憶移到事件之後，或先補一句時間過渡，順序會更清楚。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-62",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "每個環節都平均用力，關鍵場景反而沒有寫透；壓縮交代性的過程，把篇幅留給事情轉變的那一刻，段落比例一調整，全文重心就會浮現。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-63",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "事件多停在概括敘述，缺少可以看見的場景；挑一個關鍵片刻停下來，寫出文中人物的動作、表情或一句對話，敘事會從交代變成可感的畫面。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-64",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "事件結束後直接跳進感想，中間少了轉折與思索；先寫出想法改變的那一刻，再說明這個體悟從何而來，敘事與主旨才會連成一條線。",
+      "tags": [
+        "國中",
+        "總評",
+        "記敘",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-65",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "情感線大致完整，但幾個段落的情緒沒有事件支撐，讀來偏空；把每一種感受接回當時的場景或動作，抒情才有依託，段落之間也更能連貫。",
+      "tags": [
+        "國中",
+        "總評",
+        "抒情",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-66",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "心情由低落轉為釋懷，轉折卻來得突然；補上讓想法改變的關鍵細節，說明是什麼觸動了轉念，情感線的轉折才有依據，讀者也才能跟著走。",
+      "tags": [
+        "國中",
+        "總評",
+        "抒情",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-67",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "直接說明情緒的句子偏多，反而稀釋了力量；刪去重複的形容，改用動作與場景承載感受，留一點空白，節制之後的抒情會更深，也更有餘味。",
+      "tags": [
+        "國中",
+        "總評",
+        "抒情",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-68",
+      "category": "comment",
+      "subtype": "emotional",
+      "text": "前段鋪陳從容，結尾卻收得太急，情緒還沒有落點；把最後一段放慢，收在一個具體畫面而不是口號，全文的節奏與結尾的餘味都會更完整。",
+      "tags": [
+        "國中",
+        "總評",
+        "抒情",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-69",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "開頭花了幾句鋪陳背景，卻沒有說出自己的立場；在首段末句把主張說清楚，後面的理由與例子才有共同方向，全文也才不會讀成資料整理。",
+      "tags": [
+        "國中",
+        "總評",
+        "議論",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-70",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "幾個理由分量相當，段落之間只有並列沒有推進；依輕重或因果重新排序，一段只承擔一個理由，論證的層次才會出來，讀者也跟得上思路。",
+      "tags": [
+        "國中",
+        "總評",
+        "議論",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-71",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "例子本身具體，但說完就結束，沒有說明它和主張的關係；補一句解釋這個例子證明了什麼，例證才不會孤立，論點也才真正被支撐。",
+      "tags": [
+        "國中",
+        "總評",
+        "議論",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
+    },
+    {
+      "id": "JC-72",
+      "category": "comment",
+      "subtype": "intellectual",
+      "text": "全文立場一致，卻只有單方面的理由；在結論前先承認一種相反看法，再說明為何仍要堅持，讓步與反駁會讓論證更完整，結論也更有說服力。",
+      "tags": [
+        "國中",
+        "總評",
+        "議論",
+        "結構補充",
+        "使用者提供"
+      ],
+      "disabled": false,
+      "source": "builtin"
     }
   ]
 }

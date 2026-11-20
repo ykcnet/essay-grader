@@ -281,12 +281,12 @@ export async function runM3Check(): Promise<number> {
       sentence: 23,
       structure: 23,
       praise: 10,
-      comment: 60
+      comment: 72
     }
     const countsOk = Object.entries(expected).every(([key, value]) => counts[key] === value)
     add(
-      '評語庫 126 條與分類數量',
-      BUILTIN_LIBRARY.entries.length === 126 && countsOk,
+      '評語庫 138 條與分類數量',
+      BUILTIN_LIBRARY.entries.length === 138 && countsOk,
       `${BUILTIN_LIBRARY.entries.length} 條（${Object.entries(counts)
         .map(([key, value]) => `${key} ${value}`)
         .join('、')}），版本 ${LIBRARY_VERSION}`

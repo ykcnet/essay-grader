@@ -20,13 +20,13 @@ const ALLOWED = {
   comment: ['strength', 'weakness', 'mixed', 'intellectual', 'emotional', 'applied']
 }
 
-const EXPECTED_CATEGORY = { typo: 10, sentence: 23, structure: 23, praise: 10, comment: 60 }
+const EXPECTED_CATEGORY = { typo: 10, sentence: 23, structure: 23, praise: 10, comment: 72 }
 const EXPECTED_SUBTYPE = {
   typo: { general: 10 },
   sentence: { awkward: 4, word_order: 3, word_choice: 4, redundant: 3, ambiguous: 3, cohesion: 3, colloquial: 2, mixed_register: 1 },
   structure: { off_topic: 4, insufficient_evidence: 4, paragraph_balance: 4, transition: 4, intro_outro: 4, unclear_topic: 3 },
   praise: { general: 10 },
-  comment: { strength: 10, weakness: 10, mixed: 10, intellectual: 10, emotional: 10, applied: 10 }
+  comment: { strength: 10, weakness: 10, mixed: 10, intellectual: 14, emotional: 18, applied: 10 }
 }
 
 const PREFIX = { typo: 'JE', sentence: 'JS', structure: 'JT', praise: 'JG', comment: 'JC' }
@@ -93,9 +93,9 @@ if (library) {
     return `${entries.length} 條欄位齊全`
   })
 
-  await check('總數 126', () => {
-    assert(entries.length === 126, `目前 ${entries.length} 條`)
-    return '126 條'
+  await check('總數 138', () => {
+    assert(entries.length === 138, `目前 ${entries.length} 條`)
+    return '138 條'
   })
 
   await check('分類數量', () => {
@@ -140,7 +140,7 @@ if (library) {
     const seniorIds = new Set(senior.entries.map((entry) => entry.id))
     const overlap = ids.filter((id) => seniorIds.has(id))
     assert(overlap.length === 0, `與高中職版重複：${overlap.join('、')}`)
-    return '126 個 id 全部唯一'
+    return '138 個 id 全部唯一'
   })
 
   await check('text 正規化後唯一', () => {
@@ -150,7 +150,7 @@ if (library) {
       assert(!seen.has(key), `${entry.id} 與 ${seen.get(key)} 正規化後相同`)
       seen.set(key, entry.id)
     })
-    return '126 條文字皆不同'
+    return '138 條文字皆不同'
   })
 
   await check('總評每條至少 30 字', () => {
@@ -174,14 +174,14 @@ if (library) {
     entries.forEach((entry) => {
       assert(entry.source === 'builtin', `${entry.id} source 為 ${entry.source}`)
     })
-    return '126 條皆為 builtin'
+    return '138 條皆為 builtin'
   })
 
   await check('disabled 一律 false', () => {
     entries.forEach((entry) => {
       assert(entry.disabled === false, `${entry.id} disabled 不為 false`)
     })
-    return '126 條皆啟用'
+    return '138 條皆啟用'
   })
 
   await check('不可含大括號變數', () => {
@@ -200,7 +200,7 @@ if (library) {
       if (match) duplicates.push(`${entry.id}＝${match}`)
     })
     assert(duplicates.length === 0, `重複：${duplicates.join('、')}`)
-    return '與 senior.json 126 條全部不同'
+    return '與 senior.json 138 條全部不同'
   })
 
   await check('Markdown 與 JSON 一致', async () => {

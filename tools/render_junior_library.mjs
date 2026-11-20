@@ -137,7 +137,7 @@ export function buildMarkdown(library) {
   lines.push('')
   lines.push('## 結構覆蓋摘要')
   lines.push('')
-  lines.push('> 依 `docs/評語庫結構依據.md` 的 16 類結構錯誤對應實際總評；同一條可支援多個分類。完整 ID 清單見 `packages/core/src/library/comment-coverage.json`。')
+  lines.push(`> 依 \`docs/評語庫結構依據.md\` 的 ${coverage.categories.length} 類結構錯誤對應實際總評；同一條可支援多個分類。完整 ID 清單見 \`packages/core/src/library/comment-coverage.json\`。`)
   lines.push('')
   lines.push(coverageTable)
   lines.push('')

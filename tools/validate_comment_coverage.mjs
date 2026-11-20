@@ -1,4 +1,4 @@
-// 總評結構覆蓋率檢查：確認 16 類結構錯誤在國中與高中職兩套庫都至少有 2 條 comment，
+// 總評結構覆蓋率檢查：確認 19 類結構錯誤在國中與高中職兩套庫都至少有 2 條 comment，
 // 且每個 comment 至少被一個分類涵蓋。
 // 用法：node tools/validate_comment_coverage.mjs
 
@@ -19,7 +19,7 @@ const MARKDOWN = {
   senior: join(repoRoot, 'comment-library-senior.md')
 }
 const MIN_PER_CATEGORY = 2
-const EXPECTED_COMMENTS = 60
+const EXPECTED_COMMENTS = 72
 
 export function buildCoverageTable(categories) {
   const lines = []
