@@ -210,7 +210,7 @@ essay-grader-data/
 - [x] **M5 回饋單：一頁 A4、單份 PDF、列印、檔名規則、溢頁阻擋**（2026-11-19）
 - [x] **M6 統計：G1 弱項排行、G2 常錯字、G3 個人弱項、CSV 四檔**（2026-11-19）
 - [ ] 10 分鐘連續操作 soak（自動化目前只跑短時間壓力與 UI 煙霧）
-- [ ] 補「成績寫回 Excel」規格（欄位對應、覆寫保護、失敗處理）
+- [x] **E6 成績寫回 Excel：`excel:check` 25/25 通過**（2026-11-20）
 - [ ] 量規分項／權重／等第預設數值（老師確認）
 - [x] 回饋單版面：一頁 A4、只印文字與統計、不印原圖（2026-11-19）
 - [ ] 回饋單整班批次 PDF
@@ -262,7 +262,7 @@ essay-grader-data/
 - 日誌：每筆含 ISO timestamp 與 `[INFO]`／`[WARN]`／`[ERROR]`；連續寫入後 `app.1.log` 2,098,947 bytes、`app.log` 164,250 bytes，確認超過 2 MB 會輪替；日誌不含測試學生姓名與總評全文。主程序另捕捉 `uncaughtException`、`unhandledRejection`、`render-process-gone`、載入失敗，React ErrorBoundary 已進建置產物。
 - UI／API：主畫面有「備份資料庫」「還原備份」「開啟日誌」；preload 的 `backup.create`、`backup.restore`、`logs.open`、`logs.path`、`logs.write` 皆存在（隱藏視窗煙霧）。
 - 打包設定：`apps/desktop/electron-builder.yml` 具 appId `tw.edu.essaygrader`、productName 作文批閱、win x64 的 nsis＋portable、NSIS 非 oneClick 且可選安裝路徑、桌面捷徑、asar、sharp／@img asarUnpack、`npmRebuild: false`、ASCII 產物名、輸出到 `apps/desktop/release`；根目錄 `app.ico` 410,598 bytes；三份 package.json 版本一致 0.1.0。
-- 打包產物：`EssayGrader-0.1.0-Setup.exe` 134,107,847 bytes（約 127.9 MB）、`EssayGrader-0.1.0-Portable.exe` 120,756,573 bytes（約 115.2 MB）、`EssayGrader-0.1.0-Setup.exe.blockmap` 141,021 bytes；`win-unpacked` 以 `--user-data-dir` 啟動成功，packaged 版日誌正常寫入。第一次打包因 GitHub 下載 Electron 卡住，改用本機已安裝的 `electronDist` 後完成；快取中的 NSIS／7zip 可重用。
+- 打包產物：`EssayGrader-0.1.0-Setup.exe` 134,125,323 bytes（約 127.9 MB）、`EssayGrader-0.1.0-Portable.exe` 120,775,376 bytes（約 115.2 MB）、`EssayGrader-0.1.0-Setup.exe.blockmap` 141,143 bytes；`win-unpacked` 以 `--user-data-dir` 啟動成功，packaged 版日誌正常寫入。E6 完成後於 2026-11-20 以同版號重新打包，兩份產物都含成績寫回。第一次打包因 GitHub 下載 Electron 卡住，改用本機已安裝的 `electronDist` 後完成；快取中的 NSIS／7zip 可重用。
 - 完整回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`spike` 全通過（FPS 60.0、A4 PDF 178 KB／105 ms、監看 10/10 78 ms、private 446 MB）。
 
 ### Google Drive 外部 inbox 驗收（2026-11-19）
@@ -279,14 +279,29 @@ essay-grader-data/
 - UI：匯入佇列顯示「Google Drive inbox」路徑與監看狀態，具「設定／變更」「清除」「建立此作業資料夾」「開啟資料夾」四個按鈕；preload 的 `chooseDriveRoot`／`clearDriveRoot`／`openDriveRoot`／`ensureDriveFolder` 皆存在（隱藏視窗煙霧）。
 - `npm run drive:check` 23/23；回歸 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`spike` 全數通過。
 
-### 已知限制（M3–M7＋Drive inbox）
+### E6 成績寫回 Excel 驗收（2026-11-20）
+
+- 測試成績表「作文」：表頭 `編號／座號／姓名／作文一／等第`，座號含 `7`、`08`、`S12` 與 `99`；自動偵測回傳表頭第 1 列、座號 B、姓名 C、分數 D、等第 E。
+- 寫回 S07／S08／S12（皆 `done`）：成功 3 筆；S15 不在表內列為 unmatched；S20 `grading` 列為「未完成，未寫入」。`written=3`、`verified=true`。
+- 原檔 6,655 bytes，寫回前後位元組完全相同；副本 `gradebook.graded-20261120-100000.xlsx` 存在，列數維持 5。副本 D 欄 81／74／90、E 欄 A-／B++／A++；座號與姓名未變，99 的列保持 0 與空白。
+- 報告 changes：`07: 0→81`、`08: 0→74`、`12: 0→90`，等第同時列出前後值；重複寫回產生 `…-100001.xlsx`，原檔仍不變；同時間戳再寫一次產生 `…-100000-02.xlsx`。
+- 重複座號：工作表同時有 `7` 與 `07` 時整次中止，報告列出座號 07 的重複列 2、3，不產生副本，原檔不變，並保留 CSV。
+- 匯出模式：`.xlsm` 與含 `xl/charts/` 字樣的檔案都判定為 export；原檔位元組不變，輸出乾淨 xlsx（表頭＋4 筆已批作品），報告含警告與 verified=true。
+- 沒有可寫作品時回「沒有可寫回的作品；需要狀態為『已批』且已有分數」，並匯出 CSV。
+- 錯誤處理：欄位格式、檔案不存在、工作表不存在、座號欄空白都回繁體中文；重複座號與上述失敗皆保留 CSV 路徑。
+- CSV：`_gradebook/grades-20261120-100100.csv` 178 bytes、UTF-8 BOM＋CRLF，表頭 `座號,姓名,分數,等第,狀態`，含 `07,王小明,81,A-,已批` 與 `20,李大同,55,C,批閱中`。
+- 設定：`gradebook.json` 296 bytes，寫入後可重讀，路徑／sheet／座號欄／分數欄一致。
+- UI：隱藏視窗確認「成績寫回」按鈕、面板、六個操作按鈕與七個 preload API（`getConfig`／`chooseFile`／`inspect`／`saveConfig`／`write`／`exportCsv`／`reveal`）。
+- `npm run excel:check` 25/25；回歸 `typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`spike` 全數通過。
+
+### 已知限制（M3–M7＋Drive inbox＋E6）
 
 - 10 分鐘連續操作 soak 尚未執行，目前只有 `m3:check`、`m4:check`、`m5:check` 的短時間 UI 煙霧與 45 份批次檢查。
 - 量規預設採用均衡版（40／30／30），之後可調整；三組配分、扣分 0.5／0.5、上限 10 與等第門檻仍為預設值，尚未經老師確認。
 - 量規或等第門檻變更不會自動重算既有作品的 `scores`；已批作品若需要新量規的分數與等第，仍要重新開啟該份並完成批閱。
 - 等第名稱只檢查去空白後不可為空、不可重複，未限制長度；最低分只接受 0–100，未限制級距間隔。
 - 內建評語庫只有高中職版 126 條；國中版尚未補。
-- 成績寫回 Excel 尚未實作；回饋單目前只支援單份，尚未做整班批次 PDF。
+- 成績寫回以單一作業、單一工作表為範圍；ExcelJS 可能微調樣式，含圖表／樞紐／巨集的檔案改走匯出新檔，不直接改原檔。回饋單目前只支援單份，尚未做整班批次 PDF。
 - 統計只計已批（`done`）作品；批閱中與未匯入不進班級摘要、排行與常錯字，避免數字隨批閱進度跳動。
 - G1 佔比以「弱項批注總數」為分母，不含佳句與一般評語；同一份作品多次標記會累計。
 - 統計目前只做單一作業，尚未跨作業比較（G4 趨勢／G5 個人進退步未做）。

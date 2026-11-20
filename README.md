@@ -3,7 +3,7 @@
 紙本作文掃描 → 桌機批閱 → 評分 → 一頁回饋單 → 分數寫回 Excel。
 
 - 技術棧：**Electron + React + TypeScript**（2026-11-19 定案）
-- 版本：**0.1.0（M7 打磨＋交付＋Google Drive 外部 inbox）**
+- 版本：**0.1.0（M7 打磨＋交付＋Google Drive 外部 inbox＋成績寫回 Excel）**
 - 手機端：Kotlin + ML Kit（第二階段，只寫 inbox）；現階段可先用手機 Google Drive App 上傳照片
 - 資料庫：本地資料夾，全 ASCII，中文只存在 JSON
 - 外部 inbox：Google Drive 本機同步資料夾，只搬圖片，資料庫不進雲端
@@ -38,16 +38,17 @@ npm run m5:check     # 回饋單驗收（資料推導、檔名、單頁 PDF、�
 npm run m6:check     # 統計驗收（G1／G2／G3、分數摘要、CSV 四檔、UI 煙霧）
 npm run m7:check     # 交付驗收（備份／還原、zip slip、日誌輪替、ErrorBoundary、打包設定）
 npm run drive:check  # Google Drive 外部 inbox 驗收（兩種擺法、去重、PDF、錯誤路徑、UI）
+npm run excel:check  # 成績寫回 Excel 驗收（副本、座號、驗證、重複、匯出模式、CSV、UI）
 npm run dist         # 同上，產出 NSIS 安裝檔與 portable（apps/desktop/release）
 npm run dist:win     # 建置後打包 Windows x64：Setup＋Portable
 npm run dist:portable # 只產出 portable
 npm run validate:fixtures
 ```
 
-打包產物（2026-11-19 實測）：
+打包產物（2026-11-20 重新打包，含 E6）：
 
-- `apps/desktop/release/EssayGrader-0.1.0-Setup.exe`：134,107,847 bytes（約 127.9 MB）
-- `apps/desktop/release/EssayGrader-0.1.0-Portable.exe`：120,756,573 bytes（約 115.2 MB）
+- `apps/desktop/release/EssayGrader-0.1.0-Setup.exe`：134,125,323 bytes（約 127.9 MB）
+- `apps/desktop/release/EssayGrader-0.1.0-Portable.exe`：120,775,376 bytes（約 115.2 MB）
 
 打包設定在 `apps/desktop/electron-builder.yml`：appId `tw.edu.essaygrader`、win x64、NSIS（可選安裝路徑＋桌面捷徑）與 portable、asar、sharp／@img asarUnpack、`npmRebuild: false`。設定使用已安裝的 Electron runtime（`electronDist`），避免每次重新下載；第一次打包仍可能需要下載 NSIS／7zip，離線環境會失敗，但不影響開發與驗收。
 
@@ -127,9 +128,10 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 ## 目前進度
 
 M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付、
-Google Drive 外部 inbox 已完成。
+Google Drive 外部 inbox、E6 成績寫回 Excel 已完成。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
-`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23。
+`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
+`excel:check` 25/25。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），
@@ -137,4 +139,7 @@ M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 
 常錯字「在→再」×3、平均 81、四份 CSV。M7 驗證備份 zip 內容、排除 lock／tmp、
 非空目的地與 zip slip 拒絕、還原後可讀、日誌格式與 2 MB 輪替、敏感內容不落日誌、
 ErrorBoundary 與打包設定；安裝檔與 portable 的打包狀態見 `progress.md`。
+E6 以合成成績表驗證：座號 `7`／`08`／`S12` 正確寫回、S15 未匹配、S20 批閱中不寫、
+原檔位元組不變、副本重新開啟驗證、重複座號中止、`.xlsm` 與含 chart 字樣走匯出、
+失敗保留 CSV；報告列出變更前後值。
 已知限制見 `progress.md`；下一步為 M8 手機掃描。

@@ -439,6 +439,8 @@ essay-grader/
 
 ### 4.7 成績寫回 Excel
 
+**狀態：已實作（E6，2026-11-20）。**
+
 老師的成績表是既有 `.xlsx`，程式只負責「按座號填分數」，不重新排版。
 
 ```json
@@ -452,19 +454,27 @@ essay-grader/
     "name_column": "C",
     "score_column": "D",
     "grade_column": "E",
-    "seat_format": "07"
+    "seat_format": "{seat}"
   }
 }
 ```
 
 **規則**
 
-1. 讀 `header_row` 以下，用 `seat_column` 建「座號 → 列號」索引；對不到就列入報告，不猜。
-2. **先複製成 `成績.graded-{timestamp}.xlsx` 再寫入**，原檔永不覆蓋。
-3. 寫入後重新開啟驗證：該列分數正確、列數未變。
-4. `.xlsm`、含圖表／樞紐的檔案，`exceljs` 可能破壞內容 → 偵測到就改走「匯出新檔」模式並提示。
-5. 同名作業重複寫入 → 覆寫同欄，並在報告列出變更前後值。
-6. 失敗一律保留可用的匯出檔（CSV／xlsx），不讓分數卡在程式裡。
+1. 讀 `header_row` 以下，用 `seat_column` 建「座號 → 列號」索引；`7`／`07`／`S07` 都視為 07；對不到就列入報告，不猜姓名。
+2. **先複製成 `成績.graded-{timestamp}.xlsx` 再寫入**，原檔永不覆蓋；檔名碰撞加 `-02`。
+3. 寫入後重新開啟驗證：該列分數正確、列數未變、座號與姓名未被改。
+4. `.xlsm`、含圖表／樞紐／巨集的檔案，`exceljs` 可能破壞內容 → 偵測到就改走「匯出新檔」模式並提示。
+5. 同一份作業重複寫入 → 每次建立新的 graded 副本，報告列出變更前後值；原檔仍不變。
+6. 失敗一律保留可用的匯出檔（CSV／乾淨 xlsx），不讓分數卡在程式裡。
+
+**實作與驗收（2026-11-20）**
+
+- `gradebook.json` 使用既有 `GradebookConfigSchema`；設定可存、可重讀、可修改，切換作業各自載入。
+- UI 在匯入佇列加「成績寫回」按鈕；面板提供選擇成績表、自動偵測、儲存設定、寫回成績、匯出 CSV、開啟輸出資料夾，並顯示成功數、未匹配、未完成、重複座號、變更前後、驗證結果與輸出路徑。
+- 自動偵測在前 10 列找「座號」「姓名」「分數／成績／總分」「等第」；分數欄找不到時改挑下方多為數值的欄（可辨識「作文一」）。main 端以 ExcelJS 讀寫，renderer 不載入整份成績表。
+- `npm run excel:check` 25/25：測試表「作文」（編號／座號／姓名／作文一／等第，座號含 7、08、S12、99）；寫回 S07／S08／S12，S15 unmatched、S20 grading 不寫；原檔 6,655 bytes 完全未變；副本列數 5、分數 81／74／90、等第 A-／B++／A++ 且座號姓名未改；重複寫回與檔名碰撞（`-02`）各自產生新副本；重複座號 07（第 2、3 列）中止；另外驗證欄位格式、檔案不存在、工作表不存在、座號欄空白四種繁中錯誤；`.xlsm` 與含 `xl/charts/` 字樣走匯出模式；失敗保留 CSV；設定 296 bytes 可重讀；隱藏視窗確認按鈕、面板與七個 preload API。
+- 已知限制：單一作業、單一工作表；ExcelJS 可能微調樣式，故含圖表／樞紐／巨集一律匯出新檔；不支援一次寫回多份作業或整班批次 PDF。
 
 ---
 
@@ -517,7 +527,7 @@ essay-grader/
 
 **粗估**：桌機 MVP 6–8 週；桌機 P0 約 9–11 週；加 Android 與 QA 約 14–17 週。需求不再變動的估算，誤差約 ±30%。
 
-> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）、M7（打磨＋交付）、Drive 外部 inbox 已於 2026-11-19 完成；M1 11/11、M2 13/13、M3 25/25、M4 17/17、M5 19/19、M6 17/17、M7 25/25、drive 23/23。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出；M7 補上備份／還原、日誌與錯誤處理、ErrorBoundary、使用者說明、electron-builder 設定與 NSIS／portable 打包；Drive 外部 inbox 補上 Google Drive 本機同步資料夾監看、兩種上傳擺法、sidecar／檔名座號、去重、PDF 擋下、來源清理、狀態與 UI。
+> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）、M7（打磨＋交付）、Drive 外部 inbox、E6（成績寫回 Excel）已於 2026-11-20 完成；M1 11/11、M2 13/13、M3 25/25、M4 17/17、M5 19/19、M6 17/17、M7 25/25、drive 23/23、excel 25/25。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出；M7 補上備份／還原、日誌與錯誤處理、ErrorBoundary、使用者說明、electron-builder 設定與 NSIS／portable 打包；Drive 外部 inbox 補上 Google Drive 本機同步資料夾監看、兩種上傳擺法、sidecar／檔名座號、去重、PDF 擋下、來源清理、狀態與 UI；E6 補上成績表設定與自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV 與 UI 面板。
 
 **M3 驗收備註**
 
@@ -525,7 +535,7 @@ essay-grader/
 - m2 匯入改走 sharp 前處理後仍為 13/13，10 檔實測約 2 秒。
 - 量規規則：建立作業可選均衡／內容導向／語言導向；評分前可再調整 preset、自訂三項配分與等第門檻。若已有任何 work 帶分數或 `status === 'done'`，UI 先確認才寫入，且不自動改寫既有 `scores`；目前這份的預覽以新量規重算，完成批閱時才落盤。
 - 等第規則：至少一筆；名稱去空白後不可空白或重複；最低分須為 0–100 數字且不可重複；儲存時由高到低排序，main 與 UI 共用 core 的驗證，錯誤訊息為繁體中文。
-- 已知限制：10 分鐘 soak 未跑；量規三組數值與等第門檻仍為預設值，待老師確認；等第名稱未限制長度、門檻未限制級距；只有高中職評語庫；成績寫回未做（回饋單與統計已分別於 M5／M6 補上）；UI 自動驗收只確認進站、載入與量規編輯器出現，未逐項模擬完整鍵盤流程。
+- 已知限制：10 分鐘 soak 未跑；量規三組數值與等第門檻仍為預設值，待老師確認；等第名稱未限制長度、門檻未限制級距；只有高中職評語庫；成績寫回已於 E6 補上；UI 自動驗收只確認進站、載入與量規編輯器出現，未逐項模擬完整鍵盤流程。
 
 **M4 驗收備註**
 
@@ -534,7 +544,7 @@ essay-grader/
 - 批次檢查統計：在學 45、已匯入 44、待批 0、批閱中 11、已批 33、未匯入 1；問題 14 條、提醒 11 條。重複規則只標第 3 份（S42），前兩份（S40、S41）合法；缺頁檔案 2 份與未匯入 1 人均被抓到；執行約 32 ms（門檻 < 2 秒）。
 - 批次檢查實作：`packages/core/src/audit.ts` 的純函式 `auditWorks`／`appendMissingPageIssues`，重用 `normalizeComment`、`countFinalChars`、`computeScore`；repository 的 `auditAssignment` 補 fs 缺頁檢查；IPC `assignment:audit`；preload `window.electronAPI.assignment.audit`。
 - UI：匯入佇列面板的「批次檢查」按鈕，結果以同卡片面板呈現（統計 chips、問題表格、只看有問題／全部、重新檢查、前往批閱）；從批閱返回時若面板開著會自動重查。
-- 已知限制：批次檢查目前只掃描單一作業，不做跨作業重複；頁面檔案只確認存在，不重新驗證圖片內容；10 分鐘 soak、Excel 寫回仍未做（回饋單與統計已於 M5／M6 補上）。
+- 已知限制：批次檢查目前只掃描單一作業，不做跨作業重複；頁面檔案只確認存在，不重新驗證圖片內容；10 分鐘 soak 仍未做；Excel 寫回已於 E6 補上（回饋單與統計已於 M5／M6 補上）。
 
 **M5 驗收備註**
 
@@ -545,7 +555,7 @@ essay-grader/
 - **檔名**：程式固定 `S{座號}_feedback.pdf`（存在學生資料夾）；另存用中文 `{班級}_{題目}_S{座號}_{姓名}_回饋單_{日期}.pdf`，Windows 非法字元與多餘空白皆清洗。
 - **入口**：匯入佇列只有 `done` 的列有「回饋單」；批閱畫面右下角也有按鈕。預覽工具列提供列印、匯出 PDF、另存 PDF 與開啟資料夾。
 - `npm run m5:check` 19/19：S07 回饋單資料（81 扣 2 = 79、B++）、錯字聚合、詞句只收 revised、檔名清洗、1 頁 150 KB（約 360 ms）、JhengHei 子集、超長內容與未完成批閱被擋、預覽視窗可開啟且重複使用、主畫面與回饋單頁煙霧。
-- 已知限制：只支援單份、無整班批次 PDF；列印對話框未自動化；回饋單只用系統字型；10 分鐘 soak、Excel 寫回仍未做。
+- 已知限制：只支援單份、無整班批次 PDF；列印對話框未自動化；回饋單只用系統字型；10 分鐘 soak 仍未做；Excel 寫回已於 E6 補上。
 
 **M6 驗收備註**
 
@@ -557,7 +567,7 @@ essay-grader/
 - **CSV**：固定輸出 `scores.csv`、`weakness-ranking.csv`、`common-typos.csv`、`student-weakness.csv` 到作業資料夾的 `_stats/`；UTF-8 BOM＋CRLF，Excel 可直接開，逗號與引號正確轉義，重新匯出覆寫同名檔。
 - **UI**：匯入佇列面板加「統計」按鈕；面板含摘要、等第／分項平均、G1／G2／G3、匯出 CSV 與開啟統計資料夾。`spike-out/m6-stats.png` 已能完整拍到四個區塊。
 - `npm run m6:check` 17/17：6 人、5 份作品、4 份 `done`、13 個弱項批注、在→再×3、平均 81、四份 CSV（`scores.csv` 633 bytes）、統計 UI 與匯出皆通過。
-- 已知限制：只做單一作業，尚未跨作業比較（G4／G5 未做）；G1 佔比以弱項批注總數為分母；CSV 未做 Excel 樣式；成績寫回 Excel、整班批次 PDF、10 分鐘 soak 仍未做。
+- 已知限制：只做單一作業，尚未跨作業比較（G4／G5 未做）；G1 佔比以弱項批注總數為分母；CSV 未做 Excel 樣式；成績寫回已於 E6 補上；整班批次 PDF、10 分鐘 soak 仍未做。
 
 **M7 驗收備註**
 
@@ -565,7 +575,7 @@ essay-grader/
 - **還原**：`restoreBackupZip` 先以 yauzl 列出並驗證所有 entry，再用串流解壓；拒絕絕對路徑、磁碟代號、`..`、ADS、符號連結、重複路徑與非資料庫 zip。目的地非空一律拒絕；解壓失敗會清掉本次寫入內容。還原成功後由 IPC 以新資料夾 `openDatabase`，舊資料庫不動。
 - **日誌**：`apps/desktop/src/main/logger.ts` 寫 `app.getPath('userData')/logs/app.log`，格式為 ISO timestamp＋level＋訊息；`app.log` 超過 2 MB 輪替為 `app.1.log`。只記錄事件與錯誤，不記錄學生姓名、總評、批注全文或圖片。`uncaughtException`、`unhandledRejection`、`render-process-gone`、載入失敗皆入日誌；嚴重錯誤顯示「開啟日誌／結束」視窗。
 - **ErrorBoundary**：React 根層包 `ErrorBoundary`，顯示友善錯誤畫面、重新載入與開啟日誌，並把錯誤名稱／訊息寫入日誌（不含 props 或作品內容）。
-- **打包**：`apps/desktop/electron-builder.yml`，appId `tw.edu.essaygrader`、productName「作文批閱」、win x64、nsis（非 oneClick、可選路徑、桌面捷徑）＋portable、asar、sharp／@img asarUnpack、`npmRebuild: false`；產物 `EssayGrader-0.1.0-Setup.exe`（134,107,847 bytes）、`EssayGrader-0.1.0-Portable.exe`（120,756,573 bytes），輸出 `apps/desktop/release`。指令：`npm run dist`、`npm run dist:win`、`npm run dist:portable`。設定以 `electronDist` 使用已安裝的 Electron runtime；第一次打包可能需要下載 NSIS／7zip。
+- **打包**：`apps/desktop/electron-builder.yml`，appId `tw.edu.essaygrader`、productName「作文批閱」、win x64、nsis（非 oneClick、可選路徑、桌面捷徑）＋portable、asar、sharp／@img asarUnpack、`npmRebuild: false`；產物 `EssayGrader-0.1.0-Setup.exe`（134,125,323 bytes）、`EssayGrader-0.1.0-Portable.exe`（120,775,376 bytes），E6 完成後於 2026-11-20 以同版號重新打包，輸出 `apps/desktop/release`。指令：`npm run dist`、`npm run dist:win`、`npm run dist:portable`。設定以 `electronDist` 使用已安裝的 Electron runtime；第一次打包可能需要下載 NSIS／7zip。
 - `npm run m7:check` 25/25：備份內容與排除規則、相對路徑、非空目的地、zip slip、還原後可讀、日誌格式與輪替、敏感內容、ErrorBoundary、UI 入口、preload API、打包設定、版本與產物檢查。
 - 已知限制：只提供 Windows x64 安裝檔；備份為完整快照且未加密；還原只能到新的空資料夾；日誌只留一份輪替檔；portable 的設定與日誌仍在 `%APPDATA%`。
 
@@ -619,7 +629,7 @@ essay-grader/
 - [x] 桌機技術棧定案：Electron + React + TypeScript（2026-11-19）
 - [x] 手機技術棧：Kotlin + ML Kit（第二階段）
 - [x] 1 天 Spike 通過（PDF／Canvas／監看／記憶體，2026-11-19）
-- [ ] 成績寫回 Excel 的欄位對應與失敗處理（見 4.7）
+- [x] 成績寫回 Excel 的欄位對應與失敗處理（見 4.7，E6 已完成 2026-11-20）
 - [x] 量規預設採用均衡版（40／30／30），之後可調整；另提供內容導向與語言導向，建立作業時可選
 - [x] 評分前可調整量規；已有評分時先確認，且不自動改寫既有分數
 - [ ] 三組量規的最終配分與等第預設值（目前均衡版為預設，數值可於評分前修改，待老師確認）
@@ -640,7 +650,7 @@ essay-grader/
 2. M1、M2、M3、M4、M5、M6、M7 已完成。M3 交付三欄式批閱介面、縮放／平移／翻頁、五類批注、評語庫、復原、快捷鍵、autosave、基本評分與總評重複提示；M4 交付作業層級批次檢查（未匯入、總評不足、重複超限、未評分、缺頁檔案、尚未完成）與 45 份流程驗收；M5 交付一頁 A4 回饋單、單份 PDF、列印、另存中文檔名與溢頁阻擋；M6 交付統計面板（分數摘要、G1／G2／G3）與 CSV 四檔匯出；M7 交付備份／還原、zip slip 防護、日誌輪替、錯誤處理、ErrorBoundary、使用說明與 NSIS／portable 打包設定。
 3. 圖片前處理（EXIF 轉正、移除 GPS／中繼資料、長邊 2600、縮圖）已隨 M3 完成。
 4. 量規預設採用均衡版，建立作業可改選其他 preset、評分前可調整配分與等第門檻；變更只影響之後的計算，已有分數不自動改寫。
-5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 inbox。並行補 10 分鐘 soak、成績寫回 Excel、整班批次 PDF。
+5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 inbox。並行補 10 分鐘 soak 與整班批次 PDF。
 6. M7 打包已完成；若換電腦或離線打包，electron-builder 需要重新下載 Electron／NSIS，失敗時不影響 `npm run dev`、`m1:check`–`m7:check` 與既有資料。
 
 > 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7 已完成並建立對應 commit。

@@ -24,6 +24,70 @@ type Grade = 'junior' | 'senior' | 'vocational'
 type Toast = { kind: 'ok' | 'error' | 'info'; text: string }
 type AuditFilter = 'problems' | 'all'
 
+type GradebookDraft = {
+  path: string
+  sheet: string
+  header_row: number
+  seat_column: string
+  name_column: string
+  score_column: string
+  grade_column: string
+  seat_format: string
+}
+
+type GradebookInspection = {
+  path?: string
+  sheets: Array<{ name: string; rowCount: number; columnCount: number }>
+  sheet: string | null
+  preview: string[][]
+  detection: {
+    headerRow: number
+    seatColumn: string
+    nameColumn?: string
+    scoreColumn: string
+    gradeColumn?: string
+    seatFormat: string
+  } | null
+  exportOnly: boolean
+  exportReason?: string
+  warning?: string
+}
+
+type GradebookReport = {
+  ok: boolean
+  mode: 'copy' | 'export'
+  sourcePath: string
+  outputPath: string | null
+  csvPath: string | null
+  sheet: string
+  headerRow: number
+  written: number
+  verified: boolean
+  changes: Array<{
+    seat: string
+    name: string
+    row: number
+    scoreBefore: number | null
+    scoreAfter: number
+    gradeBefore: string | null
+    gradeAfter: string | null
+  }>
+  unmatched: Array<{ seat: string; name: string; reason: string }>
+  incomplete: Array<{ seat: string; name: string; status: string; reason: string }>
+  duplicates: Array<{ seat: string; rows: number[] }>
+  warnings: string[]
+  verification: {
+    rowCountBefore: number
+    rowCountAfter: number
+    checked: number
+    unchangedSeatAndName: boolean
+    failures: string[]
+  } | null
+  error?: string
+  elapsedMs: number
+}
+
+
 const GRADE_LABELS: Record<Grade, string> = {
   junior: '國中',
   senior: '高中',
@@ -91,6 +155,7 @@ export default function App(): JSX.Element {
   const [statsMs, setStatsMs] = useState<number | null>(null)
   const [statsRun, setStatsRun] = useState(0)
   const [statsExport, setStatsExport] = useState<{ dir: string; files: string[] } | null>(null)
+  const [gradebookOpen, setGradebookOpen] = useState(false)
 
   const selectedIdRef = useRef<string | null>(null)
   const selectedAssignmentRef = useRef<string | null>(null)
@@ -138,6 +203,7 @@ export default function App(): JSX.Element {
     setStatsMs(null)
     setStatsExport(null)
     statsSeqRef.current += 1
+    setGradebookOpen(false)
     setAssignments((await window.electronAPI.db.listAssignments(id)) as AssignmentSummary[])
     setImportStatus((await window.electronAPI.imports.status()) as ImportStatus)
     if (result.warning) setToast({ kind: 'info', text: result.warning })
@@ -375,6 +441,7 @@ export default function App(): JSX.Element {
     setStats(null)
     setStatsMs(null)
     setStatsExport(null)
+    setGradebookOpen(false)
     if (classFile) void refreshWorks(classFile.id, id)
   }
 
@@ -678,6 +745,7 @@ export default function App(): JSX.Element {
 
                 {selectedAssignment && (
                   <ImportPanel
+                    classId={classFile.id}
                     assignment={selectedAssignment}
                     works={works}
                     status={importStatus}
@@ -694,6 +762,9 @@ export default function App(): JSX.Element {
                     statsMs={statsMs}
                     statsRun={statsRun}
                     statsExport={statsExport}
+                    gradebookOpen={gradebookOpen}
+                    onGradebook={() => setGradebookOpen((value) => !value)}
+                    onToast={(kind, text) => setToast({ kind, text })}
                     onAudit={runAudit}
                     onAuditFilter={setAuditFilter}
                     onStats={runStats}
@@ -1146,6 +1217,7 @@ function CreateAssignmentForm({
 }
 
 function ImportPanel({
+  classId,
   assignment,
   works,
   status,
@@ -1162,6 +1234,9 @@ function ImportPanel({
   statsMs,
   statsRun,
   statsExport,
+  gradebookOpen,
+  onGradebook,
+  onToast,
   onAudit,
   onAuditFilter,
   onStats,
@@ -1177,6 +1252,7 @@ function ImportPanel({
   onReview,
   onFeedback
 }: {
+  classId: string
   assignment: AssignmentSummary
   works: WorkSummary[]
   status: ImportStatus | null
@@ -1193,6 +1269,9 @@ function ImportPanel({
   statsMs: number | null
   statsRun: number
   statsExport: { dir: string; files: string[] } | null
+  gradebookOpen: boolean
+  onGradebook: () => void
+  onToast: (kind: 'ok' | 'error' | 'info', text: string) => void
   onAudit: () => void
   onAuditFilter: (filter: AuditFilter) => void
   onStats: () => void
@@ -1228,6 +1307,9 @@ function ImportPanel({
           </button>
           <button className="small" disabled={busy || auditBusy} onClick={onAudit}>
             {auditBusy ? '檢查中…' : auditOpen ? '重新檢查' : '批次檢查'}
+          </button>
+          <button className="small" disabled={busy} onClick={onGradebook}>
+            {gradebookOpen ? '收起成績寫回' : '成績寫回'}
           </button>
           <button className="small" disabled={busy} onClick={onOpenInbox}>
             開啟 inbox
@@ -1366,6 +1448,16 @@ function ImportPanel({
         />
       )}
 
+      {gradebookOpen && (
+        <GradebookPanel
+          key={`${classId}:${assignment.id}`}
+          classId={classId}
+          assignment={assignment}
+          busy={busy}
+          onToast={onToast}
+        />
+      )}
+
       <div className="event-log">
         <h4>最近事件</h4>
         {events.length === 0 ? (
@@ -1379,6 +1471,578 @@ function ImportPanel({
         )}
       </div>
     </section>
+  )
+}
+
+const toGradebookDraft = (value: {
+  path: string
+  sheet: string
+  header_row: number
+  seat_column: string
+  name_column?: string
+  score_column: string
+  grade_column?: string
+  seat_format?: string
+}): GradebookDraft => ({
+  path: value.path,
+  sheet: value.sheet,
+  header_row: value.header_row,
+  seat_column: value.seat_column,
+  name_column: value.name_column ?? '',
+  score_column: value.score_column,
+  grade_column: value.grade_column ?? '',
+  seat_format: value.seat_format ?? '{seat}'
+})
+
+const toGradebookPayload = (draft: GradebookDraft): Record<string, unknown> => ({
+  path: draft.path.trim(),
+  sheet: draft.sheet.trim(),
+  header_row: Math.max(1, Math.floor(Number(draft.header_row) || 1)),
+  seat_column: draft.seat_column.trim().toUpperCase(),
+  name_column: draft.name_column.trim().toUpperCase() || undefined,
+  score_column: draft.score_column.trim().toUpperCase(),
+  grade_column: draft.grade_column.trim().toUpperCase() || undefined,
+  seat_format: draft.seat_format.trim() || '{seat}'
+})
+
+const gradebookMode = (path: string): string => {
+  const lower = path.toLowerCase()
+  if (!lower) return '—'
+  if (lower.endsWith('.xlsx')) return '直接寫副本'
+  return '匯出新檔'
+}
+
+/** 成績寫回面板：設定、自動偵測、寫回報告與 CSV 匯出。 */
+function GradebookPanel({
+  classId,
+  assignment,
+  busy,
+  onToast
+}: {
+  classId: string
+  assignment: AssignmentSummary
+  busy: boolean
+  onToast: (kind: 'ok' | 'error' | 'info', text: string) => void
+}): JSX.Element {
+  const [config, setConfig] = useState<GradebookDraft | null>(null)
+  const [draft, setDraft] = useState<GradebookDraft | null>(null)
+  const [inspection, setInspection] = useState<GradebookInspection | null>(null)
+  const [report, setReport] = useState<GradebookReport | null>(null)
+  const [csvPath, setCsvPath] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [working, setWorking] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    window.electronAPI.gradebook
+      .getConfig(classId, assignment.id)
+      .then((result) => {
+        if (!alive) return
+        const raw = (result as { gradebook?: Parameters<typeof toGradebookDraft>[0] } | null)
+          ?.gradebook
+        if (raw) {
+          const next = toGradebookDraft(raw)
+          setConfig(next)
+          setDraft(next)
+        }
+      })
+      .catch((cause: unknown) => {
+        if (alive) setError(`讀取成績表設定：${errorText(cause)}`)
+      })
+      .finally(() => {
+        if (alive) setLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [classId, assignment.id])
+
+  const runAction = async (label: string, action: () => Promise<void>): Promise<void> => {
+    setWorking(true)
+    setError('')
+    try {
+      await action()
+    } catch (cause) {
+      setError(`${label}：${errorText(cause)}`)
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const update = (patch: Partial<GradebookDraft>): void => {
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev))
+  }
+
+  const applyDetection = (
+    next: GradebookInspection,
+    previous: GradebookDraft
+  ): GradebookDraft => {
+    const detected = next.detection
+    if (!detected) return previous
+    return {
+      ...previous,
+      header_row: detected.headerRow,
+      seat_column: detected.seatColumn,
+      name_column: detected.nameColumn ?? '',
+      score_column: detected.scoreColumn,
+      grade_column: detected.gradeColumn ?? '',
+      seat_format: detected.seatFormat || '{seat}'
+    }
+  }
+
+  const chooseFile = (): void => {
+    void runAction('選擇成績表', async () => {
+      const result = (await window.electronAPI.gradebook.chooseFile(
+        classId,
+        assignment.id
+      )) as unknown as GradebookInspection & { canceled: boolean; path?: string }
+      if (result.canceled) return
+
+      const base: GradebookDraft = {
+        path: result.path ?? '',
+        sheet: result.sheet ?? result.sheets[0]?.name ?? '',
+        header_row: 1,
+        seat_column: 'B',
+        name_column: '',
+        score_column: 'D',
+        grade_column: '',
+        seat_format: '{seat}'
+      }
+      setInspection(result)
+      setDraft(applyDetection(result, base))
+      setReport(null)
+      setCsvPath(null)
+      onToast(
+        'info',
+        result.exportOnly
+          ? result.exportReason ?? '此檔會以匯出模式處理。'
+          : `已讀取 ${result.sheets.length} 個工作表，請確認欄位後儲存設定。`
+      )
+    })
+  }
+
+  const autoDetect = (): void => {
+    void runAction('自動偵測', async () => {
+      const path = (draft?.path ?? config?.path ?? '').trim()
+      if (!path) throw new Error('請先選擇成績表。')
+      const sheet = (draft?.sheet ?? config?.sheet ?? '').trim() || undefined
+      const result = (await window.electronAPI.gradebook.inspect(
+        path,
+        sheet
+      )) as GradebookInspection
+      setInspection(result)
+      if (!result.detection) {
+        throw new Error(
+          result.exportOnly
+            ? result.exportReason ?? '此格式無法偵測欄位，會以匯出模式處理。'
+            : '前 10 列找不到「座號」表頭，請手動設定欄位。'
+        )
+      }
+      setDraft((prev) => (prev ? applyDetection(result, prev) : prev))
+      onToast(
+        'ok',
+        `已建議表頭第 ${result.detection.headerRow} 列、座號 ${result.detection.seatColumn} 欄。`
+      )
+    })
+  }
+
+  const changeSheet = (sheet: string): void => {
+    update({ sheet })
+    const path = (draft?.path ?? '').trim()
+    if (!path) return
+    void runAction('讀取工作表', async () => {
+      const result = (await window.electronAPI.gradebook.inspect(
+        path,
+        sheet
+      )) as GradebookInspection
+      setInspection(result)
+      setDraft((prev) => {
+        if (!prev) return prev
+        const next = { ...prev, sheet }
+        return result.detection ? applyDetection(result, next) : next
+      })
+      if (!result.detection) {
+        setError('這個工作表找不到「座號」表頭，請手動設定欄位。')
+      }
+    })
+  }
+
+  const saveConfig = async (): Promise<GradebookDraft | null> => {
+    if (!draft) throw new Error('請先選擇成績表。')
+    const result = (await window.electronAPI.gradebook.saveConfig(
+      classId,
+      assignment.id,
+      toGradebookPayload(draft)
+    )) as { gradebook: Parameters<typeof toGradebookDraft>[0] }
+    const next = toGradebookDraft(result.gradebook)
+    setConfig(next)
+    setDraft(next)
+    return next
+  }
+
+  const handleSave = (): void => {
+    void runAction('儲存成績表設定', async () => {
+      await saveConfig()
+      onToast('ok', '成績表設定已儲存到這個作業。')
+    })
+  }
+
+  const handleWrite = (): void => {
+    void runAction('寫回成績', async () => {
+      await saveConfig()
+      const result = (await window.electronAPI.gradebook.write(
+        classId,
+        assignment.id
+      )) as GradebookReport
+      setReport(result)
+      setCsvPath(result.csvPath)
+      if (result.ok) {
+        onToast('ok', `已寫回 ${result.written} 筆成績，原檔未變更。`)
+      } else {
+        onToast('error', result.error ?? '成績寫回失敗。')
+      }
+    })
+  }
+
+  const handleExportCsv = (): void => {
+    void runAction('匯出 CSV', async () => {
+      const result = (await window.electronAPI.gradebook.exportCsv(
+        classId,
+        assignment.id
+      )) as { path: string; rows: number }
+      setCsvPath(result.path)
+      onToast('ok', `已匯出 ${result.rows} 筆 CSV。`)
+    })
+  }
+
+  const handleReveal = (): void => {
+    const target = report?.outputPath ?? report?.csvPath ?? csvPath
+    if (!target) return
+    void window.electronAPI.gradebook
+      .reveal(target)
+      .catch((cause: unknown) => setError(`開啟資料夾：${errorText(cause)}`))
+  }
+
+  const disabled = busy || working
+  const sheets = inspection?.sheets ?? []
+  const revealTarget = report?.outputPath ?? report?.csvPath ?? csvPath
+
+  return (
+    <div className="gradebook-panel">
+      <div className="audit-head">
+        <div>
+          <h4>成績寫回 · {assignment.title}</h4>
+          <p className="audit-meta">
+            {loading
+              ? '讀取設定中…'
+              : config
+                ? '原檔永不覆蓋；每次寫回都建立新的 graded 副本。'
+                : '尚未設定成績表。'}
+          </p>
+        </div>
+        <div className="card-actions">
+          <button className="small" disabled={disabled} onClick={chooseFile}>
+            選擇成績表
+          </button>
+          <button className="small" disabled={disabled} onClick={autoDetect}>
+            自動偵測
+          </button>
+          <button className="small" disabled={disabled || !draft} onClick={handleSave}>
+            儲存設定
+          </button>
+          <button className="small primary" disabled={disabled || !draft} onClick={handleWrite}>
+            {working ? '處理中…' : '寫回成績'}
+          </button>
+          <button className="small" disabled={disabled} onClick={handleExportCsv}>
+            匯出 CSV
+          </button>
+          <button className="small" disabled={disabled || !revealTarget} onClick={handleReveal}>
+            開啟輸出資料夾
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="form-error">{error}</p>}
+
+      <div className="gradebook-summary">
+        <div>
+          <span>檔案</span>
+          <strong className="gradebook-path" title={config?.path ?? ''}>
+            {config?.path ?? '尚未設定'}
+          </strong>
+        </div>
+        <div>
+          <span>工作表</span>
+          <strong>{config?.sheet ?? '—'}</strong>
+        </div>
+        <div>
+          <span>表頭列</span>
+          <strong>{config?.header_row ?? '—'}</strong>
+        </div>
+        <div>
+          <span>座號欄</span>
+          <strong>{config?.seat_column ?? '—'}</strong>
+        </div>
+        <div>
+          <span>分數欄</span>
+          <strong>{config?.score_column ?? '—'}</strong>
+        </div>
+        <div>
+          <span>等第欄</span>
+          <strong>{config?.grade_column || '未設定'}</strong>
+        </div>
+        <div>
+          <span>模式</span>
+          <strong>{gradebookMode(config?.path ?? '')}</strong>
+        </div>
+      </div>
+
+      {draft && (
+        <div className="gradebook-form">
+          <label className="gradebook-form-path">
+            成績表檔案
+            <input
+              value={draft.path}
+              onChange={(event) => update({ path: event.target.value })}
+              placeholder="D:\teaching\成績.xlsx"
+            />
+          </label>
+          <label>
+            工作表
+            {sheets.length > 0 ? (
+              <select value={draft.sheet} onChange={(event) => changeSheet(event.target.value)}>
+                {sheets.map((sheet) => (
+                  <option key={sheet.name} value={sheet.name}>
+                    {sheet.name}（{sheet.rowCount} 列）
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={draft.sheet}
+                onChange={(event) => update({ sheet: event.target.value })}
+                placeholder="作文"
+              />
+            )}
+          </label>
+          <label>
+            表頭列
+            <input
+              type="number"
+              min={1}
+              value={draft.header_row}
+              onChange={(event) => update({ header_row: Number(event.target.value) })}
+            />
+          </label>
+          <label>
+            座號欄
+            <input
+              value={draft.seat_column}
+              maxLength={3}
+              onChange={(event) => update({ seat_column: event.target.value.toUpperCase() })}
+            />
+          </label>
+          <label>
+            姓名欄（可選）
+            <input
+              value={draft.name_column}
+              maxLength={3}
+              onChange={(event) => update({ name_column: event.target.value.toUpperCase() })}
+            />
+          </label>
+          <label>
+            分數欄
+            <input
+              value={draft.score_column}
+              maxLength={3}
+              onChange={(event) => update({ score_column: event.target.value.toUpperCase() })}
+            />
+          </label>
+          <label>
+            等第欄（可選）
+            <input
+              value={draft.grade_column}
+              maxLength={3}
+              onChange={(event) => update({ grade_column: event.target.value.toUpperCase() })}
+            />
+          </label>
+          <label>
+            座號格式
+            <input
+              value={draft.seat_format}
+              onChange={(event) => update({ seat_format: event.target.value })}
+              placeholder="{seat}"
+            />
+          </label>
+        </div>
+      )}
+
+      {inspection?.warning && <p className="gradebook-warning">{inspection.warning}</p>}
+
+      {inspection && inspection.preview.length > 0 && (
+        <div className="gradebook-preview">
+          <p className="assignment-meta">前幾列預覽（{inspection.sheet}）</p>
+          <table className="table">
+            <tbody>
+              {inspection.preview.map((row, rowIndex) => (
+                <tr key={`preview-${rowIndex}`}>
+                  <td className="mono muted">{rowIndex + 1}</td>
+                  {row.map((cell, cellIndex) => (
+                    <td key={`preview-${rowIndex}-${cellIndex}`}>{cell || '—'}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {report && (
+        <div className={`gradebook-report ${report.ok ? 'is-ok' : 'is-failed'}`}>
+          <div className="gradebook-report-head">
+            <strong>{report.ok ? '寫回成功' : '寫回失敗'}</strong>
+            <span className="queue-chip done">成功寫入 {report.written}</span>
+            <span className={report.unmatched.length > 0 ? 'queue-chip problem' : 'queue-chip clean'}>
+              未匹配 {report.unmatched.length}
+            </span>
+            <span className="queue-chip pending">未完成 {report.incomplete.length}</span>
+            {report.duplicates.length > 0 && (
+              <span className="queue-chip missing">座號重複 {report.duplicates.length}</span>
+            )}
+            <span className={report.verified ? 'queue-chip clean' : 'queue-chip missing'}>
+              驗證 {report.verified ? '通過' : '未通過'}
+            </span>
+          </div>
+
+          {report.error && <p className="form-error">{report.error}</p>}
+
+          <p className="audit-meta">
+            模式：{report.mode === 'copy' ? '複製後寫入副本' : '匯出新檔'} · 工作表{' '}
+            {report.sheet || '—'} · 表頭第 {report.headerRow} 列 · 耗時 {report.elapsedMs} ms
+            {report.verification
+              ? ` · 列數 ${report.verification.rowCountBefore} → ${report.verification.rowCountAfter}，驗證 ${report.verification.checked} 筆`
+              : ''}
+          </p>
+
+          {report.outputPath && (
+            <p className="assignment-meta gradebook-output" title={report.outputPath}>
+              副本：{report.outputPath}
+            </p>
+          )}
+          {report.csvPath && (
+            <p className="assignment-meta gradebook-output" title={report.csvPath}>
+              CSV：{report.csvPath}
+            </p>
+          )}
+
+          {report.duplicates.length > 0 && (
+            <div className="gradebook-block">
+              <h4>座號重複，已中止</h4>
+              <ul>
+                {report.duplicates.map((item) => (
+                  <li key={item.seat}>
+                    座號 {item.seat}：第 {item.rows.join('、')} 列
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {report.changes.length > 0 && (
+            <div className="gradebook-block">
+              <h4>變更前後</h4>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>座號</th>
+                    <th>姓名</th>
+                    <th>列</th>
+                    <th>分數</th>
+                    <th>等第</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.changes.map((change) => (
+                    <tr key={`change-${change.seat}`}>
+                      <td className="mono">{change.seat}</td>
+                      <td>{change.name}</td>
+                      <td className="mono">{change.row}</td>
+                      <td className="mono">
+                        {change.scoreBefore === null ? '空白' : change.scoreBefore} →{' '}
+                        {change.scoreAfter}
+                      </td>
+                      <td>
+                        {change.gradeBefore || '空白'} → {change.gradeAfter || '空白'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {(report.unmatched.length > 0 || report.incomplete.length > 0) && (
+            <div className="gradebook-columns">
+              <div className="gradebook-block">
+                <h4>未匹配（未寫入）</h4>
+                {report.unmatched.length === 0 ? (
+                  <p className="muted">無</p>
+                ) : (
+                  <ul>
+                    {report.unmatched.map((item) => (
+                      <li key={`unmatched-${item.seat}`}>
+                        座號 {item.seat} {item.name}：{item.reason}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <div className="gradebook-block">
+                <h4>未完成（未寫入）</h4>
+                {report.incomplete.length === 0 ? (
+                  <p className="muted">無</p>
+                ) : (
+                  <ul>
+                    {report.incomplete.map((item) => (
+                      <li key={`incomplete-${item.seat}`}>
+                        座號 {item.seat} {item.name}：{item.reason}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+
+          {report.verification && report.verification.failures.length > 0 && (
+            <div className="gradebook-block">
+              <h4>驗證問題</h4>
+              <ul>
+                {report.verification.failures.map((failure) => (
+                  <li key={failure}>{failure}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {report.warnings.length > 0 && (
+            <div className="gradebook-block">
+              <h4>提醒</h4>
+              <ul>
+                {report.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {!report.ok && report.csvPath && (
+            <p className="assignment-meta">分數已保留在 CSV，可直接開啟使用。</p>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 

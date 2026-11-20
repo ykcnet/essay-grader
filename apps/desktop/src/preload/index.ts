@@ -114,6 +114,21 @@ const api = {
   },
   roster: {
     importExcel: (classId: string) => ipcRenderer.invoke('roster:import-excel', classId)
+  },
+  gradebook: {
+    getConfig: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('gradebook:get-config', classId, assignmentId),
+    chooseFile: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('gradebook:choose-file', classId, assignmentId),
+    inspect: (path: string, sheet?: string) =>
+      ipcRenderer.invoke('gradebook:inspect', path, sheet),
+    saveConfig: (classId: string, assignmentId: string, gradebook: unknown) =>
+      ipcRenderer.invoke('gradebook:save-config', classId, assignmentId, gradebook),
+    write: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('gradebook:write', classId, assignmentId),
+    exportCsv: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('gradebook:export-csv', classId, assignmentId),
+    reveal: (path: string) => ipcRenderer.invoke('gradebook:reveal', path)
   }
 } as const
 

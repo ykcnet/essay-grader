@@ -46,6 +46,15 @@ import {
   updateAssignmentRubric
 } from './repository'
 import { backupFileName, createBackupZip, restoreBackupZip } from './backup'
+import {
+  chooseGradebook,
+  inspectGradebook,
+  loadGradebookConfig,
+  revealGradebook,
+  saveGradebookConfig,
+  writeGradebook,
+  writeGradebookCsv
+} from './gradebook'
 import { log, logDirectory, logError, logInfo, openLogsFolder } from '../logger'
 
 function message(error: unknown): string {
@@ -280,4 +289,36 @@ export function registerDataIpc(): void {
   ipcMain.handle('roster:import-excel', (_event, classId: string) =>
     importRosterViaDialog(classId)
   )
+
+  ipcMain.handle('gradebook:get-config', (_event, classId: string, assignmentId: string) =>
+    loadGradebookConfig(classId, assignmentId)
+  )
+  ipcMain.handle('gradebook:choose-file', (_event, classId: string, assignmentId: string) =>
+    chooseGradebook(classId, assignmentId)
+  )
+  ipcMain.handle('gradebook:inspect', (_event, path: string, sheet?: string) =>
+    inspectGradebook(path, sheet)
+  )
+  ipcMain.handle(
+    'gradebook:save-config',
+    (
+      _event,
+      classId: string,
+      assignmentId: string,
+      gradebook: Parameters<typeof saveGradebookConfig>[2]
+    ) => saveGradebookConfig(classId, assignmentId, gradebook)
+  )
+  ipcMain.handle(
+    'gradebook:write',
+    (
+      _event,
+      classId: string,
+      assignmentId: string,
+      options?: { sourcePath?: string; outputPath?: string }
+    ) => writeGradebook({ classId, assignmentId, ...options })
+  )
+  ipcMain.handle('gradebook:export-csv', (_event, classId: string, assignmentId: string) =>
+    writeGradebookCsv(classId, assignmentId)
+  )
+  ipcMain.handle('gradebook:reveal', (_event, path: string) => revealGradebook(path))
 }

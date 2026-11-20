@@ -25,6 +25,7 @@
     "m6:check": "electron apps/desktop --m6-check",
     "m7:check": "electron apps/desktop --m7-check",
     "drive:check": "electron apps/desktop --drive-check",
+    "excel:check": "electron apps/desktop --excel-check",
     "dist": "npm run dist:win",
     "dist:win": "npm run build && npm run dist -w @essay-grader/desktop",
     "dist:portable": "npm run build && npm run dist:portable -w @essay-grader/desktop"
