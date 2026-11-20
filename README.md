@@ -47,6 +47,7 @@ npm run junior:validate # 國中版草稿檢查（條數、id、字數、標籤�
 npm run junior:check   # 國中版草稿完整檢查，含 Markdown 與 JSON 一致與用語引號檢查
 npm run library:wording # 兩套評語庫用語檢查（總評／佳句／結構不得用引號）
 npm run library:structure # 兩套總評結構詞覆蓋、引號、字數與重複檢查
+npm run library:coverage # 16 類結構錯誤在兩套庫的覆蓋率、ID 與孤立條目檢查
 npm run soak         # 10 分鐘連續操作壓力測試（可用 --soak-minutes=1 縮短）
 npm run dist         # 同上，產出 NSIS 安裝檔與 portable（apps/desktop/release）
 npm run dist:win     # 建置後打包 Windows x64：Setup＋Portable
@@ -102,8 +103,15 @@ Google Drive 外部 inbox：在匯入佇列表按「設定／變更」選擇 Goo
 `npm run junior:check` 另外確認 Markdown 與 JSON 完全一致。
 
 國中與高中職兩套總評已改以文章結構為主：優先談主旨、段落功能、順序、過渡、例證、首尾、
-比例與連貫，避免綁定特定題材、人物或詞句。`npm run library:structure` 會檢查 120 條總評的
+比例與連貫，避免綁定特定題材、人物或詞句。覆蓋率與依據見
+`docs/評語庫結構依據.md` 與 `packages/core/src/library/comment-coverage.json`。`npm run library:structure` 會檢查 120 條總評的
 結構詞覆蓋、引號、字數與重複情形。
+
+結構依據與覆蓋率：`docs/評語庫結構依據.md` 整理國中教育會考寫作測驗、學測國寫的官方結構
+描述，以及教學現場歸納的 16 類常見結構錯誤（症狀、調整策略、對應評語）。分類與 ID 對應
+放在 `packages/core/src/library/comment-coverage.json`；`npm run library:coverage` 會確認
+每類在 junior 與 senior 都至少 2 條、ID 存在且 category=comment、同分類不重複、每個
+comment 至少被一類覆盖。目前 junior 與 senior 皆 60/60 條被覆盖，分類對應次數為 64 與 60。
 
 批閱流程：匯入佇列每列按「批閱」進入三欄式介面。左側切換同作業作品，
 中間滾輪縮放、拖曳平移、PageUp／PageDown 翻頁，點畫布新增批注；
@@ -175,6 +183,8 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 `npm run library:wording` 與 `junior:check` 會檢查此規則，違規即失敗。
 兩套 120 條總評也改以文章結構為主，移除特定題材與人物假設；
 `npm run library:structure` 會檢查結構詞覆蓋、引號、字數與重複，兩套皆 60/60 通過。
+另依官方規準與常見結構錯誤建立 16 類覆蓋表，junior 修正 18 條、senior 修正 5 條；
+`npm run library:coverage` 確認兩套 comment 皆 60/60 被覆盖，沒有孤立條目。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`spike` 通過。

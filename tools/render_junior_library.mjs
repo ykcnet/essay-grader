@@ -1,14 +1,19 @@
 // 由 packages/core/src/library/junior.draft.json 產生 comment-library-junior.md
 // 用法：node tools/render_junior_library.mjs
 
+import { readFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { buildCoverageTable } from './validate_comment_coverage.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(here, '..')
 const source = join(repoRoot, 'packages', 'core', 'src', 'library', 'junior.draft.json')
+const coverageSource = join(repoRoot, 'packages', 'core', 'src', 'library', 'comment-coverage.json')
 const target = join(repoRoot, 'comment-library-junior.md')
+const coverage = JSON.parse(readFileSync(coverageSource, 'utf8'))
+const coverageTable = buildCoverageTable(coverage.categories)
 
 const SUBTYPE_LABELS = {
   general: '一般',
@@ -100,6 +105,8 @@ export function buildMarkdown(library) {
   lines.push('>')
   lines.push('> 適用：國中七～九年級、國中教育會考寫作測驗')
   lines.push('>')
+  lines.push('> 結構依據：[docs/評語庫結構依據.md](docs/評語庫結構依據.md)。總評依國中教育會考寫作測驗評分規準、學測國寫評分原則與常見結構錯誤編寫；來源與檢索日期見該檔。')
+  lines.push('>')
   lines.push('> 程式目前仍只載入高中職版 `senior.json`；本檔與 `junior.draft.json` 不會進入 runtime。')
   lines.push('')
   lines.push('**使用規則**')
@@ -127,6 +134,12 @@ export function buildMarkdown(library) {
     lines.push(`| ${CATEGORY_LABELS[section.category]}（${section.prefix}） | ${sectionEntries.length} | ${detail} |`)
   }
   lines.push(`| **合計** | **${entries.length}** | |`)
+  lines.push('')
+  lines.push('## 結構覆蓋摘要')
+  lines.push('')
+  lines.push('> 依 `docs/評語庫結構依據.md` 的 16 類結構錯誤對應實際總評；同一條可支援多個分類。完整 ID 清單見 `packages/core/src/library/comment-coverage.json`。')
+  lines.push('')
+  lines.push(coverageTable)
   lines.push('')
   lines.push('---')
   lines.push('')

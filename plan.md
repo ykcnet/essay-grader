@@ -1,6 +1,6 @@
 # Essay Grader — 製作方案（草案）
 
-> 版本 v1.0 ｜ 2026-11-19 ｜ 狀態：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 批次回饋單＋10 分鐘 soak 完成；下一步 M8 手機**
+> 版本 v1.0 ｜ 2026-11-19 ｜ 狀態：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 批次回饋單＋10 分鐘 soak＋G4＋評語庫結構覆蓋完成；下一步 M8 手機**
 >
 > 需求本體仍以 `features.md` 為準；本檔整理技術棧比較、架構、資料模型、里程碑與待決事項。
 > 「已定」代表本次確認；「建議」代表尚未拍板。
@@ -20,6 +20,7 @@
 | 資料庫 | 本地資料夾為唯一資料庫；**Google Drive 本機同步資料夾僅作外部 inbox，資料庫不進雲端** |
 | 手機角色 | 只寫 inbox，不直接寫 `work.json` |
 | 第一版核心 | 批一份 → 批一班 → 出回饋單 |
+| 評語庫結構覆蓋 | 依官方規準與教學歸納建立 16 類；每類在 junior／senior 至少 2 條，每個 comment 至少被一類覆盖，`library:coverage` 納入驗收 |
 
 ---
 
@@ -405,6 +406,7 @@ essay-grader/
 - 不存 `used_count`／`last_used_at`；由所有 `work.json` 推導。
 - 內建條目可改寫、可停用、不刪除；舊批注存文字快照。
 - 匯入新版只新增缺少的 id，不覆蓋已自訂與已停用。
+- 總評結構覆蓋由 `packages/core/src/library/comment-coverage.json` 管理，依據見 `docs/評語庫結構依據.md`；`npm run library:coverage` 檢查每類至少 2 條、ID 存在且 category=comment、同分類不重複、無孤立條目，並核對兩份 Markdown 的摘要。
 
 ### 4.6 手機產出
 
@@ -682,6 +684,7 @@ essay-grader/
 - [x] 國中版評語庫草稿 126 條完成（2026-11-20）；待國中國文老師校閱，校閱後再接入
 - [x] 評語庫用語清洗：junior 20 條、senior 7 條；總評／佳句／結構改用通用指稱，`library:wording` 與 `junior:check` 納入標準流程（2026-11-20）
 - [x] 總評結構改寫：junior 60 條、senior 60 條改以主旨／段落／順序／過渡／例證／首尾為主，新增 `library:structure` 檢查（2026-11-20）
+- [x] 評語庫結構依據與覆蓋率：16 類、junior／senior 各 60/60 覆盖，新增 `library:coverage`（2026-11-20）
 - [ ] 目標電腦螢幕解析度（1366×768 是否為最低）
 
 ---
@@ -694,6 +697,6 @@ essay-grader/
 4. 量規預設採用均衡版，建立作業可改選其他 preset、評分前可調整配分與等第門檻；變更只影響之後的計算，已有分數不自動改寫。
 5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。未匹配照片手動分配已完成：`.meta.json` 結構化資訊、內外清單、320px 縮圖、realpath 路徑防護、選取學生後複製到 `_inbox` 並產生 sidecar、依 mtime／檔名排序、來源與附屬檔刪除、重複去重、`match:check` 21/21。F2 整班批次回饋單已完成：逐份輸出、跳過未完成、溢頁不中斷、`_feedback/` 中文檔名與 JSON／CSV 報告、進度與取消、`batch:check` 17/17。10 分鐘 soak 已完成：45 人、每圈 45 份回饋單，15 圈、720 份 PDF，private 291→291 MB、peak 426 MB、視窗回 0，作品與 PDF 驗證全數通過。下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 inbox。
 6. M7 打包已完成；若換電腦或離線打包，electron-builder 需要重新下載 Electron／NSIS，失敗時不影響 `npm run dev`、`m1:check`–`m7:check` 與既有資料。
-7. 國中版評語庫校閱後接入：依班級學制選擇 `junior` 或 `senior` library，或加設定開關；接入前維持草稿，不改 `packages/core/src/library.ts` 與 `BUILTIN_LIBRARY`。
+7. 國中版評語庫校閱後接入：依班級學制選擇 `junior` 或 `senior` library，或加設定開關；接入前維持草稿，不改 `packages/core/src/library.ts` 與 `BUILTIN_LIBRARY`。結構依據與 16 類覆蓋表見 `docs/評語庫結構依據.md`，覆蓋率由 `npm run library:coverage` 把關；高中職混合型子類與情意題條數列為校閱待決事項。
 
 > 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7＋F2＋10 分鐘 soak 已完成並建立對應 commit。
