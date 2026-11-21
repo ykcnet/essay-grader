@@ -462,6 +462,16 @@ essay-grader-data/
 - 驗收：`junior:render`、`junior:check` 17/17、converter（138 條，comment 72）、`library:wording`、`library:structure`、`library:coverage`、`library:short`、`m3:check`、`typecheck`、`build` 通過；junior／senior 各 138 條，子類數量不變。
 - 抽樣：junior 10 條、senior 10 條，均未假設特定詞句、段落編號、事件或人物，且仍可獨立使用並保有具體修改方向。
 
+### 國中評語庫白話化驗收（2026-11-21）
+
+- 範圍：只改 `junior.draft.json` 的 text；ID、分類、subtype、tags、disabled、source 與五面向歸屬不變。維持 junior 138 條、comment 72 條。
+- 指定更換：JE-10 改為通用錯字提醒，不再寫特定字詞；JS-13 改為通用重複提醒，不假設親眼看見；JG-01 改為通用佳句讚美，不假設身體反應；JG-02 改為通用開頭讚美，不假設聲音描寫。
+- 全面白話化：共修正 95 條（typo 1、sentence 19、structure 8、praise 6、comment 61）。脈絡、層次、張力、論證、收束、鋪陳、留白等抽象詞改為前後順序、一步一步、對比清楚、說理、收尾、先寫清楚等日常說法；長句拆短，避免命令語氣。
+- 檢查：新增 `npm run junior:readability`，只掃 junior 評語文字，出現 31 個抽象術語即列出 ID 並 exit 1，單條去標點超過 90 字只警告；`validate_library_structure.mjs` 詞彙表加入先後、重點、收尾、各段等白話同義詞。
+- 文件：`comment-library-junior.md` 開頭加入平鋪直敘原則；README／progress／plan 同步記錄。
+- 驗收：`junior:render`、`junior:check` 17/17、`junior:readability`、`library:wording`、`library:structure`、`library:coverage`、`library:short`、`m3:check`、`typecheck`、`build` 通過。
+- 抽樣：junior 15 條（typo 3、sentence 3、structure 3、praise 3、comment 3），均為國中生可懂的日常說法，未見抽象術語、特定題材假設，並保留具體修改方向。
+
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4）
 
 - soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。

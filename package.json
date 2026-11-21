@@ -32,6 +32,7 @@
     "junior:render": "node tools/render_junior_library.mjs",
     "junior:validate": "node tools/validate_junior_library.mjs",
     "junior:check": "node tools/validate_junior_library.mjs && node tools/validate_library_wording.mjs",
+    "junior:readability": "node tools/validate_junior_readability.mjs",
     "library:wording": "node tools/validate_library_wording.mjs",
     "library:structure": "node tools/validate_library_structure.mjs",
     "library:coverage": "node tools/validate_comment_coverage.mjs",

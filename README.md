@@ -45,6 +45,7 @@ npm run compare:check # G4 與上次比較驗收（狀態、平均、弱項、�
 npm run junior:render  # 由 junior.draft.json 產生國中版評語庫 Markdown（草稿）
 npm run junior:validate # 國中版草稿檢查（條數、id、字數、標籤、與高中職版重複）
 npm run junior:check   # 國中版草稿完整檢查，含 Markdown 與 JSON 一致與用語引號檢查
+npm run junior:readability # 國中版評語可讀性檢查（抽象術語、過長句子）
 npm run library:wording # 兩套評語庫用語檢查（總評／佳句／結構不得用引號）
 npm run library:structure # 兩套總評五面向詞彙、引號、字數與重複檢查
 npm run library:coverage # 五面向最低條數、19 類結構覆蓋率與 ID 對應檢查
@@ -107,6 +108,10 @@ runtime 已同時載入國中版與高中職版：預設 `auto` 會依班級學�
 草稿的 JSON 是唯一來源，修改後執行 `npm run junior:render` 重新產生 Markdown；
 `npm run junior:validate` 會檢查條數、子類、id、字數、標籤、變數與高中職版重複，
 `npm run junior:check` 另外確認 Markdown 與 JSON 完全一致。
+
+國中版用語以平鋪直敘為主，避免抽象術語；`npm run junior:readability` 只掃評語文字，
+列出脈絡、層次、張力等難詞的 ID 並以 exit 1 阻擋，單條超過 90 字只警告。
+2026-11-21 已全面白話化 95 條，並更換 JE-10、JS-13、JG-01、JG-02 為通用說法。
 
 國中與高中職兩套總評已改以五個面向編寫：結構、立意取材、語言表達、情感體驗、格式應用。
 結構只是其中之一，老師可依文章問題選擇合適的評語；非結構評語不硬塞結構詞。覆蓋率與依據見
