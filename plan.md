@@ -1,6 +1,6 @@
 # Essay Grader — 製作方案（草案）
 
-> 版本 v1.0 ｜ 2026-11-19 ｜ 狀態：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 批次回饋單＋10 分鐘 soak＋G4＋評語庫結構覆蓋＋體裁補充＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替完成；下一步 M8 手機**
+> 版本 v1.0 ｜ 2026-11-19 ｜ 狀態：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 批次回饋單＋10 分鐘 soak＋G4＋G6 佳句庫累積＋評語庫結構覆蓋＋體裁補充＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替完成；下一步 M8 手機**
 >
 > 需求本體仍以 `features.md` 為準；本檔整理技術棧比較、架構、資料模型、里程碑與待決事項。
 > 「已定」代表本次確認；「建議」代表尚未拍板。
@@ -524,6 +524,7 @@ essay-grader/
 | M5 回饋單 | 1–1.5 週 | 一頁 A4 預覽、單份 PDF、列印、檔名規則 | 中文不缺字、不溢頁；PDF 開啟正常 |
 | M6 統計（已完成） | 1 週 | G1 弱項排行、G2 常錯字、G3 個人弱項、CSV | 數字與批注一致；可匯出 |
 | G4 與上次比較（已完成） | 0.5 週 | `compare.ts` 純函式、`stats:compare` IPC、StatsPanel 比較區塊 | `compare:check` 15/15：狀態、平均、弱項、排行、拒絕與 UI |
+| G6 佳句庫累積（已完成） | 0.5 週 | `praise.ts` 純函式、`praise:bank` IPC、佳句庫面板與複製 | `praise:check` 15/15：去重、排序、去識別、範圍、壞作業跳過與 UI |
 | M7 打磨＋交付（已完成） | 1 週 | 安裝檔、portable、備份／還原、日誌與錯誤處理、使用者說明 | 乾淨 Windows 10/11 可安裝、可批完一班 |
 | Drive 外部 inbox（已完成） | 0.5 週 | 監看 Google Drive 本機同步資料夾、子資料夾／扁平擺法、去重、`_unmatched`／`_duplicates`、UI 與設定 | `drive:check` 23/23；成功匯入刪除雲端來源；資料庫不進雲端 |
 | M8 Android 掃描器 | 3–4 週 | 選班級／作業／學生、ML Kit 掃描、多頁排序、重拍、離線佇列、Google Drive inbox 寫入 | 手機拍 3 頁 → 桌機 10 秒內出現在佇列 |
@@ -531,7 +532,7 @@ essay-grader/
 
 **粗估**：桌機 MVP 6–8 週；桌機 P0 約 9–11 週；加 Android 與 QA 約 14–17 週。需求不再變動的估算，誤差約 ±30%。
 
-> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）、M7（打磨＋交付）、Drive 外部 inbox、E6（成績寫回 Excel）、未匹配照片手動分配、F2（整班批次回饋單）、10 分鐘 soak、G4（與上次比較）已於 2026-11-20 完成；M1 11/11、M2 13/13、M3 25/25、M4 17/17、M5 19/19、M6 17/17、M7 25/25、drive 23/23、excel 25/25、match 21/21、batch 17/17、compare 15/15、soak 通過。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出；M7 補上備份／還原、日誌與錯誤處理、ErrorBoundary、使用者說明、electron-builder 設定與 NSIS／portable 打包；Drive 外部 inbox 補上 Google Drive 本機同步資料夾監看、兩種上傳擺法、sidecar／檔名座號、去重、PDF 擋下、來源清理、狀態與 UI；E6 補上成績表設定與自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV 與 UI 面板；G4 補上座號對齊、進步／退步／持平／新作品／缺資料、只計 compared 的班級平均、弱項四類每份平均、進步／退步前 5 與比較 UI。
+> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）、M7（打磨＋交付）、Drive 外部 inbox、E6（成績寫回 Excel）、未匹配照片手動分配、F2（整班批次回饋單）、10 分鐘 soak、G4（與上次比較）已於 2026-11-20 完成；M1 11/11、M2 13/13、M3 25/25、M4 17/17、M5 19/19、M6 17/17、M7 25/25、drive 23/23、excel 25/25、match 21/21、batch 17/17、compare 15/15、praise 15/15、soak 通過。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出；M7 補上備份／還原、日誌與錯誤處理、ErrorBoundary、使用者說明、electron-builder 設定與 NSIS／portable 打包；Drive 外部 inbox 補上 Google Drive 本機同步資料夾監看、兩種上傳擺法、sidecar／檔名座號、去重、PDF 擋下、來源清理、狀態與 UI；E6 補上成績表設定與自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV 與 UI 面板；G4 補上座號對齊、進步／退步／持平／新作品／缺資料、只計 compared 的班級平均、弱項四類每份平均、進步／退步前 5 與比較 UI。
 
 **M3 驗收備註**
 
@@ -584,6 +585,15 @@ essay-grader/
 - `npm run compare:check` 15/15：5 人、3 份作業（含同日 -02）；compared=3、improved=1（S07 +9）、declined=1（S08 −5）、same=1、new=1（S20）、missing=1（S15）；平均 78.3→79.7（Δ +1.4）；弱項 1.3→1.0、0.7→0.3、0.3→0.7；換 previousId 後 73.3→79.7（Δ +6.4）；同份、跨班、不存在皆被拒絕；純函式不改來源；UI 下拉預設、摘要、表格、切換重置與 preload API 通過。
 - 已知限制：一次只比一組（目前 vs 一份上次作業），沒有多份趨勢；弱項只到類別層級；比較結果未匯出 CSV／PDF；G5 題目間整體比較未做。
 
+**G6 驗收備註**
+
+- **核心**：`packages/core/src/praise.ts` 的 `buildPraiseBank` 只收 `status === 'done'` 且 `category === 'praise'` 的批注；以 `normalizeComment` 去重，保留第一次出現的原文，統計 `count`／`workCount` 與來源 `assignments`，時間用 `annotation.created_at`、缺則 `work.updated_at`；排序為 count 高→低、lastAt 新→舊。
+- **去識別**：輸出型別與序列化結果都沒有座號、姓名或 `seat`／`name` 欄位，只保留佳句原文、次數、作品份數與作業標題。
+- **Repository**：`getPraiseBank(classId?)` 只讀；本班或全部班級掃描，`assignment.json` 讀不到與 `work.json` 損壞會跳過並記 warning。
+- **IPC／preload／UI**：`praise:bank` 與 `praise.bank`；右上角「佳句庫」面板提供本班／全部、搜尋、單筆與全部複製、空白／錯誤／載入與關閉；複製走 `clipboard.writeText`。
+- `npm run praise:check` 15/15：2 班、3 份作業、6 份作品；本班 4 句 7 次、全部 5 句 8 次；P1 正規化後 3 次／3 份；來源 `E20261101`、`E20261115` 依 id 排序；缺 `created_at` 正確退回 `work.updated_at`；序列化 1,154 bytes 不含測試姓名、座號或 `seat`／`name`；壞掉的 assignment 不影響結果；UI 與 preload 通過。
+- 已知限制：一次掃描指定範圍內所有作業與作品，量大時需等待，沒有分頁；只做文字正規化去重，沒有語意相似判斷、單一作業／日期篩選或 CSV／Markdown 匯出。
+
 **M7 驗收備註**
 
 - **備份**：`createBackupZip` 以 archiver 串流寫入 zip，entry 一律資料庫根目錄的相對 POSIX 路徑；排除 `.essay-grader.lock` 與所有 `*.tmp`／`*.restore.tmp`，保留班級、作業、work、圖片、`_stats` 與 `.bak`。預設檔名 `essay-grader-backup-YYYYMMDD-HHmm.zip`，不含姓名。
@@ -633,6 +643,7 @@ essay-grader/
 
 - G1／G2／G3 統計
 - G4 與上次比較（已完成，2026-11-20）
+- G6 佳句庫累積（已完成，2026-11-21）
 - F2 全班批次 PDF（已完成，2026-11-20）
 - 匯入／匯出 CSV
 - 完整錯誤處理與安裝檔
@@ -706,5 +717,6 @@ essay-grader/
 6. M7 打包已完成；若換電腦或離線打包，electron-builder 需要重新下載 Electron／NSIS，失敗時不影響 `npm run dev`、`m1:check`–`m7:check` 與既有資料。
 7. D12 國中／高中職雙評語庫已接入（2026-11-21）：`JUNIOR_LIBRARY`／`SENIOR_LIBRARY` 並存，`libraryForGrade` 依學制自動選用，批閱面板可手動切換並顯示草稿提示；`settings.json` 的 `libraryMode` 保留偏好。國中版仍為草稿（`2026.2-draft`），待國中國文老師校閱。結構依據與 19 類覆蓋表見 `docs/評語庫結構依據.md`，覆蓋率由 `npm run library:coverage` 把關；體裁補充的來源與採用對照見 `docs/評語參考_使用者提供.md`。高中職混合型子類與情意題條數列為校閱待決事項。
 8. D13 常用排序與釘選已完成（2026-11-21）：`sortLibraryEntries` 支援預設／常用（累計）／本批未用優先，釘選在三種排序都最先，釘選內依累計次數由高到低；使用次數由 `work.json` 的 `library_id` 即時推導，不維護計數器。`settings.json` 新增 `librarySort`／`libraryPins`，釘選為跨作業的全域 UI 偏好；`m3:check` 38/38 涵蓋排序、計數、偏好與 UI 重載。
+9. G6 佳句庫累積已完成（2026-11-21）：`buildPraiseBank` 跨作業收集 `done` 作品的佳句、`normalizeComment` 去重、統計次數與來源作業，輸出不含座號姓名；Repository `getPraiseBank(classId?)` 支援本班／全部班級並跳過壞作業；主畫面「佳句庫」面板可搜尋、複製與關閉；`praise:check` 15/15。
 
 > 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7＋F2＋10 分鐘 soak 已完成並建立對應 commit。

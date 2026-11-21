@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-21
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替完成；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替完成；下一步 M8 手機**
 
 ---
 
@@ -41,6 +41,8 @@
 | `packages/core/src/stats.ts` | M6 統計純函式：分數摘要、G1 弱項排行、G2 常錯字、G3 個人前三、CSV 四檔 |
 | `packages/core/src/compare.ts` | G4 比較純函式：座號對齊、六種狀態、只計 compared 的平均、進步／退步前 5、弱項四類每份平均 |
 | `apps/desktop/src/main/data/compare-check.ts` | G4 驗收：5 人×3 份作業（含同日 -02）、狀態／平均／弱項、換 previousId、拒絕情境與 UI 煙霧 |
+| `packages/core/src/praise.ts` | G6 佳句庫純函式：只收 `done` 的 `praise`、`normalizeComment` 去重、次數／作品數、來源作業、首末時間與排序，輸出不含學生識別 |
+| `apps/desktop/src/main/data/praise-check.ts` | G6 驗收：2 班／3 份作業／6 份作品、核心去重與排序、去識別、Repository 範圍與壞作業跳過、IPC／preload、UI 煙霧 |
 | `apps/desktop/src/main/data/m6-check.ts` | M6 驗收：統計範圍、G1／G2／G3、CSV 內容與 UI 煙霧、統計截圖 |
 | `apps/desktop/src/renderer/src/App.tsx`（StatsPanel） | M6 統計面板：摘要、等第／分項平均、G1／G2／G3、匯出 CSV、開啟資料夾；G4 比較區塊：上次作業下拉、摘要、排行、弱項表、學生表 |
 | `apps/desktop/src/main/data/backup.ts` | M7 備份／還原：archiver 相對路徑 zip、排除 lock／tmp、yauzl 串流解壓、zip slip 與非空目的地防護 |
@@ -504,7 +506,22 @@ essay-grader-data/
 - 文件：README／`docs/使用說明.md`／features／plan／progress 同步記錄。
 - 回歸：`typecheck`、`build`、`m1:check`、`m2:check`、`m3:check` 46/46、`m4:check`、`m5:check`、`m6:check`、`m7:check`、`drive:check`、`excel:check`、`match:check`、`batch:check`、`compare:check`、`junior:check`、`library:wording／structure／coverage／short`、`spike` 通過。
 
-### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4）
+### G6 佳句庫累積驗收（2026-11-21）
+
+- Core：`packages/core/src/praise.ts` 的 `buildPraiseBank(works, assignments, generatedAt?)` 為純函式，只掃 `status === 'done'` 且 `category === 'praise'` 的批注；以 `normalizeComment` 去變數、標點、空白後合併，保留第一次出現的原文。
+- 欄位：每筆含 `text`、`normalized`、`count`、`workCount`、`assignments`（id／title／dueAt，去重且依 id 排序）、`firstAt`／`lastAt`；時間取 `annotation.created_at`，缺漏時退回 `work.updated_at`。排序為 count 高→低、lastAt 新→舊、最後才依原文。
+- 去識別：輸出型別完全沒有座號、姓名欄位；`getPraiseBank` 只回傳彙整後的佳句，不帶任何作品或班級名單。
+- Repository：`getPraiseBank(classId?)` 只讀；給 classId 時只掃該班，省略時掃根目錄下所有合法班級與作業。`assignment.json` 無法讀取或 `work.json` 損壞的項目會記 warning 後跳過，不讓整次查詢失敗。
+- IPC／preload：`praise:bank(classId?)` 與 `window.electronAPI.praise.bank`；另有 `clipboard:write`／`clipboard.writeText`，只在使用者按複製時寫入。
+- UI：右上角「佳句庫」開啟覆蓋式面板，顯示「N 句、M 次使用」；可切本班／全部班級、搜尋原文、複製單筆或全部篩選結果，並有載入、空白、錯誤與關閉狀態。
+- `npm run praise:check` 15/15：2 班、3 份作業、6 份作品（含 `grading`／`pending`）。本班 4 句 7 次、全部 5 句 8 次；P1 經正規化後 3 次／3 份、來源作業 `E20261101`、`E20261115` 依 id 排序；P1 首末時間 `2026-11-01`→`2026-11-18`（最後一筆缺 `created_at`，正確退回 `work.updated_at`）；排序為 P1（3 次）→ P2（2 次）→ P4（1 次、`11-18`）→ P3（1 次、`11-01`）。
+- 去識別實測：序列化 1,154 bytes，不含測試姓名（測試甲生等 5 人）、`S71`／`S72`、`seat`／`name` 欄位；`grading`／`pending` 的佳句、語句與總評批注皆未收錄。
+- Repository 實測：本班查詢 4 句／7 次且不含他班；全部查詢 5 句／8 次；插入損壞的 `assignment.json` 後仍為 5 句／8 次，沒有拋錯。
+- UI／preload 實測：主畫面有「佳句庫」、面板預設顯示「4 句、7 次使用 · 高中302」、切全部變 5 句／8 次、搜尋「口袋」由 5 筆縮為 1 筆再清除、清單不含姓名／座號、單筆與全部複製按鈕及關閉按鈕皆存在、關閉後面板消失；`praise.bank` 本班／全部與 `clipboard.writeText` 型別皆正確。
+- 回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 46/46、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`junior:check` 17/17、`library:wording/structure/coverage/short`、`spike` 通過。
+- 已知限制：佳句庫一次掃描指定範圍內所有作業與作品，資料量大時開啟面板需等待；沒有分頁或虛擬列表。只以文字正規化去重，不會判斷語意相近的改寫句。範圍只有「本班／全部班級」，沒有單一作業或日期區間篩選。面板不提供編輯或停用佳句，來源仍是 `work.json`。複製全部會以空行串接目前篩選結果，尚未提供 CSV／Markdown 匯出。
+
+### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4＋G6）
 
 - soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。
 - soak 期間批次吞吐量多數約 37 秒／圈，但曾數次升至約 53–66 秒／圈；前一次 10 分鐘測試在後段回落，本次則在最後兩圈升高。記憶體與視窗數同期沒有累積，研判與主機 I/O／防毒掃描有關，尚未在乾淨機器上重現或排除。
@@ -524,6 +541,7 @@ essay-grader-data/
 - G4 已可比較同班兩份作業，但一次只比一組（目前 vs 一份上次作業），沒有多份趨勢圖、全班長期走勢或題目間整體比較（G5 未做）；比較平均只涵蓋兩邊都有 `done` 分數的學生。
 - G4 弱項只比類別層級（錯字／語句／結構／其他），不細分到子類或前三名；新作品與缺資料不列入平均與排行，但學生明細表仍會列出。
 - G4 比較結果目前只在 UI 顯示，沒有匯出 CSV／PDF；需要的話可從學生明細表自行截圖或另外複製。
+- 佳句庫一次掃描指定範圍內所有作業與作品，資料量大時面板需等待，尚未做分頁或虛擬列表；只以文字正規化去重，不判斷語意相近的改寫句，也沒有單一作業／日期區間篩選或 CSV／Markdown 匯出。
 - CSV 為 UTF-8 BOM＋CRLF，Excel 可直接開啟；尚未做 Excel 格式（欄寬、樣式、多工作表）。
 - 回饋單只用系統字型（Microsoft JhengHei、標楷體／PMingLiU fallback），未內建 Noto Serif TC；換到沒有這些字型的電腦需再確認。
 - 回饋單摘要有上限（錯字 12 種、詞句 6 句、佳句 4 句），超出只顯示前 N 筆；完整內容仍在 `work.json` 與批閱畫面。

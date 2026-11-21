@@ -1793,3 +1793,174 @@ input[type='checkbox'] {
   background: rgba(43, 108, 176, 0.14);
   color: var(--blue);
 }
+
+/* ---------- G6 佳句庫 ---------- */
+
+.praise-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgba(8, 28, 54, 0.55);
+}
+
+.praise-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(820px, 100%);
+  max-height: min(82vh, 900px);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 24px 60px rgba(3, 12, 28, 0.4);
+  overflow: hidden;
+}
+
+.praise-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--navy);
+  color: var(--cream);
+}
+
+.praise-head h2 {
+  margin: 0;
+  font-family: 'Noto Serif TC', 'PMingLiU', serif;
+  font-size: 19px;
+  letter-spacing: 0.04em;
+}
+
+.praise-sub {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: rgba(247, 241, 227, 0.7);
+}
+
+.praise-head .small {
+  background: transparent;
+  border-color: rgba(247, 241, 227, 0.3);
+  color: var(--cream);
+}
+
+.praise-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.praise-scope {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.praise-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 260px;
+  justify-content: flex-end;
+}
+
+.praise-search {
+  max-width: 280px;
+  width: auto;
+  flex: 1;
+}
+
+.praise-error {
+  margin: 0;
+  padding: 10px 20px;
+  border-bottom: 1px solid #f0d9d5;
+  background: rgba(192, 57, 43, 0.06);
+  color: var(--red);
+  font-size: 12px;
+}
+
+.praise-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px 16px;
+}
+
+.praise-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.praise-empty {
+  margin: 0;
+  padding: 28px 12px;
+}
+
+.praise-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e7ddca;
+  border-radius: 9px;
+  background: #fdfbf6;
+}
+
+.praise-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.praise-text {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  color: var(--ink);
+}
+
+.praise-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.praise-chip {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(43, 108, 176, 0.1);
+  color: var(--blue);
+}
+
+.praise-sources {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.praise-source {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: #f1ece0;
+  color: var(--muted);
+}
+
+.praise-copy {
+  flex: none;
+}

@@ -120,6 +120,12 @@ const api = {
     setPrefs: (patch: { sort?: string; pins?: string[]; cooldownDays?: number }) =>
       ipcRenderer.invoke('library:set-prefs', patch)
   },
+  praise: {
+    bank: (classId?: string) => ipcRenderer.invoke('praise:bank', classId)
+  },
+  clipboard: {
+    writeText: (text: string) => ipcRenderer.invoke('clipboard:write', text)
+  },
   imports: {
     status: () => ipcRenderer.invoke('import:status'),
     refresh: () => ipcRenderer.invoke('import:refresh'),

@@ -17,6 +17,8 @@ import {
   type DatabaseState,
   type ImportEvent,
   type ImportStatus,
+  type PraiseBank,
+  type PraiseBankEntry,
   type RubricPresetBaseId,
   type Student,
   type WorkSummary
@@ -237,6 +239,7 @@ export default function App(): JSX.Element {
   const [statsRun, setStatsRun] = useState(0)
   const [statsExport, setStatsExport] = useState<{ dir: string; files: string[] } | null>(null)
   const [gradebookOpen, setGradebookOpen] = useState(false)
+  const [praiseOpen, setPraiseOpen] = useState(false)
 
   const selectedIdRef = useRef<string | null>(null)
   const selectedAssignmentRef = useRef<string | null>(null)
@@ -702,6 +705,9 @@ export default function App(): JSX.Element {
           {state?.root ? (
             <>
               <button onClick={() => void window.electronAPI.db.reveal()}>開啟資料夾</button>
+              <button className="ghost" onClick={() => setPraiseOpen(true)}>
+                佳句庫
+              </button>
               <button className="ghost" onClick={handleBackup}>
                 備份資料庫
               </button>
@@ -877,6 +883,14 @@ export default function App(): JSX.Element {
             )}
           </main>
         </div>
+      )}
+
+      {praiseOpen && (
+        <PraiseBankPanel
+          classId={selectedId}
+          className={classFile?.name ?? null}
+          onClose={() => setPraiseOpen(false)}
+        />
       )}
 
       {toast && <div className={`toast toast--${toast.kind}`}>{toast.text}</div>}
@@ -3384,5 +3398,191 @@ function AuditPanel({
         </table>
       )}
     </div>
+  )
+}
+
+/** G6 佳句庫：覆蓋式面板，跨作業收集 praise 批注、去識別，可本班／全部班級查看、搜尋與複製。 */
+function PraiseBankPanel({
+  classId,
+  className,
+  onClose
+}: {
+  classId: string | null
+  className: string | null
+  onClose: () => void
+}): JSX.Element {
+  const [scope, setScope] = useState<'class' | 'all'>(classId ? 'class' : 'all')
+  const [bank, setBank] = useState<PraiseBank | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [query, setQuery] = useState('')
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
+  const seqRef = useRef(0)
+
+  const effectiveClassId = scope === 'class' ? classId : null
+
+  const load = useCallback(async (): Promise<void> => {
+    const seq = ++seqRef.current
+    setLoading(true)
+    setError('')
+    try {
+      const data = (await window.electronAPI.praise.bank(
+        effectiveClassId ?? undefined
+      )) as PraiseBank
+      if (seqRef.current !== seq) return
+      setBank(data)
+    } catch (cause) {
+      if (seqRef.current !== seq) return
+      setBank(null)
+      setError(`讀取佳句庫：${errorText(cause)}`)
+    } finally {
+      if (seqRef.current === seq) setLoading(false)
+    }
+  }, [effectiveClassId])
+
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  const copy = useCallback(async (text: string, key: string): Promise<void> => {
+    try {
+      await window.electronAPI.clipboard.writeText(text)
+      setCopiedKey(key)
+      window.setTimeout(() => setCopiedKey(null), 1500)
+    } catch (cause) {
+      setError(`複製失敗：${errorText(cause)}`)
+    }
+  }, [])
+
+  const normalizedQuery = query.trim().toLowerCase()
+  const filtered = (bank?.entries ?? []).filter((entry) => {
+    if (!normalizedQuery) return true
+    return entry.text.toLowerCase().includes(normalizedQuery)
+  })
+  const copyAllText = filtered.map((entry) => entry.text).join('\n\n')
+
+  return (
+    <div className="praise-backdrop" onClick={onClose}>
+      <div
+        className="praise-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="佳句庫"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="praise-head">
+          <div>
+            <h2>佳句庫</h2>
+            <p className="praise-sub">
+              {bank
+                ? `${bank.totalTexts} 句、${bank.totalUses} 次使用`
+                : loading
+                  ? '載入中…'
+                  : '尚未載入'}
+              {scope === 'class' && className ? ` · ${className}` : ''}
+              {scope === 'all' ? ' · 全部班級' : ''}
+            </p>
+          </div>
+          <button className="small" onClick={onClose}>
+            關閉
+          </button>
+        </header>
+
+        <div className="praise-toolbar">
+          {classId ? (
+            <div className="praise-scope">
+              <button
+                className={scope === 'class' ? 'small primary' : 'small'}
+                onClick={() => setScope('class')}
+              >
+                本班
+              </button>
+              <button
+                className={scope === 'all' ? 'small primary' : 'small'}
+                onClick={() => setScope('all')}
+              >
+                全部班級
+              </button>
+            </div>
+          ) : (
+            <span className="muted small-text">尚未選取班級，僅顯示全部班級</span>
+          )}
+
+          <div className="praise-actions">
+            <input
+              className="praise-search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="搜尋佳句原文…"
+            />
+            <button
+              className="small"
+              disabled={filtered.length === 0}
+              onClick={() => void copy(copyAllText, 'all')}
+            >
+              {copiedKey === 'all' ? '已複製' : '複製全部篩選結果'}
+            </button>
+          </div>
+        </div>
+
+        {error && <p className="praise-error">{error}</p>}
+
+        <div className="praise-list">
+          {loading && bank === null ? (
+            <p className="muted center praise-empty">正在彙整佳句…</p>
+          ) : filtered.length === 0 ? (
+            <p className="muted center praise-empty">
+              {bank && bank.entries.length === 0 ? '尚無佳句批注' : '沒有符合搜尋的佳句'}
+            </p>
+          ) : (
+            <ul>
+              {filtered.map((entry) => (
+                <PraiseBankRow
+                  key={entry.normalized}
+                  entry={entry}
+                  copied={copiedKey === entry.normalized}
+                  onCopy={() => void copy(entry.text, entry.normalized)}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PraiseBankRow({
+  entry,
+  copied,
+  onCopy
+}: {
+  entry: PraiseBankEntry
+  copied: boolean
+  onCopy: () => void
+}): JSX.Element {
+  return (
+    <li className="praise-item">
+      <div className="praise-item-main">
+        <p className="praise-text">{entry.text}</p>
+        <div className="praise-stats">
+          <span className="praise-chip">使用 {entry.count} 次</span>
+          <span className="praise-chip">作品 {entry.workCount} 份</span>
+          {entry.assignments.length > 0 && (
+            <span className="praise-sources">
+              {entry.assignments.map((assignment) => (
+                <span key={assignment.id} className="praise-source">
+                  {assignment.title}
+                  {assignment.dueAt ? `（${assignment.dueAt.slice(0, 10)}）` : ''}
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+      </div>
+      <button className="small praise-copy" onClick={onCopy}>
+        {copied ? '已複製' : '複製'}
+      </button>
+    </li>
   )
 }

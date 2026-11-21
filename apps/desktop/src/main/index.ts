@@ -12,6 +12,7 @@ import { readSettings } from './data/settings'
 import { registerFeedbackIpc } from './feedback/ipc'
 import { runBatchCheck } from './feedback/batch-check'
 import { runCompareCheck } from './data/compare-check'
+import { runPraiseCheck } from './data/praise-check'
 import { runDriveCheck } from './import/drive-check'
 import { runMatchCheck } from './import/match-check'
 import { runM2Check } from './import/m2-check'
@@ -36,6 +37,7 @@ const excelMode = process.argv.includes('--excel-check')
 const matchMode = process.argv.includes('--match-check')
 const batchMode = process.argv.includes('--batch-check')
 const compareMode = process.argv.includes('--compare-check')
+const praiseMode = process.argv.includes('--praise-check')
 const soakMode = process.argv.includes('--soak')
 const checkMode =
   m1Mode ||
@@ -50,6 +52,7 @@ const checkMode =
   matchMode ||
   batchMode ||
   compareMode ||
+  praiseMode ||
   soakMode ||
   spikeMode ||
   fixturesOnly
@@ -233,6 +236,12 @@ if (!gotLock) {
       return
     }
 
+    if (praiseMode) {
+      const code = await runPraiseCheck()
+      app.exit(code)
+      return
+    }
+
     if (soakMode) {
       const code = await runSoak()
       app.exit(code)
@@ -274,6 +283,7 @@ if (!gotLock) {
       !matchMode &&
       !batchMode &&
       !compareMode &&
+      !praiseMode &&
       !soakMode &&
       process.platform !== 'darwin'
     ) {

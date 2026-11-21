@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, shell } from 'electron'
+import { app, clipboard, dialog, ipcMain, shell } from 'electron'
 import { stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import {
@@ -48,6 +48,7 @@ import {
   exportAssignmentStats,
   getAssignmentStats,
   getLibraryUsage,
+  getPraiseBank,
   getState,
   listAssignments,
   listWorks,
@@ -247,6 +248,13 @@ export function registerDataIpc(): void {
   )
 
   ipcMain.handle('library:get-prefs', () => readLibraryPrefs())
+
+  ipcMain.handle('praise:bank', (_event, classId?: string) => getPraiseBank(classId))
+
+  ipcMain.handle('clipboard:write', (_event, text: string) => {
+    clipboard.writeText(String(text ?? ''))
+    return { ok: true }
+  })
 
   ipcMain.handle(
     'library:set-prefs',

@@ -3,7 +3,7 @@
 紙本作文掃描 → 桌機批閱 → 評分 → 一頁回饋單 → 分數寫回 Excel。
 
 - 技術棧：**Electron + React + TypeScript**（2026-11-19 定案）
-- 版本：**0.1.0（M7 打磨＋交付＋Google Drive 外部 inbox＋成績寫回 Excel＋整班批次回饋單＋10 分鐘 soak＋G4 與上次比較）**
+- 版本：**0.1.0（M7 打磨＋交付＋Google Drive 外部 inbox＋成績寫回 Excel＋整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積）**
 - 手機端：Kotlin + ML Kit（第二階段，只寫 inbox）；現階段可先用手機 Google Drive App 上傳照片
 - 資料庫：本地資料夾，全 ASCII，中文只存在 JSON
 - 外部 inbox：Google Drive 本機同步資料夾，只搬圖片，資料庫不進雲端
@@ -42,6 +42,7 @@ npm run excel:check  # 成績寫回 Excel 驗收（副本、座號、驗證、�
 npm run match:check  # 未匹配照片驗收（內外清單、meta、縮圖、指定座號、去重、路徑防護、UI）
 npm run batch:check  # 整班批次回饋單驗收（輸出、跳過、溢頁失敗、報告、取消、重複啟動、UI）
 npm run compare:check # G4 與上次比較驗收（狀態、平均、弱項、排行、拒絕情境、UI）
+npm run praise:check # G6 佳句庫驗收（核心、去重、排序、去識別、Repository、IPC／preload、UI）
 npm run junior:render  # 由 junior.draft.json 產生國中版評語庫 Markdown（草稿）
 npm run junior:validate # 國中版草稿檢查（條數、id、字數、標籤、與高中職版重複）
 npm run junior:check   # 國中版草稿完整檢查，含 Markdown 與 JSON 一致與用語引號檢查
@@ -193,6 +194,14 @@ G2 常錯字、G3 每人前三弱項與 G4「與上次比較」。G4 可選同�
 可直接用 Excel 開啟（UTF-8 BOM）。統計只計已批（`done`）作品；未完成與未匯入的學生
 仍列在個人表，但標示「不計入」，不影響班級數字。
 
+### 佳句庫累積（G6）
+
+右上角「佳句庫」會跨作業收集**已完成作品**的佳句批注，去重後依使用次數與最後使用時間排序，
+可切換「本班」或「全部班級」、搜尋原文並複製單句或全部篩選結果。每一筆只顯示佳句原文、
+使用次數、作品份數與來源作業名稱，不含座號、姓名或任何學生識別欄位；只讀不寫，不會修改
+`work.json`。`pending`／`grading` 的佳句與語句、結構、評語等其他類別都不會收錄。
+`npm run praise:check` 會用 2 班、3 份作業與數份作品驗證核心、repository、IPC／preload 與 UI。
+
 連續操作壓力測試：`npm run soak` 會建立 1 班 45 位學生的暫存資料庫，每人 1 份
 `done` 作品與 1 頁小圖，預設連續跑 10 分鐘。每圈執行批次檢查、統計、45 份批次回饋單，
 再輪替 3 位學生做 autosave 並重新載入驗證；批次前後比對視窗數，每分鐘記錄
@@ -225,7 +234,7 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 
 M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付、
 Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配座號、F2 整班批次回饋單、
-10 分鐘 soak、G4 與上次比較已完成。
+10 分鐘 soak、G4 與上次比較、G6 佳句庫累積已完成。
 國中版評語庫草稿 138 條已接入 runtime，預設依班級學制自動選用，也可在批閱畫面手動切換；
 國中版會標示「草稿」，待國中國文老師校閱。
 評語庫已支援常用排序與釘選（D13）：「預設／常用（累計）／本批未用優先」、每條顯示本批與累計次數，
@@ -247,7 +256,7 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 46/46、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
-`junior:check`、`library:wording/structure/coverage/short` 與 `spike` 通過。
+`praise:check` 15/15、`junior:check`、`library:wording/structure/coverage/short` 與 `spike` 通過。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），
@@ -267,6 +276,9 @@ F2 以 5 位學生驗證：3 份正常 `done`、1 份 `grading` 跳過、1 份 `
 G4 以 5 位學生、3 份作業（含同日 `-02`）驗證：已比較 3 份，進步 1（S07 +9）、退步 1（S08 −5）、
 持平 1、新作品 1、缺資料 1；平均 78.3→79.7（Δ +1.4）；弱項錯字 1.3→1.0、語句 0.7→0.3、
 結構 0.3→0.7；換上次作業會重算，同一份、跨班與不存在的作業皆被拒絕；UI 下拉預設與切換重置通過。
+G6 以 2 班、3 份作業、6 份作品（含 `grading`／`pending`）驗證：本班 4 句 7 次、全部 5 句 8 次，
+P1 經 normalize 後 3 次／3 份、來源作業依 id 排序，缺 `created_at` 時退回 `work.updated_at`；
+序列化不含測試姓名、座號與 `seat`／`name` 欄位；壞掉的 assignment 會被跳過，UI 與 preload 通過。
 soak 以 45 人、每圈 45 份回饋單跑滿 10 分鐘：15 圈、16 次批次、720 份 PDF；private 291→291 MB、
 peak 426 MB、growth 0 MB，視窗批次後回到 0，45 份作品與最後一輪 PDF 驗證皆通過。
 已知限制見 `progress.md`；下一步為 M8 手機掃描。

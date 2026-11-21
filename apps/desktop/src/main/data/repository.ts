@@ -20,6 +20,7 @@ import {
   appendMissingPageIssues,
   auditWorks,
   buildAssignmentStats,
+  buildPraiseBank,
   compareAssignmentStats,
   statsToCsvFiles,
   type AssignmentAudit,
@@ -33,6 +34,8 @@ import {
   type CreateClassInput,
   type DatabaseState,
   type LibraryUsage,
+  type PraiseAssignmentInfo,
+  type PraiseBank,
   type Rubric,
   type WorkFile,
   type WorkSummary
@@ -583,6 +586,73 @@ export async function getLibraryUsage(
   }
 
   return { current, overall, currentLastUsed, overallLastUsed }
+}
+
+/**
+ * G6 佳句庫：只讀不寫，跨作業收集 category='praise' 批注並去識別。
+ * classId 有值時只掃該班所有作業；否則掃資料庫根目錄下所有合法班級與作業。
+ * 讀不到 assignment.json 的作業會跳過並記 warning；work.json 損壞同樣略過。
+ * 只收集 status='done' 的作品（由 core 的 buildPraiseBank 處理）。
+ */
+export async function getPraiseBank(classId?: string): Promise<PraiseBank> {
+  const root = requireRoot()
+
+  const classIds: string[] = []
+  if (classId) {
+    if (!CLASS_DIR.test(classId)) throw new Error(`班級 id 格式不正確：${classId}`)
+    if (!(await pathExists(join(root, classId, 'class.json')))) {
+      throw new Error(`找不到班級 ${classId}`)
+    }
+    classIds.push(classId)
+  } else {
+    const classEntries = await readdir(root, { withFileTypes: true })
+    for (const entry of classEntries) {
+      if (!entry.isDirectory() || !CLASS_DIR.test(entry.name)) continue
+      if (await pathExists(join(root, entry.name, 'class.json'))) classIds.push(entry.name)
+    }
+  }
+
+  const works: WorkFile[] = []
+  const assignments = new Map<string, PraiseAssignmentInfo>()
+
+  for (const cid of classIds) {
+    const classDir = join(root, cid)
+    const entries = await readdir(classDir, { withFileTypes: true })
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !ASSIGNMENT_DIR.test(entry.name)) continue
+
+      let info: PraiseAssignmentInfo
+      try {
+        const { data } = await readJsonRecovering(
+          join(classDir, entry.name, 'assignment.json'),
+          AssignmentSchema
+        )
+        info = { title: data.title, ...(data.due_at ? { due_at: data.due_at } : {}) }
+        assignments.set(data.id, info)
+      } catch (error) {
+        logWarn(`[praise] 略過作業 ${cid}/${entry.name}：${toMessage(error)}`)
+        continue
+      }
+
+      const workEntries = await readdir(join(classDir, entry.name), { withFileTypes: true })
+      for (const workEntry of workEntries) {
+        if (!workEntry.isDirectory() || !/^S\d{2}$/.test(workEntry.name)) continue
+
+        const workPath = join(classDir, entry.name, workEntry.name, 'work.json')
+        if (!(await pathExists(workPath))) continue
+
+        try {
+          const { data } = await readJsonRecovering(workPath, WorkSchema)
+          works.push(data)
+        } catch (error) {
+          logWarn(`[praise] 略過 ${cid}/${entry.name}/${workEntry.name}/work.json：${toMessage(error)}`)
+        }
+      }
+    }
+  }
+
+  return buildPraiseBank(works, assignments)
 }
 
 /**
