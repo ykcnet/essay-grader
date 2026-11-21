@@ -202,10 +202,13 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 另依官方規準與常見結構症狀建立 19 類輔助覆蓋表，並由使用者提供評語表新增 24 條體裁補充；
 `npm run library:coverage` 確認五面向皆達最低條數、兩套 comment 皆 72/72 有面向歸屬。
 本輪共改寫 junior 23 條、senior 23 條總評，維持 138 條與 comment 72 條不變。
+短評（錯字、語句、結構、佳句）也已完成侷限用語清洗：junior 修正 36 條、senior 修正 29 條，
+移除特定詞句、段落編號、事件與人物假設，改為條件式與通用描述；
+`npm run library:short` 會檢查引號、段落編號、禁用題材與重複，違規即失敗。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 31/31、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
-`junior:check`、`library:wording/structure/coverage` 與 `spike` 通過。
+`junior:check`、`library:wording/structure/coverage/short` 與 `spike` 通過。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），

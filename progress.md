@@ -451,6 +451,17 @@ essay-grader-data/
 - `m3:check` 擴充至 31/31：雙庫條數／schema、`libraryForGrade` 四種學制與覆寫／非法模式、payload 版本、IPC senior→junior→senior、UI 下拉與草稿提示、切換後清單 ID 由 `E-` 變 `JE-` 再回 `E-`。
 - 回歸：`typecheck`、`build`、`m1:check` 11/11、`m3:check` 31/31、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`junior:check` 17/17、`library:wording`、`library:structure`、`library:coverage`、`spike` 通過。
 
+### 短評侷限用語清洗驗收（2026-11-21）
+
+- 範圍：只動 sentence／structure／praise；comment 內容與 typo 的必要字詞規則不動。junior 修正 36 條（typo 4、sentence 18、structure 9、praise 5），senior 修正 29 條（sentence 20、structure 8、praise 1）。
+- 語句：不再引用具體詞句，近義詞改寫成「強調取用／隨身攜帶」這類對比，因果與並列改用連接詞類型描述；口語詞、句尾語氣詞、文白語體改以條件式說明，保留拆句、補主語、換詞、刪贅字等修改方向。
+- 結構：固定段落編號改為「這一段／有一段／開頭／結尾」；移除事件、人物、地點與數量假設，保留段落功能、比例、順序、過渡、首尾與完整度等可操作建議。
+- 佳句：只描述文本技巧，例如具體畫面、動作承載情緒、對比、對話、節奏、首尾呼應、留白與引用自然，不假設特定物件、身體反應或場景。
+- 檢查：新增 `npm run library:short`，只掃 sentence／structure／praise；禁止引號、結構類段落編號、20 個特定事件／人物詞、過短與正規化重複，違規列出 ID 並 exit 1；typo 不在此限。
+- 文件：兩份評語庫開頭加入短評清洗規則；README／progress／plan 同步記錄。
+- 驗收：`junior:render`、`junior:check` 17/17、converter（138 條，comment 72）、`library:wording`、`library:structure`、`library:coverage`、`library:short`、`m3:check`、`typecheck`、`build` 通過；junior／senior 各 138 條，子類數量不變。
+- 抽樣：junior 10 條、senior 10 條，均未假設特定詞句、段落編號、事件或人物，且仍可獨立使用並保有具體修改方向。
+
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4）
 
 - soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。

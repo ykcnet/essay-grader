@@ -35,6 +35,7 @@
     "library:wording": "node tools/validate_library_wording.mjs",
     "library:structure": "node tools/validate_library_structure.mjs",
     "library:coverage": "node tools/validate_comment_coverage.mjs",
+    "library:short": "node tools/validate_library_short.mjs",
     "soak": "electron apps/desktop --soak",
     "dist": "npm run dist:win",
     "dist:win": "npm run build && npm run dist -w @essay-grader/desktop",
