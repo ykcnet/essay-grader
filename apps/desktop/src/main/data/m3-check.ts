@@ -1,6 +1,6 @@
 import { app, BrowserWindow } from 'electron'
 import sharp from 'sharp'
-import { mkdir, rm, stat } from 'node:fs/promises'
+import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   BUILTIN_LIBRARY,
@@ -13,11 +13,14 @@ import {
   libraryForGrade,
   normalizeComment,
   resolveGrade,
+  sortLibraryEntries,
   validateWork,
   type Annotation,
   type AssignmentFile,
   type GradeBand,
+  type LibraryEntry,
   type LibraryMode,
+  type LibrarySort,
   type WorkFile
 } from '@essay-grader/core'
 import { preprocessImage } from '../import/image'
@@ -25,6 +28,7 @@ import {
   closeDatabase,
   createAssignment,
   createClass,
+  getLibraryUsage,
   loadAssignment,
   loadWork,
   openDatabase,
@@ -33,7 +37,7 @@ import {
   saveWork,
   updateAssignmentRubric
 } from './repository'
-import { readSettings, writeSettings } from './settings'
+import { readLibraryPrefs, readSettings, writeLibraryPrefs, writeSettings } from './settings'
 
 interface Check {
   label: string
@@ -57,15 +61,46 @@ function typoAnnotation(index: number): Annotation {
   }
 }
 
+interface LibraryToolsUiResult {
+  ipcOk: boolean
+  ipcDetail: string
+  sortUiOk: boolean
+  sortDetail: string
+  persistOk: boolean
+  persistDetail: string
+}
+
+interface LibraryUiExpectation {
+  classId: string
+  assignmentId: string
+  usedSentenceId: string
+  usedCommentId: string
+  otherCommentId: string
+  defaultCommentId: string
+}
+
+const emptyLibraryTools = (): LibraryToolsUiResult => ({
+  ipcOk: false,
+  ipcDetail: '未執行',
+  sortUiOk: false,
+  sortDetail: '未執行',
+  persistOk: false,
+  persistDetail: '未執行'
+})
+
 /** 開隱藏視窗載入 renderer，確認主畫面、新的 preload API 與批閱畫面都能載入。 */
-async function runUiSmoke(classId: string): Promise<{
+async function runUiSmoke(
+  expectation: LibraryUiExpectation
+): Promise<{
   ok: boolean
   detail: string
   libraryIpcOk: boolean
   libraryUiOk: boolean
   libraryDetail: string
   workStableOk: boolean
+  libraryTools: LibraryToolsUiResult
 }> {
+  const { classId, assignmentId, usedCommentId, usedSentenceId } = expectation
   const win = new BrowserWindow({
     show: false,
     width: 1440,
@@ -99,6 +134,16 @@ async function runUiSmoke(classId: string): Promise<{
     }
     return false
   }
+  const setSelect = async (selector: string, value: string): Promise<boolean> =>
+    (await win.webContents.executeJavaScript(
+      `(() => {
+        const select = document.querySelector(${JSON.stringify(selector)})
+        if (!select) return false
+        select.value = ${JSON.stringify(value)}
+        select.dispatchEvent(new Event('change', { bubbles: true }))
+        return true
+      })()`
+    )) as boolean
   const fail = (
     detail: string
   ): {
@@ -108,13 +153,15 @@ async function runUiSmoke(classId: string): Promise<{
     libraryUiOk: boolean
     libraryDetail: string
     workStableOk: boolean
+    libraryTools: LibraryToolsUiResult
   } => ({
     ok: false,
     detail,
     libraryIpcOk: false,
     libraryUiOk: false,
     libraryDetail: '未執行',
-    workStableOk: false
+    workStableOk: false,
+    libraryTools: emptyLibraryTools()
   })
 
   try {
@@ -137,7 +184,10 @@ async function runUiSmoke(classId: string): Promise<{
         typeof window.electronAPI.work.reuse === 'function' &&
         window.electronAPI.library &&
         typeof window.electronAPI.library.get === 'function' &&
-        typeof window.electronAPI.library.setMode === 'function'
+        typeof window.electronAPI.library.setMode === 'function' &&
+        typeof window.electronAPI.library.usage === 'function' &&
+        typeof window.electronAPI.library.getPrefs === 'function' &&
+        typeof window.electronAPI.library.setPrefs === 'function'
       )`
     )) as boolean
 
@@ -151,12 +201,21 @@ async function runUiSmoke(classId: string): Promise<{
     const libraryIpc = (await win.webContents.executeJavaScript(
       `(async () => {
         const classId = ${JSON.stringify(classId)}
+        const assignmentId = ${JSON.stringify(assignmentId)}
         await window.electronAPI.library.setMode('auto')
         const initial = await window.electronAPI.library.get(classId)
         await window.electronAPI.library.setMode('junior')
         const junior = await window.electronAPI.library.get(classId)
         await window.electronAPI.library.setMode('auto')
         const restored = await window.electronAPI.library.get(classId)
+        const usage = await window.electronAPI.library.usage(classId, assignmentId)
+        const prefsBefore = await window.electronAPI.library.getPrefs()
+        const prefsSet = await window.electronAPI.library.setPrefs({
+          sort: 'unused',
+          pins: ['E-01', 'E-01', 'E-02', 7]
+        })
+        const prefsAfter = await window.electronAPI.library.getPrefs()
+        await window.electronAPI.library.setPrefs({ sort: 'default', pins: [] })
         return {
           ids: [initial.id, junior.id, restored.id],
           modes: [initial.mode, junior.mode, restored.mode],
@@ -165,7 +224,11 @@ async function runUiSmoke(classId: string): Promise<{
             junior.library.library_version,
             restored.library.library_version
           ],
-          counts: [initial.library.entries.length, junior.library.entries.length]
+          counts: [initial.library.entries.length, junior.library.entries.length],
+          usage,
+          prefsBefore,
+          prefsSet,
+          prefsAfter
         }
       })()`
     )) as {
@@ -173,6 +236,10 @@ async function runUiSmoke(classId: string): Promise<{
       modes: string[]
       versions: string[]
       counts: number[]
+      usage: { current: Record<string, number>; overall: Record<string, number> }
+      prefsBefore: { sort: string; pins: string[] }
+      prefsSet: { sort: string; pins: string[] }
+      prefsAfter: { sort: string; pins: string[] }
     }
     const libraryIpcOk =
       libraryIpc.ids.join(',') === 'senior,junior,senior' &&
@@ -181,6 +248,25 @@ async function runUiSmoke(classId: string): Promise<{
       libraryIpc.versions[1] === JUNIOR_LIBRARY.library_version &&
       libraryIpc.counts[0] === 138 &&
       libraryIpc.counts[1] === 138
+
+    // ---- 使用次數與偏好 IPC ------------------------------------------------
+    const usageIpcOk =
+      libraryIpc.usage.current[usedSentenceId] === 3 &&
+      libraryIpc.usage.current[usedCommentId] === 2 &&
+      libraryIpc.usage.overall[usedSentenceId] === 4 &&
+      libraryIpc.usage.overall[usedCommentId] === 2 &&
+      libraryIpc.usage.overall[expectation.otherCommentId] === 1
+    const prefsIpcOk =
+      libraryIpc.prefsAfter.sort === 'unused' &&
+      libraryIpc.prefsAfter.pins.join(',') === 'E-01,E-02' &&
+      libraryIpc.prefsSet.sort === 'unused' &&
+      libraryIpc.prefsSet.pins.join(',') === 'E-01,E-02'
+    const libraryTools = emptyLibraryTools()
+    libraryTools.ipcOk = usageIpcOk && prefsIpcOk
+    libraryTools.ipcDetail = `usage 本批 ${libraryIpc.usage.current[usedSentenceId] ?? 0}／累計 ${
+      libraryIpc.usage.overall[usedSentenceId] ?? 0
+    }；prefs ${libraryIpc.prefsAfter.sort}／${libraryIpc.prefsAfter.pins.join(',') ||
+      '無'}`
 
     const assignmentReady = await waitFor(
       "document.querySelector('.assignment-row')",
@@ -331,6 +417,179 @@ async function runUiSmoke(classId: string): Promise<{
         before.final === after.final &&
         before.total === after.total &&
         after.total !== ''
+
+      // ---- D13：排序、釘選、使用次數與重開保留 ---------------------------
+      const categoryReady = await setSelect('.rv-lib-category', 'comment')
+      const commentListReady = categoryReady
+        ? await waitFor(
+            `(document.querySelector('.rv-lib-item .rv-lib-meta')?.textContent ?? '')
+              .trim().startsWith(${JSON.stringify(expectation.defaultCommentId)})`,
+            8000
+          )
+        : false
+
+      if (commentListReady) {
+        await setSelect('.rv-lib-sort', 'usage')
+        const sortedFirstOk = await waitFor(
+          `(document.querySelector('.rv-lib-item .rv-lib-meta')?.textContent ?? '')
+            .trim().startsWith(${JSON.stringify(usedCommentId)})`,
+          10000
+        )
+        const usageLabel = (await win.webContents.executeJavaScript(
+          "document.querySelector('.rv-lib-item .rv-lib-usage')?.textContent?.trim() ?? ''"
+        )) as string
+        const usageLabelOk =
+          usageLabel.includes('本批 2 次') && usageLabel.includes('累計 2 次')
+
+        const pinTarget = (await win.webContents.executeJavaScript(
+          `(() => {
+            const items = [...document.querySelectorAll('.rv-lib-item')]
+            const target = items[1]
+            if (!target) return ''
+            const id = (target.querySelector('.rv-lib-meta')?.textContent ?? '').trim().split(' · ')[0]
+            target.querySelector('.rv-lib-pin')?.click()
+            return id
+          })()`
+        )) as string
+
+        const pinnedFirstOk = pinTarget
+          ? await waitFor(
+              `(() => {
+                const first = document.querySelector('.rv-lib-item')
+                if (!first) return false
+                const id = (first.querySelector('.rv-lib-meta')?.textContent ?? '').trim().split(' · ')[0]
+                return id === ${JSON.stringify(pinTarget)} &&
+                  (first.querySelector('.rv-lib-pin')?.textContent ?? '').trim() === '已釘選'
+              })()`,
+              6000
+            )
+          : false
+
+        let savedPrefs = (await win.webContents.executeJavaScript(
+          'window.electronAPI.library.getPrefs()'
+        )) as { sort: string; pins: string[] }
+        for (let i = 0; i < 20; i++) {
+          if (savedPrefs.sort === 'usage' && savedPrefs.pins.includes(pinTarget)) break
+          await delay(150)
+          savedPrefs = (await win.webContents.executeJavaScript(
+            'window.electronAPI.library.getPrefs()'
+          )) as { sort: string; pins: string[] }
+        }
+        const prefsSavedOk =
+          savedPrefs.sort === 'usage' && savedPrefs.pins.includes(pinTarget)
+
+        libraryTools.sortUiOk =
+          sortedFirstOk && usageLabelOk && pinnedFirstOk && prefsSavedOk
+        libraryTools.sortDetail = sortedFirstOk
+          ? `常用排序第一筆 ${usedCommentId}；${usageLabel || '無次數標示'}；釘選 ${
+              pinTarget || '—'
+            }${pinnedFirstOk ? ' 已置頂' : ' 未置頂'}`
+          : `切換常用排序後第一筆未變成 ${usedCommentId}`
+
+        // 收合再展開面板，確認畫面狀態保留。
+        const collapsed = (await win.webContents.executeJavaScript(
+          `(() => {
+            const card = [...document.querySelectorAll('.rv-card')]
+              .find((item) => item.querySelector('h3')?.textContent?.includes('評語庫'))
+            const button = card
+              ? [...card.querySelectorAll('button')]
+                  .find((item) => item.textContent?.trim() === '收合')
+              : null
+            button?.click()
+            return Boolean(button)
+          })()`
+        )) as boolean
+        const collapsedOk = collapsed
+          ? await waitFor("!document.querySelector('.rv-lib-list')", 3000)
+          : false
+        const reopened = collapsedOk
+          ? ((await win.webContents.executeJavaScript(
+              `(() => {
+                const card = [...document.querySelectorAll('.rv-card')]
+                  .find((item) => item.querySelector('h3')?.textContent?.includes('評語庫'))
+                const button = card
+                  ? [...card.querySelectorAll('button')]
+                      .find((item) => item.textContent?.trim() === '展開')
+                  : null
+                button?.click()
+                return Boolean(button)
+              })()`
+            )) as boolean)
+          : false
+        const reopenedOk = reopened ? await waitFor("document.querySelector('.rv-lib-sort')", 6000) : false
+
+        // 重新載入同一個視窗，確認偏好由 settings.json 重新載入。
+        await win.webContents.reload()
+        await waitForText('作文批閱', 12000)
+        const assignmentAgain = await waitFor("document.querySelector('.assignment-row')", 8000)
+        if (assignmentAgain) {
+          await win.webContents.executeJavaScript(
+            "document.querySelector('.assignment-row')?.click()"
+          )
+        }
+        const reviewButtonAgain = assignmentAgain
+          ? await waitFor(
+              `[...document.querySelectorAll('.import-panel button')].some(
+                (item) => item.textContent?.trim() === '批閱'
+              )`,
+              10000
+            )
+          : false
+        if (reviewButtonAgain) {
+          await win.webContents.executeJavaScript(
+            `(() => {
+              const button = [...document.querySelectorAll('.import-panel button')]
+                .find((item) => item.textContent?.trim() === '批閱')
+              button?.click()
+              return Boolean(button)
+            })()`
+          )
+        }
+        const reviewAgain = reviewButtonAgain
+          ? await waitFor("document.querySelector('.rv')", 8000)
+          : false
+        const panelAgain = reviewAgain
+          ? await waitFor("document.querySelector('.rv-lib-sort')", 10000)
+          : false
+        if (panelAgain) await setSelect('.rv-lib-category', 'comment')
+        const persistedFirstOk = panelAgain
+          ? await waitFor(
+              `(() => {
+                const first = document.querySelector('.rv-lib-item')
+                if (!first) return false
+                const id = (first.querySelector('.rv-lib-meta')?.textContent ?? '').trim().split(' · ')[0]
+                return id === ${JSON.stringify(pinTarget)} &&
+                  (first.querySelector('.rv-lib-pin')?.textContent ?? '').trim() === '已釘選'
+              })()`,
+              10000
+            )
+          : false
+        const persistedSort = panelAgain
+          ? ((await win.webContents.executeJavaScript(
+              "document.querySelector('.rv-lib-sort')?.value ?? ''"
+            )) as string)
+          : ''
+        libraryTools.persistOk =
+          collapsedOk &&
+          reopenedOk &&
+          persistedFirstOk &&
+          persistedSort === 'usage' &&
+          prefsSavedOk
+        libraryTools.persistDetail = libraryTools.persistOk
+          ? `收合再展開正常；重新載入後排序 ${persistedSort}、釘選 ${pinTarget} 仍在第一筆`
+          : !collapsedOk
+            ? '收合面板失敗'
+            : !reopenedOk
+              ? '展開面板後清單未回來'
+              : !prefsSavedOk
+                ? '偏好未寫入 settings'
+                : `重新載入後未保留（排序 ${persistedSort || '—'}、第一筆 ${
+                    persistedFirstOk ? pinTarget : '不符'
+                  }）`
+      } else {
+        libraryTools.sortDetail = '評語庫分類切到「評語」後清單未載入'
+        libraryTools.persistDetail = '排序測試未完成'
+      }
     }
 
     let rubricEditorOk = false
@@ -367,9 +626,16 @@ async function runUiSmoke(classId: string): Promise<{
     }
 
     const ok =
-      reviewOk && libraryIpcOk && libraryUiOk && workStableOk && rubricEditorOk
+      reviewOk &&
+      libraryIpcOk &&
+      libraryUiOk &&
+      workStableOk &&
+      rubricEditorOk &&
+      libraryTools.ipcOk &&
+      libraryTools.sortUiOk &&
+      libraryTools.persistOk
     const detail = ok
-      ? `主畫面、preload API、批閱介面（S07）、評語庫切換與量規編輯器正常`
+      ? `主畫面、preload API、批閱介面（S07）、評語庫切換／排序／釘選與量規編輯器正常`
       : !reviewMounted
         ? '按鈕已點擊，但批閱介面未掛載'
         : !canvasReady
@@ -382,7 +648,13 @@ async function runUiSmoke(classId: string): Promise<{
                 ? `評語庫面板未就緒（${libraryUiDetail}）`
                 : !workStableOk
                   ? '切換評語庫版本後 work 內容改變'
-                  : `量規編輯器未就緒（${rubricEditorDetail}）`
+                  : !rubricEditorOk
+                    ? `量規編輯器未就緒（${rubricEditorDetail}）`
+                    : !libraryTools.ipcOk
+                      ? `評語庫使用次數或偏好 IPC 不符（${libraryTools.ipcDetail}）`
+                      : !libraryTools.sortUiOk
+                        ? `評語庫排序或釘選未生效（${libraryTools.sortDetail}）`
+                        : `重新載入後偏好未保留（${libraryTools.persistDetail}）`
 
     return {
       ok,
@@ -390,7 +662,8 @@ async function runUiSmoke(classId: string): Promise<{
       libraryIpcOk,
       libraryUiOk,
       libraryDetail: `${libraryIpc.ids.join('→')}；${libraryUiDetail}`,
-      workStableOk
+      workStableOk,
+      libraryTools
     }
   } finally {
     win.destroy()
@@ -563,6 +836,49 @@ export async function runM3Check(): Promise<number> {
       autoVersions.join('、')
     )
 
+    // ---- D13 排序純函式 ----------------------------------------------------
+    const sortEntries: LibraryEntry[] = ['A', 'B', 'C', 'D', 'E'].map((id) => ({
+      id,
+      category: 'typo',
+      subtype: 'general',
+      text: id,
+      tags: [],
+      disabled: false,
+      source: 'builtin'
+    }))
+    const sortUsage = {
+      current: { A: 0, B: 1, C: 0, D: 2, E: 0 },
+      overall: { A: 5, B: 2, C: 5, D: 3, E: 0 }
+    }
+    const idsOf = (items: LibraryEntry[]): string => items.map((item) => item.id).join(',')
+    const defaultSorted = sortLibraryEntries(sortEntries, { sort: 'default', usage: sortUsage })
+    const usageSorted = sortLibraryEntries(sortEntries, { sort: 'usage', usage: sortUsage })
+    const unusedSorted = sortLibraryEntries(sortEntries, { sort: 'unused', usage: sortUsage })
+    add(
+      'sortLibraryEntries default／usage／unused 與同次數穩定',
+      idsOf(defaultSorted) === 'A,B,C,D,E' &&
+        idsOf(usageSorted) === 'A,C,D,B,E' &&
+        idsOf(unusedSorted) === 'A,C,E,D,B' &&
+        idsOf(sortEntries) === 'A,B,C,D,E',
+      `預設 ${idsOf(defaultSorted)}；常用 ${idsOf(usageSorted)}；本批未用 ${idsOf(unusedSorted)}；來源未變`
+    )
+
+    const pinnedDefault = sortLibraryEntries(sortEntries, {
+      sort: 'default',
+      pins: ['D', 'C', 'Z'],
+      usage: sortUsage
+    })
+    const pinnedUnused = sortLibraryEntries(sortEntries, {
+      sort: 'unused',
+      pins: ['B', 'Z'],
+      usage: sortUsage
+    })
+    add(
+      'sortLibraryEntries 釘選優先、釘選內依累計、未知 pin 忽略',
+      idsOf(pinnedDefault) === 'C,D,A,B,E' && idsOf(pinnedUnused) === 'B,A,C,E,D',
+      `釘選 D／C 預設 ${idsOf(pinnedDefault)}；釘選 B 本批未用 ${idsOf(pinnedUnused)}；未知 Z 已忽略`
+    )
+
     // ---- normalizeComment --------------------------------------------------
     const normalized = normalizeComment('  {姓名}你好，世界！\nABC  ')
     add(
@@ -650,6 +966,16 @@ export async function runM3Check(): Promise<number> {
 
     const validFinal =
       '這篇作品以具體的生活細節描寫母親的辛勞，情感真摯，結構完整；建議再補強轉折處的鋪陳，讓主題更集中。'
+    const sentenceLibraryId =
+      SENIOR_LIBRARY.entries.find(
+        (entry) => !entry.disabled && entry.category === 'sentence'
+      )?.id ?? 'S-01'
+    const commentEntries = SENIOR_LIBRARY.entries.filter(
+      (entry) => !entry.disabled && entry.category === 'comment'
+    )
+    const defaultCommentId = commentEntries[0]?.id ?? 'C-01'
+    const usedCommentId = commentEntries[4]?.id ?? defaultCommentId
+    const otherCommentId = commentEntries[5]?.id ?? usedCommentId
     const baseWork: WorkFile = {
       schema_version: 1,
       class_id: created.id,
@@ -659,7 +985,11 @@ export async function runM3Check(): Promise<number> {
       status: 'grading',
       pages: [{ id: 'p1', file: 'p1.jpg', width: 800, height: 1100 }],
       annotations: [],
-      final_comment: { text: validFinal },
+      final_comment: {
+        text: validFinal,
+        library_id: usedCommentId,
+        library_version: SENIOR_LIBRARY.library_version
+      },
       scores: {
         items: { content: 32, structure: 24, language: 25 },
         deduction: { typo: 0, punct: 0, override: null },
@@ -715,6 +1045,8 @@ export async function runM3Check(): Promise<number> {
       category: 'sentence',
       subtype: 'awkward',
       text: '此句可再精簡',
+      library_id: sentenceLibraryId,
+      library_version: SENIOR_LIBRARY.library_version,
       meta: {
         original: '我深深的覺得',
         revised: '我深深覺得',
@@ -749,6 +1081,26 @@ export async function runM3Check(): Promise<number> {
         pageData.height === 1100,
       `${pageData.width}×${pageData.height}、${Math.round(pageData.dataUrl.length / 1024)} KB`
     )
+
+    // ---- D13 使用次數：同作業兩份、另一份作業各放 library_id -------------
+    const s08Final =
+      '這篇作品以清楚的順序描寫事件，細節具體，讀者能理解經過；若補上結尾的感受，會更完整。'
+    const usageWork08: WorkFile = {
+      ...baseWork,
+      seat: '08',
+      name: '陳怡君',
+      annotations: [
+        { ...d25, id: 'usage-08-1', anchor: { x: 0.21, y: 0.33 } },
+        { ...d25, id: 'usage-08-2', anchor: { x: 0.45, y: 0.52 } }
+      ],
+      final_comment: {
+        text: s08Final,
+        library_id: usedCommentId,
+        library_version: SENIOR_LIBRARY.library_version
+      },
+      updated_at: now()
+    }
+    await saveWork(created.id, assignment.id, '08', usageWork08)
 
     // ---- 量規更新 ----------------------------------------------------------
     const initialRubricId = assignment.rubric.id
@@ -800,6 +1152,54 @@ export async function runM3Check(): Promise<number> {
       wordLimit: 600,
       rubricPreset: 'balanced'
     })
+
+    const otherAssignmentWork: WorkFile = {
+      ...baseWork,
+      assignment_id: gradeAssignment.id,
+      annotations: [{ ...d25, id: 'usage-other-1', anchor: { x: 0.31, y: 0.42 } }],
+      final_comment: {
+        text: '這份作業的總評用於跨作業累計測試，文字與目前作業不同，仍保留完整句子與具體建議。',
+        library_id: otherCommentId,
+        library_version: SENIOR_LIBRARY.library_version
+      },
+      updated_at: now()
+    }
+    await saveWork(created.id, gradeAssignment.id, '07', otherAssignmentWork)
+
+    const usage = await getLibraryUsage(created.id, assignment.id)
+    const s07Path = join(root, created.id, assignment.id, 'S07', 'work.json')
+    const s07Before = await readFile(s07Path, 'utf8')
+    const usageAgain = await getLibraryUsage(created.id, assignment.id)
+    const s07After = await readFile(s07Path, 'utf8')
+    const usageOk =
+      usage.current[sentenceLibraryId] === 3 &&
+      usage.current[usedCommentId] === 2 &&
+      !usage.current[otherCommentId] &&
+      usage.overall[sentenceLibraryId] === 4 &&
+      usage.overall[usedCommentId] === 2 &&
+      usage.overall[otherCommentId] === 1
+
+    const corruptDir = join(root, created.id, assignment.id, 'S09')
+    await mkdir(corruptDir, { recursive: true })
+    await writeFile(join(corruptDir, 'work.json'), '{ 壞掉的 JSON', 'utf8')
+    const usageWithCorrupt = await getLibraryUsage(created.id, assignment.id)
+    await rm(corruptDir, { recursive: true, force: true })
+    const corruptOk =
+      usageWithCorrupt.current[sentenceLibraryId] === usageAgain.current[sentenceLibraryId] &&
+      usageWithCorrupt.overall[usedCommentId] === usageAgain.overall[usedCommentId]
+
+    add(
+      'getLibraryUsage 本批／累計計數與損壞檔略過（只讀）',
+      usageOk && corruptOk && s07Before === s07After,
+      `本批 sentence ${usage.current[sentenceLibraryId] ?? 0}、comment ${
+        usage.current[usedCommentId] ?? 0
+      }；累計 sentence ${usage.overall[sentenceLibraryId] ?? 0}、comment ${
+        usage.overall[usedCommentId] ?? 0
+      }、其他作業 ${usage.overall[otherCommentId] ?? 0}；${
+        corruptOk ? '損壞 work.json 已略過' : '損壞檔影響統計'
+      }；work.json ${s07Before === s07After ? '未變動' : '被改寫'}`
+    )
+
     const customGrades: GradeBand[] = [
       { label: '乙', min: 0 },
       { label: '優', min: 85 },
@@ -890,17 +1290,63 @@ export async function runM3Check(): Promise<number> {
       }`
     )
 
+    // ---- D13 偏好設定：寫入、重讀、非法值與去重 --------------------------
+    const prefsBefore = await readLibraryPrefs()
+    await writeSettings({
+      librarySort: 'usage',
+      libraryPins: ['E-01', 'E-01', 'E-02', '', 42, null] as unknown as string[]
+    })
+    const prefsSaved = await readLibraryPrefs()
+    await writeSettings({ librarySort: 'bogus' as LibrarySort })
+    const prefsFallback = await readLibraryPrefs()
+    let invalidPrefsRejected = false
+    try {
+      await writeLibraryPrefs({ sort: 'bogus' })
+    } catch {
+      invalidPrefsRejected = true
+    }
+    const prefsOk =
+      prefsSaved.sort === 'usage' &&
+      prefsSaved.pins.join(',') === 'E-01,E-02' &&
+      prefsFallback.sort === 'default' &&
+      prefsFallback.pins.join(',') === 'E-01,E-02' &&
+      invalidPrefsRejected
+    add(
+      'settings 評語庫 sort／pins 寫入、去重與非法值回預設',
+      prefsOk,
+      `寫入 usage／E-01,E-01,E-02 → ${prefsSaved.sort}／${prefsSaved.pins.join(
+        ','
+      )}；非法排序 → ${prefsFallback.sort}（pins 保留 ${prefsFallback.pins.join(
+        ','
+      )}）；寫入驗證${invalidPrefsRejected ? '已拒絕非法值' : '未拒絕非法值'}`
+    )
+    await writeLibraryPrefs({ sort: 'default', pins: [] })
+
     // ---- UI 煙霧測試（資料庫保持開啟，讓主畫面能列出班級與作業） ----------
     const settingsBefore = await readSettings()
     let ui: Awaited<ReturnType<typeof runUiSmoke>>
     try {
-      ui = await runUiSmoke(created.id)
+      ui = await runUiSmoke({
+        classId: created.id,
+        assignmentId: assignment.id,
+        usedSentenceId: sentenceLibraryId,
+        usedCommentId,
+        otherCommentId,
+        defaultCommentId
+      })
     } finally {
-      await writeSettings({ libraryMode: settingsBefore.libraryMode ?? 'auto' })
+      await writeSettings({
+        libraryMode: settingsBefore.libraryMode ?? 'auto',
+        librarySort: prefsBefore.sort,
+        libraryPins: prefsBefore.pins
+      })
     }
     add('主畫面、API 與批閱介面', ui.ok, ui.detail)
     add('IPC library:get 依學制並可切換版本', ui.libraryIpcOk, ui.libraryDetail)
     add('批閱畫面評語庫版本下拉與草稿提示', ui.libraryUiOk, ui.libraryDetail)
+    add('IPC library:usage／get-prefs／set-prefs', ui.libraryTools.ipcOk, ui.libraryTools.ipcDetail)
+    add('評語庫常用排序、釘選與使用次數標示', ui.libraryTools.sortUiOk, ui.libraryTools.sortDetail)
+    add('評語庫偏好重開面板與重新載入後保留', ui.libraryTools.persistOk, ui.libraryTools.persistDetail)
 
     const workAfterLibrary = await loadWork(created.id, assignment.id, '07')
     add(

@@ -12,9 +12,11 @@ import {
 import {
   LIBRARY_LABELS,
   LIBRARY_MODE_LABELS,
+  LIBRARY_SORT_LABELS,
   RUBRIC_PRESET_LABELS,
   RUBRIC_PRESET_ORDER,
-  RUBRIC_PRESETS
+  RUBRIC_PRESETS,
+  sortLibraryEntries
 } from '@essay-grader/core'
 import type { RubricPresetBaseId } from '@essay-grader/core'
 import {
@@ -37,6 +39,9 @@ import type {
   LibraryId,
   LibraryMode,
   LibraryPayload,
+  LibraryPrefs,
+  LibrarySort,
+  LibraryUsage,
   Rubric,
   WorkFile,
   WorkSummary
@@ -256,6 +261,7 @@ export default function ReviewView({
   const [draftSubtype, setDraftSubtype] = useState('')
   const [draftText, setDraftText] = useState('')
   const [draftMeta, setDraftMeta] = useState<DraftMeta>(emptyDraftMeta)
+  const [draftLibrary, setDraftLibrary] = useState<{ id: string; version?: string } | null>(null)
 
   const [scoreItems, setScoreItems] = useState<Record<string, string>>({})
   const [override, setOverride] = useState('')
@@ -287,6 +293,12 @@ export default function ReviewView({
   const [libraryRequest, setLibraryRequest] = useState(0)
   const [libraryQuery, setLibraryQuery] = useState('')
   const [libraryCategory, setLibraryCategory] = useState<AnnotationCategory>('typo')
+  const [librarySort, setLibrarySort] = useState<LibrarySort>('default')
+  const [libraryPins, setLibraryPins] = useState<string[]>([])
+  const [libraryUsage, setLibraryUsage] = useState<LibraryUsage | null>(null)
+  const [libraryUsageLoading, setLibraryUsageLoading] = useState(false)
+  const [libraryUsageError, setLibraryUsageError] = useState('')
+  const [libraryUsageRequest, setLibraryUsageRequest] = useState(0)
 
   const stageRef = useRef<Konva.Stage | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -301,6 +313,8 @@ export default function ReviewView({
   const futureRef = useRef<Annotation[][]>([])
   const lastKeyRef = useRef<{ key: string; at: number } | null>(null)
   const keyHandlerRef = useRef<(event: KeyboardEvent) => void>(() => undefined)
+  const prefsQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const usageDirtyRef = useRef(false)
 
   const snapshotRef = useRef({ work, scoreItems, override, assignment })
   snapshotRef.current = { work, scoreItems, override, assignment }
@@ -335,6 +349,10 @@ export default function ReviewView({
       )
       if (snapshotRef.current.work?.seat === targetSeat) {
         setSaveState('saved')
+        if (usageDirtyRef.current) {
+          usageDirtyRef.current = false
+          setLibraryUsageRequest((value) => value + 1)
+        }
         if (revisionRef.current === rev) {
           dirtyRef.current = false
           setDirty(false)
@@ -385,6 +403,7 @@ export default function ReviewView({
         setDraftAnchor(null)
         setDraftText('')
         setDraftMeta(emptyDraftMeta())
+        setDraftLibrary(null)
         setIssues([])
         setReuse({ count: 0, seats: [] })
         setPageImage(null)
@@ -578,6 +597,7 @@ export default function ReviewView({
     setDraftAnchor({ x, y })
     setDraftText('')
     setDraftMeta(emptyDraftMeta())
+    setDraftLibrary(null)
     setIssues([])
     focusRef.current = 'annotation'
   }
@@ -707,6 +727,12 @@ export default function ReviewView({
       category: draftCategory,
       subtype: draftSubtype || undefined,
       text,
+      ...(draftLibrary
+        ? {
+            library_id: draftLibrary.id,
+            ...(draftLibrary.version ? { library_version: draftLibrary.version } : {})
+          }
+        : {}),
       meta: Object.keys(meta).length > 0 ? meta : undefined,
       created_at: new Date().toISOString()
     }
@@ -716,6 +742,7 @@ export default function ReviewView({
     setDraftAnchor(null)
     setDraftText('')
     setDraftMeta(emptyDraftMeta())
+    setDraftLibrary(null)
   }
 
   const deleteSelected = (): void => {
@@ -1015,18 +1042,22 @@ export default function ReviewView({
     }
   }, [work?.seat, work?.final_comment?.text])
 
-  const updateFinalText = (text: string): void => {
-    setWork((previous) =>
-      previous
+  const updateFinalText = (text: string, source?: { id: string; version?: string }): void => {
+    setWork((previous) => {
+      if (!previous) return previous
+      // 手動改字後不再宣稱整段來自評語庫；只有插入當下保留來源 id。
+      const finalComment: WorkFile['final_comment'] = source
         ? {
-            ...previous,
-            final_comment: {
-              ...previous.final_comment,
-              text
-            }
+            text,
+            library_id: source.id,
+            ...(source.version ? { library_version: source.version } : {})
           }
-        : previous
-    )
+        : { text }
+      return {
+        ...previous,
+        final_comment: finalComment
+      }
+    })
     markDirty()
   }
 
@@ -1041,6 +1072,21 @@ export default function ReviewView({
   }, [currentCategory, selectedId])
 
   // ---- 評語庫 ------------------------------------------------------------
+
+  useEffect(() => {
+    let cancelled = false
+    void window.electronAPI.library
+      .getPrefs()
+      .then((prefs: LibraryPrefs) => {
+        if (cancelled) return
+        setLibrarySort(prefs.sort)
+        setLibraryPins(prefs.pins)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!libraryOpen) return
@@ -1070,6 +1116,59 @@ export default function ReviewView({
     }
   }, [classId, libraryOpen, libraryRequest])
 
+  // 使用次數只讀 work.json；掃描同班所有作業時顯示載入中，不擋主畫面。
+  useEffect(() => {
+    if (!libraryOpen || !classId || !assignmentId) return
+    let cancelled = false
+    setLibraryUsageLoading(true)
+    setLibraryUsageError('')
+
+    void window.electronAPI.library
+      .usage(classId, assignmentId)
+      .then((usage: LibraryUsage) => {
+        if (!cancelled) setLibraryUsage(usage)
+      })
+      .catch((usageError: unknown) => {
+        if (!cancelled) setLibraryUsageError(`使用次數讀取失敗：${errorText(usageError)}`)
+      })
+      .finally(() => {
+        if (!cancelled) setLibraryUsageLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [assignmentId, classId, libraryOpen, libraryUsageRequest])
+
+  /** 偏好寫入排隊，避免連續釘選時 settings.json 互相覆蓋。 */
+  const saveLibraryPrefs = (patch: { sort?: LibrarySort; pins?: string[] }): void => {
+    prefsQueueRef.current = prefsQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        const prefs = (await window.electronAPI.library.setPrefs(patch)) as LibraryPrefs
+        setLibrarySort(prefs.sort)
+        setLibraryPins(prefs.pins)
+      })
+      .catch((prefsError: unknown) => {
+        setLibraryError(`儲存評語庫偏好失敗：${errorText(prefsError)}`)
+      })
+  }
+
+  const changeLibrarySort = (sort: LibrarySort): void => {
+    setLibrarySort(sort)
+    setLibraryError('')
+    saveLibraryPrefs({ sort })
+  }
+
+  const toggleLibraryPin = (id: string): void => {
+    const next = libraryPins.includes(id)
+      ? libraryPins.filter((pin) => pin !== id)
+      : [...libraryPins, id]
+    setLibraryPins(next)
+    setLibraryError('')
+    saveLibraryPrefs({ pins: next })
+  }
+
   /** 切換版本只重新載入評語庫，不動目前批注、分數或已插入文字。 */
   const changeLibraryMode = async (mode: LibraryMode): Promise<void> => {
     setLibraryMode(mode)
@@ -1096,6 +1195,16 @@ export default function ReviewView({
     )
   }, [library, libraryCategory, libraryQuery])
 
+  const sortedEntries = useMemo(
+    () =>
+      sortLibraryEntries(filteredEntries, {
+        sort: librarySort,
+        pins: libraryPins,
+        usage: libraryUsage
+      }),
+    [filteredEntries, libraryPins, librarySort, libraryUsage]
+  )
+
   const insertAtCursor = (
     element: HTMLTextAreaElement | null,
     text: string,
@@ -1116,17 +1225,32 @@ export default function ReviewView({
   }
 
   const insertLibrary = (entry: LibraryEntry): void => {
+    const source = { id: entry.id, version: libraryVersion || undefined }
+    usageDirtyRef.current = true
+
     if (focusRef.current === 'annotation' && selected) {
       insertAtCursor(annotationTextRef.current, entry.text, selected.text, (next) =>
-        updateSelected({ text: next }, 'text')
+        updateSelected(
+          {
+            text: next,
+            library_id: source.id,
+            ...(source.version ? { library_version: source.version } : {})
+          },
+          'text'
+        )
       )
       return
     }
     if (focusRef.current === 'annotation' && draftAnchor) {
-      insertAtCursor(annotationTextRef.current, entry.text, draftText, setDraftText)
+      insertAtCursor(annotationTextRef.current, entry.text, draftText, (next) => {
+        setDraftText(next)
+        setDraftLibrary(source)
+      })
       return
     }
-    insertAtCursor(finalTextRef.current, entry.text, finalText, updateFinalText)
+    insertAtCursor(finalTextRef.current, entry.text, finalText, (next) =>
+      updateFinalText(next, source)
+    )
   }
 
   // ---- 完成批閱 ----------------------------------------------------------
@@ -1490,8 +1614,19 @@ export default function ReviewView({
                       focusRef.current = 'annotation'
                     }}
                     onChange={(event) => {
-                      if (editMode === 'draft') setDraftText(event.target.value)
-                      else updateSelected({ text: event.target.value }, 'text')
+                      if (editMode === 'draft') {
+                        setDraftText(event.target.value)
+                        setDraftLibrary(null)
+                      } else {
+                        updateSelected(
+                          {
+                            text: event.target.value,
+                            library_id: undefined,
+                            library_version: undefined
+                          },
+                          'text'
+                        )
+                      }
                     }}
                   />
                 </label>
@@ -1627,6 +1762,7 @@ export default function ReviewView({
                 {libraryError && <p className="rv-warn">{libraryError}</p>}
                 <div className="rv-lib-filter">
                   <select
+                    className="rv-lib-category"
                     value={libraryCategory}
                     onChange={(event) =>
                       setLibraryCategory(event.target.value as AnnotationCategory)
@@ -1638,32 +1774,71 @@ export default function ReviewView({
                       </option>
                     ))}
                   </select>
+                  <select
+                    className="rv-lib-sort"
+                    value={librarySort}
+                    onChange={(event) =>
+                      changeLibrarySort(event.target.value as LibrarySort)
+                    }
+                    title="排序方式"
+                  >
+                    {(['default', 'usage', 'unused'] as const).map((sort) => (
+                      <option key={sort} value={sort}>
+                        {LIBRARY_SORT_LABELS[sort]}
+                      </option>
+                    ))}
+                  </select>
                   <input
+                    className="rv-lib-search"
                     value={libraryQuery}
                     onChange={(event) => setLibraryQuery(event.target.value)}
                     placeholder="搜尋評語…"
                   />
                 </div>
+                {libraryUsageLoading && (
+                  <p className="rv-note rv-lib-usage-loading">使用次數統計中…</p>
+                )}
+                {libraryUsageError && <p className="rv-warn">{libraryUsageError}</p>}
                 <div className="rv-lib-list">
                   {!library && !libraryError && <p className="rv-muted">載入中…</p>}
-                  {library && filteredEntries.length === 0 && (
+                  {library && sortedEntries.length === 0 && (
                     <p className="rv-muted">沒有符合的評語</p>
                   )}
-                  {filteredEntries.map((entry) => (
-                    <button
-                      key={entry.id}
-                      className="rv-lib-item"
-                      onClick={() => insertLibrary(entry)}
-                      title="插入到最近聚焦的欄位"
-                    >
-                      <span className="rv-lib-text">{entry.text}</span>
-                      <span className="rv-lib-meta">
-                        {entry.id}
-                        {entry.subtype !== 'general' &&
-                          ` · ${subtypeLabel(entry.category, entry.subtype)}`}
-                      </span>
-                    </button>
-                  ))}
+                  {sortedEntries.map((entry) => {
+                    const pinned = libraryPins.includes(entry.id)
+                    const currentUsage = libraryUsage?.current[entry.id] ?? 0
+                    const overallUsage = libraryUsage?.overall[entry.id] ?? 0
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`rv-lib-item${pinned ? ' rv-lib-pinned' : ''}`}
+                      >
+                        <button
+                          className="rv-lib-insert"
+                          onClick={() => insertLibrary(entry)}
+                          title="插入到最近聚焦的欄位"
+                        >
+                          <span className="rv-lib-text">{entry.text}</span>
+                          <span className="rv-lib-meta">
+                            {entry.id}
+                            {entry.subtype !== 'general' &&
+                              ` · ${subtypeLabel(entry.category, entry.subtype)}`}
+                          </span>
+                          <span className="rv-lib-usage">
+                            本批 {currentUsage} 次、累計 {overallUsage} 次
+                          </span>
+                        </button>
+                        <button
+                          className={`rv-lib-pin${pinned ? ' is-pinned' : ''}`}
+                          onClick={() => toggleLibraryPin(entry.id)}
+                          title={pinned ? '取消釘選' : '釘選到最前面'}
+                          aria-pressed={pinned}
+                        >
+                          {pinned ? '已釘選' : '釘選'}
+                        </button>
+                      </div>
+                    )
+                  })}
                 </div>
               </>
             )}

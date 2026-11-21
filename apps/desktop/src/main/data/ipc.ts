@@ -30,7 +30,13 @@ import {
   getUnmatchedThumbnail,
   listUnmatched
 } from '../import/unmatched'
-import { clearExternalInboxRoot, readSettings, writeSettings } from './settings'
+import {
+  clearExternalInboxRoot,
+  readLibraryPrefs,
+  readSettings,
+  writeLibraryPrefs,
+  writeSettings
+} from './settings'
 import {
   closeDatabase,
   countFinalReuse,
@@ -41,6 +47,7 @@ import {
   compareAssignments,
   exportAssignmentStats,
   getAssignmentStats,
+  getLibraryUsage,
   getState,
   listAssignments,
   listWorks,
@@ -234,6 +241,17 @@ export function registerDataIpc(): void {
     await writeSettings({ libraryMode: mode })
     return { mode }
   })
+
+  ipcMain.handle('library:usage', (_event, classId: string, assignmentId: string) =>
+    getLibraryUsage(classId, assignmentId)
+  )
+
+  ipcMain.handle('library:get-prefs', () => readLibraryPrefs())
+
+  ipcMain.handle(
+    'library:set-prefs',
+    (_event, patch: { sort?: unknown; pins?: unknown }) => writeLibraryPrefs(patch ?? {})
+  )
 
   ipcMain.handle('work:get', (_event, classId: string, assignmentId: string, seat: string) =>
     loadWork(classId, assignmentId, seat)

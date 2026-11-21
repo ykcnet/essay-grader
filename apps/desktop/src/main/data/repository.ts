@@ -1,4 +1,5 @@
 import { shell } from 'electron'
+import type { Dirent } from 'node:fs'
 import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { extname, join, resolve } from 'node:path'
 import {
@@ -31,6 +32,7 @@ import {
   type CreateAssignmentInput,
   type CreateClassInput,
   type DatabaseState,
+  type LibraryUsage,
   type Rubric,
   type WorkFile,
   type WorkSummary
@@ -465,6 +467,86 @@ export async function countFinalReuse(
 
   seats.sort()
   return { count: seats.length, seats }
+}
+
+/**
+ * 評語使用次數：只讀 work.json，不寫檔也不維護計數器。
+ * annotation.library_id 每出現一次算 1 次；final_comment.library_id 算 1 次。
+ * current 只算目前作業，overall 掃同班所有作業；損壞的 work.json 略過並記錄 warning。
+ */
+export async function getLibraryUsage(
+  classId: string,
+  assignmentId: string
+): Promise<LibraryUsage> {
+  const root = requireRoot()
+  const classDir = join(root, classId)
+  const entries = await readdir(classDir, { withFileTypes: true })
+  const current: Record<string, number> = {}
+  const overall: Record<string, number> = {}
+
+  const assignmentDirs = entries
+    .filter((entry) => entry.isDirectory() && ASSIGNMENT_DIR.test(entry.name))
+    .map((entry) => entry.name)
+    .sort()
+
+  const addUsage = (target: Record<string, number>, id: string | undefined): void => {
+    if (!id) return
+    target[id] = (target[id] ?? 0) + 1
+  }
+
+  const mergeUsage = (
+    target: Record<string, number>,
+    source: Record<string, number>
+  ): void => {
+    for (const [id, count] of Object.entries(source)) {
+      target[id] = (target[id] ?? 0) + count
+    }
+  }
+
+  const readUsageWork = async (path: string, label: string): Promise<WorkFile | null> => {
+    try {
+      const parsed = WorkSchema.safeParse(JSON.parse(await readFile(path, 'utf8')))
+      if (!parsed.success) {
+        logWarn(`[library] 略過 ${label}：格式不符`)
+        return null
+      }
+      return parsed.data
+    } catch (error) {
+      logWarn(`[library] 略過 ${label}：${toMessage(error)}`)
+      return null
+    }
+  }
+
+  for (const name of assignmentDirs) {
+    const dir = join(classDir, name)
+    let seats: Dirent[]
+    try {
+      seats = await readdir(dir, { withFileTypes: true })
+    } catch (error) {
+      logWarn(`[library] 略過作業 ${name}：${toMessage(error)}`)
+      continue
+    }
+
+    const workSeats = seats
+      .filter((entry) => entry.isDirectory() && /^S\d{2}$/.test(entry.name))
+      .map((entry) => entry.name)
+      .sort()
+
+    for (const seat of workSeats) {
+      const label = `${name}/${seat}/work.json`
+      const work = await readUsageWork(join(dir, seat, 'work.json'), label)
+      if (!work) continue
+
+      const counts: Record<string, number> = {}
+      for (const annotation of work.annotations) addUsage(counts, annotation.library_id)
+      addUsage(counts, work.final_comment?.library_id)
+
+      mergeUsage(overall, counts)
+      if (name === assignmentId) mergeUsage(current, counts)
+    }
+  }
+
+  return { current, overall }
 }
 
 /**

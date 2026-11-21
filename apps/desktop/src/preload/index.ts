@@ -113,7 +113,12 @@ const api = {
   },
   library: {
     get: (classId?: string) => ipcRenderer.invoke('library:get', classId),
-    setMode: (mode: string) => ipcRenderer.invoke('library:set-mode', mode)
+    setMode: (mode: string) => ipcRenderer.invoke('library:set-mode', mode),
+    usage: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('library:usage', classId, assignmentId),
+    getPrefs: () => ipcRenderer.invoke('library:get-prefs'),
+    setPrefs: (patch: { sort?: string; pins?: string[] }) =>
+      ipcRenderer.invoke('library:set-prefs', patch)
   },
   imports: {
     status: () => ipcRenderer.invoke('import:status'),

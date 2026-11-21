@@ -92,3 +92,92 @@ export function entriesByCategory(category: LibraryEntry['category']): LibraryEn
     (entry) => !entry.disabled && entry.category === category
   )
 }
+
+/** 評語庫排序偏好；default 保留原順序，usage 依累計次數，unused 以本批未用優先。 */
+export const LIBRARY_SORTS = ['default', 'usage', 'unused'] as const
+export type LibrarySort = (typeof LIBRARY_SORTS)[number]
+
+export const LIBRARY_SORT_LABELS: Record<LibrarySort, string> = {
+  default: '預設',
+  usage: '常用（累計）',
+  unused: '本批未用優先'
+}
+
+export function isLibrarySort(value: unknown): value is LibrarySort {
+  return value === 'default' || value === 'usage' || value === 'unused'
+}
+
+/** 非法值一律回到 default，避免舊設定或手動編輯造成錯誤。 */
+export function normalizeLibrarySort(value: unknown): LibrarySort {
+  return isLibrarySort(value) ? value : 'default'
+}
+
+/** 使用次數全部由 work.json 的 library_id 即時推導，不另存計數器。 */
+export interface LibraryUsage {
+  /** 只算目前作業。 */
+  current: Record<string, number>
+  /** 同班所有作業。 */
+  overall: Record<string, number>
+}
+
+export interface LibraryPrefs {
+  sort: LibrarySort
+  pins: string[]
+}
+
+export interface SortLibraryOptions {
+  sort?: LibrarySort
+  pins?: readonly string[]
+  usage?: Partial<LibraryUsage> | null
+}
+
+const usageCount = (usage: Record<string, number>, id: string): number => {
+  const value = usage[id]
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+}
+
+/**
+ * 回傳排序後的新陣列，不改動來源。
+ *
+ * 釘選條目永遠在前；釘選內固定依 overall 使用次數由高到低，
+ * 同次數依原順序（三種 sort 都相同）。其餘條目：
+ * - default：原順序。
+ * - usage：overall 由高到低，同次數依原順序。
+ * - unused：current 為 0 的排前面；同群組再依 overall 由高到低，同次數依原順序。
+ * 未知的 pin id 會忽略；usage 缺少的 id 視為 0。
+ */
+export function sortLibraryEntries(
+  entries: readonly LibraryEntry[],
+  options: SortLibraryOptions = {}
+): LibraryEntry[] {
+  const sort = normalizeLibrarySort(options.sort)
+  const pins = new Set(
+    (options.pins ?? []).filter((id): id is string => typeof id === 'string' && id.length > 0)
+  )
+  const current = options.usage?.current ?? {}
+  const overall = options.usage?.overall ?? {}
+
+  const indexed = entries.map((entry, index) => ({ entry, index }))
+  const byOriginal = (a: { index: number }, b: { index: number }): number => a.index - b.index
+  const byOverall = (
+    a: { entry: LibraryEntry },
+    b: { entry: LibraryEntry }
+  ): number => usageCount(overall, b.entry.id) - usageCount(overall, a.entry.id)
+
+  const pinned = indexed
+    .filter((item) => pins.has(item.entry.id))
+    .sort((a, b) => byOverall(a, b) || byOriginal(a, b))
+
+  const rest = indexed.filter((item) => !pins.has(item.entry.id))
+  if (sort === 'usage') {
+    rest.sort((a, b) => byOverall(a, b) || byOriginal(a, b))
+  } else if (sort === 'unused') {
+    const unusedRank = (item: { entry: LibraryEntry }): number =>
+      usageCount(current, item.entry.id) === 0 ? 0 : 1
+    rest.sort(
+      (a, b) => unusedRank(a) - unusedRank(b) || byOverall(a, b) || byOriginal(a, b)
+    )
+  }
+
+  return [...pinned, ...rest].map((item) => item.entry)
+}

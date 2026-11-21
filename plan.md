@@ -1,6 +1,6 @@
 # Essay Grader — 製作方案（草案）
 
-> 版本 v1.0 ｜ 2026-11-19 ｜ 狀態：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 批次回饋單＋10 分鐘 soak＋G4＋評語庫結構覆蓋＋體裁補充＋D12 國中／高中職雙評語庫完成；下一步 M8 手機**
+> 版本 v1.0 ｜ 2026-11-19 ｜ 狀態：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配照片手動分配＋F2 批次回饋單＋10 分鐘 soak＋G4＋評語庫結構覆蓋＋體裁補充＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選完成；下一步 M8 手機**
 >
 > 需求本體仍以 `features.md` 為準；本檔整理技術棧比較、架構、資料模型、里程碑與待決事項。
 > 「已定」代表本次確認；「建議」代表尚未拍板。
@@ -624,7 +624,7 @@ essay-grader/
 
 - A1／A2／A5／A6／A7：名單、作業、量規、扣分
 - C1／C2／C3／C5：監看、配對、佇列、狀態
-- D1／D2／D4／D5／D6／D7／D10／D11／D12／D17／D18／D23／D25：批閱、評語庫、總評、重複檢查、快照、詞句改寫（D12 國中／高中職雙評語庫與自動選用已完成，2026-11-21）
+- D1／D2／D4／D5／D6／D7／D10／D11／D12／D13／D17／D18／D23／D25：批閱、評語庫、總評、重複檢查、快照、詞句改寫（D12 國中／高中職雙評語庫與自動選用已完成，2026-11-21；D13 常用排序與釘選已完成，2026-11-21）
 - E1／E2／E3／E6：分項、扣分、總分／等第、寫回 Excel
 - F1：一頁回饋單
 - H1／H2／H3／H4：資料夾、原子寫入、正規化座標、備份
@@ -689,6 +689,7 @@ essay-grader/
 - [x] 總評五面向平衡：結構／立意取材／語言表達／情感體驗／格式應用；junior 33／21／12／20／10、senior 33／25／12／18／10，各改寫 23 條，維持 138 條與 72 條 comment（2026-11-20）
 - [x] 短評侷限用語清洗：junior 36 條、senior 29 條；語句／結構改通用與條件式描述，結構不再寫死段落編號，佳句只談文本技巧；新增 `library:short`（2026-11-21）
 - [x] 國中評語庫白話化：junior 95 條改寫，更換 JE-10、JS-13、JG-01、JG-02；新增 `junior:readability` 檢查抽象術語，維持 138 條、comment 72 條與五面向歸屬（2026-11-21）
+- [x] D13 常用排序與釘選：三種排序、釘選跨作業保留、本批／累計次數由 `library_id` 即時推導；設定寫入 `librarySort`／`libraryPins`；`m3:check` 擴充至 38/38（2026-11-21）
 - [x] 國中用詞辨析重寫：JS-08～JS-11 改為直接說明詞語用法；`library:short` 允許 word_choice 用引號標示詞語，其餘短評仍禁用（2026-11-21）
 - [ ] 目標電腦螢幕解析度（1366×768 是否為最低）
 
@@ -703,5 +704,6 @@ essay-grader/
 5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。未匹配照片手動分配已完成：`.meta.json` 結構化資訊、內外清單、320px 縮圖、realpath 路徑防護、選取學生後複製到 `_inbox` 並產生 sidecar、依 mtime／檔名排序、來源與附屬檔刪除、重複去重、`match:check` 21/21。F2 整班批次回饋單已完成：逐份輸出、跳過未完成、溢頁不中斷、`_feedback/` 中文檔名與 JSON／CSV 報告、進度與取消、`batch:check` 17/17。10 分鐘 soak 已完成：45 人、每圈 45 份回饋單，15 圈、720 份 PDF，private 291→291 MB、peak 426 MB、視窗回 0，作品與 PDF 驗證全數通過。下一步 M8 Android 掃描器：Kotlin＋ML Kit、選班級／作業／學生、多頁排序、重拍、離線佇列、只寫 inbox。
 6. M7 打包已完成；若換電腦或離線打包，electron-builder 需要重新下載 Electron／NSIS，失敗時不影響 `npm run dev`、`m1:check`–`m7:check` 與既有資料。
 7. D12 國中／高中職雙評語庫已接入（2026-11-21）：`JUNIOR_LIBRARY`／`SENIOR_LIBRARY` 並存，`libraryForGrade` 依學制自動選用，批閱面板可手動切換並顯示草稿提示；`settings.json` 的 `libraryMode` 保留偏好。國中版仍為草稿（`2026.2-draft`），待國中國文老師校閱。結構依據與 19 類覆蓋表見 `docs/評語庫結構依據.md`，覆蓋率由 `npm run library:coverage` 把關；體裁補充的來源與採用對照見 `docs/評語參考_使用者提供.md`。高中職混合型子類與情意題條數列為校閱待決事項。
+8. D13 常用排序與釘選已完成（2026-11-21）：`sortLibraryEntries` 支援預設／常用（累計）／本批未用優先，釘選在三種排序都最先，釘選內依累計次數由高到低；使用次數由 `work.json` 的 `library_id` 即時推導，不維護計數器。`settings.json` 新增 `librarySort`／`libraryPins`，釘選為跨作業的全域 UI 偏好；`m3:check` 38/38 涵蓋排序、計數、偏好與 UI 重載。
 
 > 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7＋F2＋10 分鐘 soak 已完成並建立對應 commit。

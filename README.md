@@ -32,7 +32,7 @@ npm run typecheck    # 兩份 tsconfig 都檢查
 npm run spike        # 自動驗證 Canvas／PDF／監看／記憶體
 npm run m1:check     # 資料層驗收（建檔、名單、壞檔還原、鎖、主畫面）
 npm run m2:check     # 匯入驗收（10 檔配對、去重、unmatched、Excel 名單）
-npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫、量規與等第、計分、驗證、work 存取、UI 煙霧）
+npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫與排序釘選、量規與等第、計分、驗證、work 存取、UI 煙霧）
 npm run m4:check     # 批次檢查驗收（45 人、44 份作品、重複／缺頁／未匯入、UI 煙霧）
 npm run m5:check     # 回饋單驗收（資料推導、檔名、單頁 PDF、溢頁阻擋、UI 煙霧）
 npm run m6:check     # 統計驗收（G1／G2／G3、分數摘要、CSV 四檔、UI 煙霧）
@@ -108,6 +108,21 @@ runtime 已同時載入國中版與高中職版：預設 `auto` 會依班級學�
 草稿的 JSON 是唯一來源，修改後執行 `npm run junior:render` 重新產生 Markdown；
 `npm run junior:validate` 會檢查條數、子類、id、字數、標籤、變數與高中職版重複，
 `npm run junior:check` 另外確認 Markdown 與 JSON 完全一致。
+
+### 常用排序與釘選（D13）
+
+評語庫面板的排序下拉可選「預設」、「常用（累計）」與「本批未用優先」。每條評語會顯示
+「本批 N 次、累計 M 次」，可直接按「釘選」固定在清單最前面，再按「已釘選」取消。
+釘選條目在三種排序都排在前面；釘選內依累計次數由高到低，同次數保持原順序。
+
+- 常用（累計）：其餘條目依同班所有作業的累計次數由高到低，同次數保持原順序。
+- 本批未用優先：本批尚未使用的條目先排，同群組再依累計次數由高到低。
+- 切換國中／高中職時只顯示目前版本的條目；舊版本的釘選仍保留在設定中，切回該版本會再生效。
+
+釘選與排序是全域 UI 偏好，寫在 `settings.json` 的 `libraryPins`／`librarySort`，跨作業與重開程式保留；
+`pins` 會去重且只留字串，非法排序會回到 `default`。使用次數只讀 `work.json` 的
+`annotation.library_id` 與 `final_comment.library_id`，本批只算目前作業、累計掃同班所有作業，
+不另維護計數器。從評語庫插入時會寫入來源 `library_id`；手動改寫文字後不再標示來源。
 
 國中版用語以平鋪直敘為主，避免抽象術語；`npm run junior:readability` 只掃評語文字，
 列出脈絡、層次、張力等難詞的 ID 並以 exit 1 阻擋，單條超過 90 字只警告。
@@ -199,6 +214,8 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 10 分鐘 soak、G4 與上次比較已完成。
 國中版評語庫草稿 138 條已接入 runtime，預設依班級學制自動選用，也可在批閱畫面手動切換；
 國中版會標示「草稿」，待國中國文老師校閱。
+評語庫已支援常用排序與釘選（D13）：「預設／常用（累計）／本批未用優先」、每條顯示本批與累計次數，
+釘選為全域偏好並跨作業保留；使用次數即時由 `work.json` 的 `library_id` 推導。
 兩套評語庫已完成用語清洗：總評、佳句、結構不再以引號假設特定詞句，改用通用指稱；
 `npm run library:wording` 與 `junior:check` 會檢查此規則，違規即失敗。
 兩套 144 條總評已改為五面向平衡：結構、立意取材、語言表達、情感體驗、格式應用；
@@ -211,7 +228,7 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 移除特定詞句、段落編號、事件與人物假設，改為條件式與通用描述；
 `npm run library:short` 會檢查引號、段落編號、禁用題材與重複，違規即失敗；
 其中 sentence 的 word_choice（用詞辨析）可用引號標示具體詞語，其他短評仍禁用。
-驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 31/31、`m4:check` 17/17、
+驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 38/38、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
 `junior:check`、`library:wording/structure/coverage/short` 與 `spike` 通過。

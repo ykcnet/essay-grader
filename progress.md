@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-21
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋D12 國中／高中職雙評語庫完成；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選完成；下一步 M8 手機**
 
 ---
 
@@ -479,6 +479,17 @@ essay-grader-data/
 - 檢查：`library:short` 調整為 sentence 的 word_choice 可用引號標示具體詞語，其他 sentence、structure、praise 仍禁用；輸出訊息會標明此例外，其餘段落編號、禁用題材、字數與重複檢查不變。
 - 文件：`comment-library-junior.md` 短評規則加入用詞辨析引號例外；README／progress／plan 同步記錄。
 - 驗收：`junior:render`、`junior:check` 17/17、`junior:readability`、`library:wording`、`library:structure`、`library:coverage`、`library:short`、`m3:check`、`typecheck`、`build` 通過；junior 維持 138 條、comment 72 條。
+
+### D13 常用排序與釘選驗收（2026-11-21）
+
+- Core：新增 `LIBRARY_SORTS`／`LibrarySort`、`normalizeLibrarySort`、`LibraryUsage`、`LibraryPrefs` 與 `sortLibraryEntries`。排序一律回傳新陣列；釘選條目永遠在前，釘選內依累計次數由高到低、同次數保持原順序；`default` 其餘依原順序、`usage` 依累計、`unused` 先排本批 0 次再依累計；未知 pin 忽略、缺少 usage 視為 0。
+- 使用次數：`getLibraryUsage(classId, assignmentId)` 只讀 `work.json`，annotation 的 `library_id` 每出現一次算 1 次、`final_comment.library_id` 算 1 次；`current` 只算目前作業，`overall` 掃同班所有作業。損壞檔案以 `WorkSchema` 驗證後略過並寫 warning，不影響其他作品，也不改寫任何檔案。
+- Settings：新增 `librarySort`（預設 `default`）與 `libraryPins`（預設空陣列）；讀寫都會正規化，非法排序回 `default`、pins 去空白去重且只留字串。切換版本時未知 id 仍保留，切回原版本會再生效。
+- IPC／preload：新增 `library:usage`、`library:get-prefs`、`library:set-prefs`，preload 對應 `library.usage`、`library.getPrefs`、`library.setPrefs`；非法 sort 由 `set-prefs` 拒絕。
+- ReviewView：排序下拉「預設／常用（累計）／本批未用優先」、每條釘選／已釘選按鈕與「本批 N 次、累計 M 次」；搜尋與分類照常運作。排序與釘選即時套用，寫入 settings，重開面板與重新載入視窗後仍保留。從評語庫插入會記錄 `library_id`／`library_version`；手動改寫後清除來源，不影響插入、批注、分數或 autosave。
+- 驗收：`m3:check` 擴充至 38/38，涵蓋三種排序、釘選優先與同次數穩定、未知 pin、兩份作品＋另一份作業的本批／累計計數、損壞 work.json 略過與只讀檢查、settings 寫入／重讀／非法值／去重、三支 IPC、UI 排序／釘選／次數標示、收合再展開與重新載入後保留。
+- 回歸：`typecheck`（desktop＋core）、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 38/38、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`junior:check` 17/17、`library:wording/structure/coverage/short`、`spike` 通過。
+- 已知限制：累計需掃描同班所有作業，作品或作業很多時會顯示「使用次數統計中」，但清單仍可操作；沒有 `library_id` 的舊作品或手動改寫過的評語不列入次數；釘選與排序是使用者層級的全域偏好，不分班級或資料庫。
 
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4）
 
