@@ -342,12 +342,16 @@ function summarize(
     scores.length > 0
       ? round1(scores.reduce((sum, score) => sum + score, 0) / scores.length)
       : null
-  const median =
-    scores.length > 0
-      ? scores.length % 2 === 1
-        ? scores[(scores.length - 1) / 2]
-        : round1((scores[scores.length / 2 - 1] + scores[scores.length / 2]) / 2)
-      : null
+  const median = ((): number | null => {
+    if (scores.length === 0) return null
+    const middle = Math.floor(scores.length / 2)
+    const current = scores[middle]
+    if (current === undefined) return null
+    if (scores.length % 2 === 1) return current
+    const previous = scores[middle - 1]
+    if (previous === undefined) return null
+    return round1((previous + current) / 2)
+  })()
 
   // 等第依目前量規由高到低；舊資料若有其他名稱，接在後面。
   const gradeLabels = sortGradeBands(assignment.rubric.grades).map((grade) => grade.label)
@@ -389,8 +393,8 @@ function summarize(
     missing: rows.length - importedRows.length,
     average,
     median,
-    high: scores.length > 0 ? scores[scores.length - 1] : null,
-    low: scores.length > 0 ? scores[0] : null,
+    high: scores[scores.length - 1] ?? null,
+    low: scores[0] ?? null,
     grades,
     items
   }
