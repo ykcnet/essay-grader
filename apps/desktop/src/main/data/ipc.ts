@@ -2,10 +2,13 @@ import { app, dialog, ipcMain, shell } from 'electron'
 import { stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import {
-  BUILTIN_LIBRARY,
+  isLibraryMode,
+  libraryForGrade,
+  normalizeLibraryMode,
   type ClassFile,
   type CreateAssignmentInput,
   type CreateClassInput,
+  type LibraryMode,
   type Rubric,
   type WorkFile
 } from '@essay-grader/core'
@@ -206,7 +209,31 @@ export function registerDataIpc(): void {
     listWorks(classId, assignmentId)
   )
 
-  ipcMain.handle('library:get', () => BUILTIN_LIBRARY)
+  /**
+   * 回傳目前適用的評語庫 payload。
+   * 給 classId 時讀 class.json 的 grade；未給時以 auto 的高中職版或手動模式為準。
+   */
+  ipcMain.handle('library:get', async (_event, classId?: string) => {
+    const settings = await readSettings()
+    const mode = normalizeLibraryMode(settings.libraryMode)
+    let grade: ClassFile['grade'] | undefined
+
+    if (classId) {
+      try {
+        grade = (await loadClass(classId)).data.grade
+      } catch (error) {
+        logError(`讀取班級學制失敗（library:get）：${message(error)}`)
+      }
+    }
+
+    return libraryForGrade(grade, mode)
+  })
+
+  ipcMain.handle('library:set-mode', async (_event, mode: LibraryMode) => {
+    if (!isLibraryMode(mode)) throw new Error('評語庫版本不合法，請選擇自動、國中版或高中職版。')
+    await writeSettings({ libraryMode: mode })
+    return { mode }
+  })
 
   ipcMain.handle('work:get', (_event, classId: string, assignmentId: string, seat: string) =>
     loadWork(classId, assignmentId, seat)

@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
-> 最後更新：2026-11-20
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較完成；國中版評語庫草稿、五面向平衡與體裁補充完成（未接入）；下一步 M8 手機**
+> 最後更新：2026-11-21
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋D12 國中／高中職雙評語庫完成；下一步 M8 手機**
 
 ---
 
@@ -11,8 +11,8 @@
 |---|---|
 | `features.md` | 功能清單 77 項，含優先級與不做清單 |
 | `comment-library-senior.md` | 內建評語 138 條，含更新與輪替機制 |
-| `comment-library-junior.md` | 國中版評語庫草稿 138 條；由 JSON 產生，**尚未接入、待國中國文老師校閱** |
-| `packages/core/src/library/junior.draft.json` | 國中版草稿資料（`2026.2-draft`）；刻意不進 `library.ts`／`BUILTIN_LIBRARY` |
+| `comment-library-junior.md` | 國中版評語庫草稿 138 條；由 JSON 產生，已接入 runtime，**國中版仍待國中國文老師校閱** |
+| `packages/core/src/library/junior.draft.json` | 國中版草稿資料（`2026.2-draft`）；`JUNIOR_LIBRARY` 由 `LibrarySchema` 驗證載入 |
 | `docs/評語庫結構依據.md` | 五面向定義與最低條數、官方結構規準摘述、19 類結構輔助索引（16 類通用＋3 類體裁補充）、來源與檢索日期 |
 | `docs/評語參考_使用者提供.md` | 使用者提供 6 張評語表的整理、已採用概念對照、未採用原因與待校閱事項 |
 | `packages/core/src/library/comment-coverage.json` | 五面向 junior／senior comment ID 與最低條數，另保留 19 類結構輔助索引；覆蓋率唯一來源 |
@@ -253,7 +253,7 @@ essay-grader-data/
 - [x] **F2 整班批次回饋單：逐份輸出、跳過未完成、溢頁不中斷、進度／取消與報告**（2026-11-20）
 - [x] **G4 與上次比較：座號對齊、進步／退步、只計 compared 平均、弱項類別 Δ、UI 與 `compare:check` 15/15**（2026-11-20）
 - [x] 決定跨裝置搬檔方式：**Google Drive 本機同步資料夾（僅 inbox，資料庫不進雲端）**（2026-11-19）
-- [x] 國中版評語庫草稿 138 條完成（原 126 條，後增 12 條體裁補充）；待國中國文老師校閱與接入（2026-11-20）
+- [x] 國中版評語庫草稿 138 條完成（原 126 條，後增 12 條體裁補充）；D12 已接入並可依學制自動選用（2026-11-21）；仍待國中國文老師校閱
 - [x] 兩套評語庫用語清洗：移除總評／佳句／結構的特定詞句引號，新增 `library:wording` 檢查（2026-11-20）
 - [x] 兩套 120 條總評改以文章結構為主，新增 `library:structure` 檢查（2026-11-20）
 - [x] 建立 `docs/評語庫結構依據.md` 與 16 類結構覆蓋表（初始版）；junior 修正 18 條、senior 修正 5 條；新增 `library:coverage`（2026-11-20）
@@ -398,7 +398,7 @@ essay-grader-data/
 - `comment-library-junior.md` 由 JSON 產生，表格、條數與統計一致；`npm run junior:check` 17/17。
 - 用語清洗：junior 修正 20 條、senior 修正 7 條；總評／佳句／結構移除「」與『』，改用抽象形容詞、感受、場景、人物、事件、段落、例子等通用指稱，錯字與語句仍保留引號標示具體錯誤。
 - 新增 `npm run library:wording`，同時檢查 junior 與 senior；`junior:check` 已串接此檢查，兩套庫皆 PASS。
-- 草稿未接入 runtime：未改 `packages/core/src/library.ts` 或 `BUILTIN_LIBRARY`，批閱介面仍載入高中職版。
+- 當時（2026-11-20）草稿未接入 runtime；已於 2026-11-21 接入 `JUNIOR_LIBRARY` 並可依學制自動選用，見下節「D12」。
 - 待校閱：語氣是否適合七～九年級、會考知性／情意題對應、是否保留文言與應用文、七年級適用性、句型重複感。
 - 回歸：`typecheck`、`build`、`m3:check` 通過。
 
@@ -439,6 +439,18 @@ essay-grader-data/
 - 未採用：友情、青春、家庭等特定題材；結構完整、層次井然等短標籤；字體、標點、整潔、訂正等格式或作業管理；願意改變、責任感、毅力、自省等學習態度與品格評語；以及與現有 60 條重複的概念。原因與代表性詞語見參考文件。
 - 待校閱：記敘是否需補倒敘與多線敘事、抒情是否保留更多直說空間、議論是否再補資料取捨與圖表判讀、高中職體裁補充是否獨立成區段、國中用語是否適合七至九年級。
 
+### D12 國中／高中職雙評語庫驗收（2026-11-21）
+
+- Core：`SENIOR_LIBRARY` 維持 `2026.1`，新增 `JUNIOR_LIBRARY`（`2026.2-draft`），兩者皆由 `LibrarySchema` 驗證；`BUILTIN_LIBRARY` 仍指向高中職版以維持相容。兩套皆 138 條、comment 72 條。
+- `LibraryId` 為 `junior`／`senior`，`LibraryMode` 為 `auto`／`junior`／`senior`；`libraryForGrade` 在 auto 下 junior→國中版、senior／vocational→高中職版，顯式模式可覆寫學制，非法模式會拋錯。
+- `LibraryPayload` 回傳 `id`、`mode`、`grade`（有效學制時）與完整 `library`（含 `library_version`）。
+- Settings：新增 `libraryMode`，預設 `auto`；讀取時非法值正規化為 `auto`，切換後寫入 `settings.json`，重開保留。
+- IPC／preload：`library:get(classId?)` 會讀班級 `grade` 後回傳 payload；`library:set-mode(mode)` 驗證後儲存並回傳 `{ mode }`。未給 classId 時使用 auto 的高中職版或手動模式。
+- ReviewView：評語庫面板新增版本下拉（自動／國中版／高中職版）、目前版本與 `library_version`；國中版顯示「草稿」標籤與「國中版為草稿，建議校閱後使用」。切換後立即重新載入，分類與搜尋保留；載入或切換失敗會顯示錯誤並保留既有清單。
+- 隔離：切換只重載評語庫，不動目前批注、分數或已插入文字；隱藏視窗驗證切換前後畫面的總評與總分一致，資料庫批注數與 `scores` 不變。
+- `m3:check` 擴充至 31/31：雙庫條數／schema、`libraryForGrade` 四種學制與覆寫／非法模式、payload 版本、IPC senior→junior→senior、UI 下拉與草稿提示、切換後清單 ID 由 `E-` 變 `JE-` 再回 `E-`。
+- 回歸：`typecheck`、`build`、`m1:check` 11/11、`m3:check` 31/31、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`junior:check` 17/17、`library:wording`、`library:structure`、`library:coverage`、`spike` 通過。
+
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4）
 
 - soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。
@@ -448,7 +460,7 @@ essay-grader-data/
 - 量規預設採用均衡版（40／30／30），之後可調整；三組配分、扣分 0.5／0.5、上限 10 與等第門檻仍為預設值，尚未經老師確認。
 - 量規或等第門檻變更不會自動重算既有作品的 `scores`；已批作品若需要新量規的分數與等第，仍要重新開啟該份並完成批閱。
 - 等第名稱只檢查去空白後不可為空、不可重複，未限制長度；最低分只接受 0–100，未限制級距間隔。
-- 內建評語庫目前只載入高中職版 138 條；國中版 138 條草稿已完成，但尚未接入，待國中國文老師校閱，並決定依班級學制選擇或加設定開關。
+- 內建評語庫同時載入國中版與高中職版；auto 依班級學制選用，也可手動切換。國中版仍為草稿，尚未經國中國文老師校閱，語氣與題材仍可能調整。
 - 高中職總評的混合型區段為 C-21–C-32 共 12 條、情意題 C-43–C-50 共 8 條；`senior.json` 的混合型子類目前記為 general，尚未改為 mixed，待老師校閱時一併確認。國中版六個子類皆為 10 條。
 - 成績寫回以單一作業、單一工作表為範圍；ExcelJS 可能微調樣式，含圖表／樞紐／巨集的檔案改走匯出新檔，不直接改原檔。整班批次回饋單已於 F2 補上，但仍以單一作業為範圍。
 - 批次回饋單逐份開啟隱藏視窗，份數多時需要時間；失敗或跳過的份數要修正後重跑整批，尚未提供只重跑失敗項。

@@ -10,6 +10,8 @@ import {
   STRUCTURE_SUBTYPES
 } from '@essay-grader/core/constants'
 import {
+  LIBRARY_LABELS,
+  LIBRARY_MODE_LABELS,
   RUBRIC_PRESET_LABELS,
   RUBRIC_PRESET_ORDER,
   RUBRIC_PRESETS
@@ -32,6 +34,9 @@ import type {
   GradeBand,
   LibraryEntry,
   LibraryFile,
+  LibraryId,
+  LibraryMode,
+  LibraryPayload,
   Rubric,
   WorkFile,
   WorkSummary
@@ -274,6 +279,12 @@ export default function ReviewView({
 
   const [libraryOpen, setLibraryOpen] = useState(true)
   const [library, setLibrary] = useState<LibraryFile | null>(null)
+  const [libraryId, setLibraryId] = useState<LibraryId>('senior')
+  const [libraryMode, setLibraryMode] = useState<LibraryMode>('auto')
+  const [libraryVersion, setLibraryVersion] = useState('')
+  const [libraryLoading, setLibraryLoading] = useState(false)
+  const [libraryError, setLibraryError] = useState('')
+  const [libraryRequest, setLibraryRequest] = useState(0)
   const [libraryQuery, setLibraryQuery] = useState('')
   const [libraryCategory, setLibraryCategory] = useState<AnnotationCategory>('typo')
 
@@ -1032,14 +1043,45 @@ export default function ReviewView({
   // ---- 評語庫 ------------------------------------------------------------
 
   useEffect(() => {
-    if (!libraryOpen || library) return
+    if (!libraryOpen) return
+    let cancelled = false
+    setLibraryLoading(true)
+    setLibraryError('')
+
     void window.electronAPI.library
-      .get()
-      .then((file: LibraryFile) => setLibrary(file))
-      .catch((loadError: unknown) =>
-        setNotice({ kind: 'error', text: `評語庫載入失敗：${errorText(loadError)}` })
-      )
-  }, [library, libraryOpen])
+      .get(classId)
+      .then((payload: LibraryPayload) => {
+        if (cancelled) return
+        setLibrary(payload.library)
+        setLibraryId(payload.id)
+        setLibraryMode(payload.mode)
+        setLibraryVersion(payload.library.library_version)
+      })
+      .catch((loadError: unknown) => {
+        if (cancelled) return
+        setLibraryError(`評語庫載入失敗：${errorText(loadError)}`)
+      })
+      .finally(() => {
+        if (!cancelled) setLibraryLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [classId, libraryOpen, libraryRequest])
+
+  /** 切換版本只重新載入評語庫，不動目前批注、分數或已插入文字。 */
+  const changeLibraryMode = async (mode: LibraryMode): Promise<void> => {
+    setLibraryMode(mode)
+    setLibraryError('')
+    try {
+      const result = (await window.electronAPI.library.setMode(mode)) as { mode: LibraryMode }
+      setLibraryMode(result.mode)
+      setLibraryRequest((value) => value + 1)
+    } catch (switchError) {
+      setLibraryError(`切換評語庫版本失敗：${errorText(switchError)}`)
+    }
+  }
 
   const filteredEntries = useMemo(() => {
     if (!library) return []
@@ -1554,6 +1596,35 @@ export default function ReviewView({
 
             {libraryOpen && (
               <>
+                <div className="rv-lib-version">
+                  <label className="rv-field">
+                    版本
+                    <select
+                      value={libraryMode}
+                      onChange={(event) =>
+                        void changeLibraryMode(event.target.value as LibraryMode)
+                      }
+                    >
+                      {(['auto', 'junior', 'senior'] as const).map((mode) => (
+                        <option key={mode} value={mode}>
+                          {LIBRARY_MODE_LABELS[mode]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <span className="rv-lib-current">
+                    {library
+                      ? `${LIBRARY_LABELS[libraryId]} · ${libraryVersion || '版本未知'}`
+                      : libraryLoading
+                        ? '載入中…'
+                        : '尚未載入'}
+                  </span>
+                  {libraryId === 'junior' && <span className="rv-lib-draft">草稿</span>}
+                </div>
+                {libraryId === 'junior' && (
+                  <p className="rv-note">國中版為草稿，建議校閱後使用。</p>
+                )}
+                {libraryError && <p className="rv-warn">{libraryError}</p>}
                 <div className="rv-lib-filter">
                   <select
                     value={libraryCategory}
@@ -1574,7 +1645,7 @@ export default function ReviewView({
                   />
                 </div>
                 <div className="rv-lib-list">
-                  {!library && <p className="rv-muted">載入中…</p>}
+                  {!library && !libraryError && <p className="rv-muted">載入中…</p>}
                   {library && filteredEntries.length === 0 && (
                     <p className="rv-muted">沒有符合的評語</p>
                   )}

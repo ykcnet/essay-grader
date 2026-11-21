@@ -4,15 +4,20 @@ import { mkdir, rm, stat } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   BUILTIN_LIBRARY,
+  JUNIOR_LIBRARY,
   LIBRARY_VERSION,
+  LibrarySchema,
   RUBRIC_PRESETS,
+  SENIOR_LIBRARY,
   computeScore,
+  libraryForGrade,
   normalizeComment,
   resolveGrade,
   validateWork,
   type Annotation,
   type AssignmentFile,
   type GradeBand,
+  type LibraryMode,
   type WorkFile
 } from '@essay-grader/core'
 import { preprocessImage } from '../import/image'
@@ -28,6 +33,7 @@ import {
   saveWork,
   updateAssignmentRubric
 } from './repository'
+import { readSettings, writeSettings } from './settings'
 
 interface Check {
   label: string
@@ -52,7 +58,14 @@ function typoAnnotation(index: number): Annotation {
 }
 
 /** 開隱藏視窗載入 renderer，確認主畫面、新的 preload API 與批閱畫面都能載入。 */
-async function runUiSmoke(): Promise<{ ok: boolean; detail: string }> {
+async function runUiSmoke(classId: string): Promise<{
+  ok: boolean
+  detail: string
+  libraryIpcOk: boolean
+  libraryUiOk: boolean
+  libraryDetail: string
+  workStableOk: boolean
+}> {
   const win = new BrowserWindow({
     show: false,
     width: 1440,
@@ -75,6 +88,34 @@ async function runUiSmoke(): Promise<{ ok: boolean; detail: string }> {
     }
     return false
   }
+  const waitForText = async (needle: string, timeoutMs: number): Promise<boolean> => {
+    const started = Date.now()
+    while (Date.now() - started < timeoutMs) {
+      const ok = (await win.webContents.executeJavaScript(
+        `document.body.innerText.includes(${JSON.stringify(needle)})`
+      )) as boolean
+      if (ok) return true
+      await delay(120)
+    }
+    return false
+  }
+  const fail = (
+    detail: string
+  ): {
+    ok: boolean
+    detail: string
+    libraryIpcOk: boolean
+    libraryUiOk: boolean
+    libraryDetail: string
+    workStableOk: boolean
+  } => ({
+    ok: false,
+    detail,
+    libraryIpcOk: false,
+    libraryUiOk: false,
+    libraryDetail: '未執行',
+    workStableOk: false
+  })
 
   try {
     await win.loadFile(join(__dirname, '../renderer/index.html'))
@@ -95,22 +136,58 @@ async function runUiSmoke(): Promise<{ ok: boolean; detail: string }> {
         typeof window.electronAPI.work.page === 'function' &&
         typeof window.electronAPI.work.reuse === 'function' &&
         window.electronAPI.library &&
-        typeof window.electronAPI.library.get === 'function'
+        typeof window.electronAPI.library.get === 'function' &&
+        typeof window.electronAPI.library.setMode === 'function'
       )`
     )) as boolean
 
     // 進入批閱介面：選作業 → 等作品列出現 → 按「批閱」。
     const mainOk = text.includes('作文批閱') && hasApi
     if (!mainOk) {
-      return { ok: false, detail: '主畫面未渲染或 preload API 不完整' }
+      return fail('主畫面未渲染或 preload API 不完整')
     }
+
+    // ---- 評語庫 IPC：senior 班級 → 手動 junior → 回 auto ----------------
+    const libraryIpc = (await win.webContents.executeJavaScript(
+      `(async () => {
+        const classId = ${JSON.stringify(classId)}
+        await window.electronAPI.library.setMode('auto')
+        const initial = await window.electronAPI.library.get(classId)
+        await window.electronAPI.library.setMode('junior')
+        const junior = await window.electronAPI.library.get(classId)
+        await window.electronAPI.library.setMode('auto')
+        const restored = await window.electronAPI.library.get(classId)
+        return {
+          ids: [initial.id, junior.id, restored.id],
+          modes: [initial.mode, junior.mode, restored.mode],
+          versions: [
+            initial.library.library_version,
+            junior.library.library_version,
+            restored.library.library_version
+          ],
+          counts: [initial.library.entries.length, junior.library.entries.length]
+        }
+      })()`
+    )) as {
+      ids: string[]
+      modes: string[]
+      versions: string[]
+      counts: number[]
+    }
+    const libraryIpcOk =
+      libraryIpc.ids.join(',') === 'senior,junior,senior' &&
+      libraryIpc.modes.join(',') === 'auto,junior,auto' &&
+      libraryIpc.versions[0] === LIBRARY_VERSION &&
+      libraryIpc.versions[1] === JUNIOR_LIBRARY.library_version &&
+      libraryIpc.counts[0] === 138 &&
+      libraryIpc.counts[1] === 138
 
     const assignmentReady = await waitFor(
       "document.querySelector('.assignment-row')",
       6000
     )
     if (!assignmentReady) {
-      return { ok: false, detail: '找不到作業列' }
+      return fail('找不到作業列')
     }
     await win.webContents.executeJavaScript(
       "document.querySelector('.assignment-row')?.click()"
@@ -123,7 +200,7 @@ async function runUiSmoke(): Promise<{ ok: boolean; detail: string }> {
       8000
     )
     if (!reviewButtonReady) {
-      return { ok: false, detail: '作品列沒有出現「批閱」按鈕' }
+      return fail('作品列沒有出現「批閱」按鈕')
     }
     const clicked = (await win.webContents.executeJavaScript(
       `(() => {
@@ -134,7 +211,7 @@ async function runUiSmoke(): Promise<{ ok: boolean; detail: string }> {
       })()`
     )) as boolean
     if (!clicked) {
-      return { ok: false, detail: '無法點擊「批閱」按鈕' }
+      return fail('無法點擊「批閱」按鈕')
     }
 
     const reviewMounted = await waitFor("document.querySelector('.rv')", 6000)
@@ -155,6 +232,106 @@ async function runUiSmoke(): Promise<{ ok: boolean; detail: string }> {
       reviewText.includes('總評') &&
       reviewText.includes('調整量規') &&
       status === '07'
+
+    // ---- 評語庫 UI：版本下拉、草稿提示、切換後清單更新 -------------------
+    let libraryUiOk = false
+    let libraryUiDetail = '未執行'
+    let workStableOk = false
+    if (reviewMounted) {
+      const panelReady = await waitFor("document.querySelector('.rv-lib-version select')", 6000)
+      const libraryReady = panelReady
+        ? await waitFor(
+            `(document.querySelector('.rv-lib-current')?.textContent ?? '').includes('2026.1')`,
+            6000
+          )
+        : false
+
+      const readUi = `(() => ({
+        options: [...(document.querySelector('.rv-lib-version select')?.options ?? [])].map(
+          (option) => option.value
+        ),
+        current: (document.querySelector('.rv-lib-current')?.textContent ?? '').trim(),
+        firstId: (document.querySelector('.rv-lib-item .rv-lib-meta')?.textContent ?? '').trim(),
+        final: document.querySelector('.rv-final')?.value ?? '',
+        total: (document.querySelector('.rv-total strong')?.textContent ?? '').trim(),
+        body: document.body.innerText
+      }))()`
+      const before = (await win.webContents.executeJavaScript(readUi)) as {
+        options: string[]
+        current: string
+        firstId: string
+        final: string
+        total: string
+        body: string
+      }
+
+      const switchMode = async (mode: string): Promise<void> => {
+        await win.webContents.executeJavaScript(`(() => {
+          const select = document.querySelector('.rv-lib-version select')
+          if (!select) return false
+          select.value = ${JSON.stringify(mode)}
+          select.dispatchEvent(new Event('change', { bubbles: true }))
+          return true
+        })()`)
+      }
+
+      await switchMode('junior')
+      const juniorReady = libraryReady
+        ? await waitFor(
+            `Boolean(document.querySelector('.rv-lib-draft')) &&
+             (document.querySelector('.rv-lib-current')?.textContent ?? '').includes('國中版') &&
+             (document.querySelector('.rv-lib-item .rv-lib-meta')?.textContent ?? '').trim().startsWith('JE-')`,
+            8000
+          )
+        : false
+      const juniorText = (await win.webContents.executeJavaScript(
+        "document.body.innerText.includes('國中版為草稿，建議校閱後使用')"
+      )) as boolean
+
+      await switchMode('auto')
+      const autoReady = juniorReady
+        ? await waitFor(
+            `(document.querySelector('.rv-lib-current')?.textContent ?? '').includes('高中職版') &&
+             (document.querySelector('.rv-lib-item .rv-lib-meta')?.textContent ?? '').trim().startsWith('E-')`,
+            8000
+          )
+        : false
+      const after = (await win.webContents.executeJavaScript(readUi)) as {
+        options: string[]
+        current: string
+        firstId: string
+        final: string
+        total: string
+        body: string
+      }
+
+      libraryUiOk =
+        panelReady &&
+        libraryReady &&
+        before.options.join(',') === 'auto,junior,senior' &&
+        before.current.includes('高中職版') &&
+        before.firstId.startsWith('E-') &&
+        juniorReady &&
+        juniorText &&
+        autoReady
+      libraryUiDetail = libraryUiOk
+        ? `下拉 ${before.options.length} 選項；高中職 ${before.firstId} → 國中 ${JUNIOR_LIBRARY.library_version}（草稿）→ 回 auto ${after.firstId}`
+        : !panelReady
+          ? '找不到版本下拉'
+          : !libraryReady
+            ? '版本文字未載入 2026.1'
+            : !juniorReady
+              ? `切換國中版後清單未更新（${after.current}）`
+              : !juniorText
+                ? '未顯示國中版草稿提示'
+                : '切回 auto 後未回到高中職版'
+
+      workStableOk =
+        before.final.length > 0 &&
+        before.final === after.final &&
+        before.total === after.total &&
+        after.total !== ''
+    }
 
     let rubricEditorOk = false
     let rubricEditorDetail = '未開啟'
@@ -189,18 +366,32 @@ async function runUiSmoke(): Promise<{ ok: boolean; detail: string }> {
           : '找不到「調整量規」按鈕'
     }
 
-    const ok = reviewOk && rubricEditorOk
+    const ok =
+      reviewOk && libraryIpcOk && libraryUiOk && workStableOk && rubricEditorOk
     const detail = ok
-      ? `主畫面、preload API、批閱介面（S07）與量規編輯器正常`
+      ? `主畫面、preload API、批閱介面（S07）、評語庫切換與量規編輯器正常`
       : !reviewMounted
         ? '按鈕已點擊，但批閱介面未掛載'
         : !canvasReady
           ? '批閱介面已掛載，但畫布未載入頁面'
           : !reviewOk
             ? `批閱介面內容不完整（座號「${status}」）`
-            : `量規編輯器未就緒（${rubricEditorDetail}）`
+            : !libraryIpcOk
+              ? `評語庫 IPC 結果不符（${libraryIpc.ids.join('→')}）`
+              : !libraryUiOk
+                ? `評語庫面板未就緒（${libraryUiDetail}）`
+                : !workStableOk
+                  ? '切換評語庫版本後 work 內容改變'
+                  : `量規編輯器未就緒（${rubricEditorDetail}）`
 
-    return { ok, detail }
+    return {
+      ok,
+      detail,
+      libraryIpcOk,
+      libraryUiOk,
+      libraryDetail: `${libraryIpc.ids.join('→')}；${libraryUiDetail}`,
+      workStableOk
+    }
   } finally {
     win.destroy()
   }
@@ -301,6 +492,75 @@ export async function runM3Check(): Promise<number> {
       shortComments.length === 0
         ? '全部符合'
         : `${shortComments.length} 條不足：${shortComments.map((entry) => entry.id).join('、')}`
+    )
+
+    // ---- 國中／高中職雙評語庫 ----------------------------------------------
+    const libraryStats = (library: typeof SENIOR_LIBRARY): {
+      total: number
+      comment: number
+      ok: boolean
+    } => {
+      const parsed = LibrarySchema.safeParse(library)
+      return {
+        total: library.entries.length,
+        comment: library.entries.filter((entry) => entry.category === 'comment').length,
+        ok: parsed.success
+      }
+    }
+    const seniorStats = libraryStats(SENIOR_LIBRARY)
+    const juniorStats = libraryStats(JUNIOR_LIBRARY)
+    add(
+      '兩套評語庫皆 138 條、comment 72 且 schema 通過',
+      seniorStats.total === 138 &&
+        seniorStats.comment === 72 &&
+        juniorStats.total === 138 &&
+        juniorStats.comment === 72 &&
+        seniorStats.ok &&
+        juniorStats.ok,
+      `高中職 ${seniorStats.total}／${seniorStats.comment}（${SENIOR_LIBRARY.library_version}）、國中 ${juniorStats.total}／${juniorStats.comment}（${JUNIOR_LIBRARY.library_version}）`
+    )
+
+    const autoCases: [string, 'junior' | 'senior'][] = [
+      ['junior', 'junior'],
+      ['senior', 'senior'],
+      ['vocational', 'senior']
+    ]
+    const autoOk = autoCases.every(([grade, expected]) => {
+      const payload = libraryForGrade(grade)
+      return payload.id === expected && payload.mode === 'auto' && payload.grade === grade
+    })
+    const overrideJunior = libraryForGrade('senior', 'junior')
+    const overrideSenior = libraryForGrade('junior', 'senior')
+    const overrideOk =
+      overrideJunior.id === 'junior' &&
+      overrideJunior.library.library_version === JUNIOR_LIBRARY.library_version &&
+      overrideSenior.id === 'senior' &&
+      overrideSenior.library.library_version === SENIOR_LIBRARY.library_version
+
+    let invalidModeRejected = false
+    try {
+      libraryForGrade('senior', 'unknown' as LibraryMode)
+    } catch {
+      invalidModeRejected = true
+    }
+
+    add(
+      'libraryForGrade 依學制與模式選庫',
+      autoOk && overrideOk && invalidModeRejected,
+      `auto：junior→${libraryForGrade('junior').id}、senior→${libraryForGrade(
+        'senior'
+      ).id}、vocational→${libraryForGrade('vocational').id}；手動覆寫 ${
+        overrideJunior.id
+      }／${overrideSenior.id}；非法模式${invalidModeRejected ? '已拒絕' : '未拒絕'}`
+    )
+
+    const autoVersions = [libraryForGrade('junior'), libraryForGrade('senior')].map(
+      (payload) => `${payload.id}:${payload.library.library_version}`
+    )
+    add(
+      'LibraryPayload 含 id／mode／grade／library_version',
+      autoVersions.join(',') === `junior:${JUNIOR_LIBRARY.library_version},senior:${SENIOR_LIBRARY.library_version}`,
+      autoVersions.join('、')
     )
 
     // ---- normalizeComment --------------------------------------------------
@@ -631,8 +891,27 @@ export async function runM3Check(): Promise<number> {
     )
 
     // ---- UI 煙霧測試（資料庫保持開啟，讓主畫面能列出班級與作業） ----------
-    const ui = await runUiSmoke()
+    const settingsBefore = await readSettings()
+    let ui: Awaited<ReturnType<typeof runUiSmoke>>
+    try {
+      ui = await runUiSmoke(created.id)
+    } finally {
+      await writeSettings({ libraryMode: settingsBefore.libraryMode ?? 'auto' })
+    }
     add('主畫面、API 與批閱介面', ui.ok, ui.detail)
+    add('IPC library:get 依學制並可切換版本', ui.libraryIpcOk, ui.libraryDetail)
+    add('批閱畫面評語庫版本下拉與草稿提示', ui.libraryUiOk, ui.libraryDetail)
+
+    const workAfterLibrary = await loadWork(created.id, assignment.id, '07')
+    add(
+      '切換評語庫版本不改寫批注與分數',
+      ui.workStableOk &&
+        workAfterLibrary.annotations.length === 1 &&
+        JSON.stringify(workAfterLibrary.scores) === JSON.stringify(baseWork.scores),
+      `畫面總評與分數不變；批注 ${workAfterLibrary.annotations.length} 個、總分 ${
+        workAfterLibrary.scores?.total ?? '—'
+      }`
+    )
 
     await closeDatabase()
     add('關閉資料庫', true, 'watcher 已停止')

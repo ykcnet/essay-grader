@@ -91,12 +91,18 @@ Google Drive 外部 inbox：在匯入佇列表按「設定／變更」選擇 Goo
 表單會即時顯示目前總分落在哪一級。若該作業已有評分，變更前會先確認；只影響之後的計算，
 已儲存的分數與等第不會自動改寫，目前這份的預覽會用新量規重算，完成批閱時才寫入。
 
-### 國中版評語庫（草稿，尚未接入）
+### 國中版評語庫（草稿，依學制自動選用）
 
 `packages/core/src/library/junior.draft.json` 與根目錄 `comment-library-junior.md` 是國中版
 138 條草稿，分類與子類數量比照高中職版，語氣與題材改以七～九年級、國中教育會考寫作測驗為主。
-**目前仍是草稿，未接入程式**：`packages/core/src/library.ts` 與 `BUILTIN_LIBRARY` 沒有改動，
-批閱介面仍只載入高中職版 `senior.json`；待國中國文老師校閱後，再依班級學制選擇評語庫或加設定開關。
+runtime 已同時載入國中版與高中職版：預設 `auto` 會依班級學制的 `grade` 自動選用，
+`junior` 用國中版，`senior`／`vocational` 用高中職版。批閱畫面的評語庫面板可手動切換
+「自動（依學制）／國中版／高中職版」，切換會立即重新載入清單，但不會動到目前批注、分數或已插入文字；
+偏好會寫入 `settings.json` 的 `libraryMode`，重開程式仍保留。要回到高中職版，選「自動（依學制）」
+或「高中職版」即可。
+
+**國中版仍是草稿**（`library_version` 為 `2026.2-draft`）：面板會顯示「草稿」標籤與
+「國中版為草稿，建議校閱後使用」提示，校閱完成前請留意用語。
 
 草稿的 JSON 是唯一來源，修改後執行 `npm run junior:render` 重新產生 Markdown；
 `npm run junior:validate` 會檢查條數、子類、id、字數、標籤、變數與高中職版重複，
@@ -186,7 +192,8 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付、
 Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配座號、F2 整班批次回饋單、
 10 分鐘 soak、G4 與上次比較已完成。
-國中版評語庫草稿 138 條（未接入）亦已完成，待國中國文老師校閱。
+國中版評語庫草稿 138 條已接入 runtime，預設依班級學制自動選用，也可在批閱畫面手動切換；
+國中版會標示「草稿」，待國中國文老師校閱。
 兩套評語庫已完成用語清洗：總評、佳句、結構不再以引號假設特定詞句，改用通用指稱；
 `npm run library:wording` 與 `junior:check` 會檢查此規則，違規即失敗。
 兩套 144 條總評已改為五面向平衡：結構、立意取材、語言表達、情感體驗、格式應用；
@@ -195,9 +202,10 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 另依官方規準與常見結構症狀建立 19 類輔助覆蓋表，並由使用者提供評語表新增 24 條體裁補充；
 `npm run library:coverage` 確認五面向皆達最低條數、兩套 comment 皆 72/72 有面向歸屬。
 本輪共改寫 junior 23 條、senior 23 條總評，維持 138 條與 comment 72 條不變。
-驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 25/25、`m4:check` 17/17、
+驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 31/31、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
-`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`spike` 通過。
+`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
+`junior:check`、`library:wording/structure/coverage` 與 `spike` 通過。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），

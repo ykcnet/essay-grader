@@ -393,6 +393,37 @@
 
 /* 評語庫 */
 
+.rv-lib-version {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.rv-lib-version .rv-field {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.rv-lib-current {
+  font-size: 11px;
+  color: var(--muted);
+  padding-bottom: 4px;
+  white-space: nowrap;
+}
+
+.rv-lib-draft {
+  margin-bottom: 2px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid #e0bf7a;
+  background: #fdf3dc;
+  color: #8a5b00;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .rv-lib-filter {
   display: grid;
   grid-template-columns: 96px minmax(0, 1fr);

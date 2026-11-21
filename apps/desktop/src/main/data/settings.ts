@@ -1,11 +1,14 @@
 import { app } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { normalizeLibraryMode, type LibraryMode } from '@essay-grader/core'
 
 export interface Settings {
   lastDatabase?: string
   /** Google Drive 本機同步資料夾，作為外部 inbox 根目錄。 */
   externalInboxRoot?: string
+  /** 評語庫版本偏好；auto 依班級學制選用，非法值一律視為 auto。 */
+  libraryMode?: LibraryMode
 }
 
 function settingsPath(): string {
@@ -14,15 +17,18 @@ function settingsPath(): string {
 
 export async function readSettings(): Promise<Settings> {
   try {
-    return JSON.parse(await readFile(settingsPath(), 'utf8')) as Settings
+    const parsed = JSON.parse(await readFile(settingsPath(), 'utf8')) as Settings
+    return { ...parsed, libraryMode: normalizeLibraryMode(parsed.libraryMode) }
   } catch {
-    return {}
+    return { libraryMode: 'auto' }
   }
 }
 
 export async function writeSettings(patch: Partial<Settings>): Promise<void> {
   const current = await readSettings()
-  await writeFile(settingsPath(), JSON.stringify({ ...current, ...patch }, null, 2), 'utf8')
+  const next: Settings = { ...current, ...patch }
+  if (next.libraryMode !== undefined) next.libraryMode = normalizeLibraryMode(next.libraryMode)
+  await writeFile(settingsPath(), JSON.stringify(next, null, 2), 'utf8')
 }
 
 /** 清除外部 inbox 設定；JSON.stringify 會略過 undefined，key 不會留下。 */

@@ -112,7 +112,8 @@ const api = {
     }
   },
   library: {
-    get: () => ipcRenderer.invoke('library:get')
+    get: (classId?: string) => ipcRenderer.invoke('library:get', classId),
+    setMode: (mode: string) => ipcRenderer.invoke('library:set-mode', mode)
   },
   imports: {
     status: () => ipcRenderer.invoke('import:status'),
