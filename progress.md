@@ -472,6 +472,14 @@ essay-grader-data/
 - 驗收：`junior:render`、`junior:check` 17/17、`junior:readability`、`library:wording`、`library:structure`、`library:coverage`、`library:short`、`m3:check`、`typecheck`、`build` 通過。
 - 抽樣：junior 15 條（typo 3、sentence 3、structure 3、praise 3、comment 3），均為國中生可懂的日常說法，未見抽象術語、特定題材假設，並保留具體修改方向。
 
+### 國中用詞辨析評語重寫驗收（2026-11-21）
+
+- 範圍：只改 `junior.draft.json` 的 JS-08～JS-11 四條 word_choice；ID、分類、subtype、tags、disabled、source 與五面向不變。
+- 改寫：直接寫出「哪個詞用在哪裡」，例如拿是取過來、帶是帶著走；參加是加入活動、參觀是到現場看；發現是後來看到或找到、發明是做出以前沒有的東西；JS-11 指出「很棒」「很好」擠在一起卻沒說好在哪裡。
+- 檢查：`library:short` 調整為 sentence 的 word_choice 可用引號標示具體詞語，其他 sentence、structure、praise 仍禁用；輸出訊息會標明此例外，其餘段落編號、禁用題材、字數與重複檢查不變。
+- 文件：`comment-library-junior.md` 短評規則加入用詞辨析引號例外；README／progress／plan 同步記錄。
+- 驗收：`junior:render`、`junior:check` 17/17、`junior:readability`、`library:wording`、`library:structure`、`library:coverage`、`library:short`、`m3:check`、`typecheck`、`build` 通過；junior 維持 138 條、comment 72 條。
+
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4）
 
 - soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。

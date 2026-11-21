@@ -209,7 +209,8 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 本輪共改寫 junior 23 條、senior 23 條總評，維持 138 條與 comment 72 條不變。
 短評（錯字、語句、結構、佳句）也已完成侷限用語清洗：junior 修正 36 條、senior 修正 29 條，
 移除特定詞句、段落編號、事件與人物假設，改為條件式與通用描述；
-`npm run library:short` 會檢查引號、段落編號、禁用題材與重複，違規即失敗。
+`npm run library:short` 會檢查引號、段落編號、禁用題材與重複，違規即失敗；
+其中 sentence 的 word_choice（用詞辨析）可用引號標示具體詞語，其他短評仍禁用。
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 31/31、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
