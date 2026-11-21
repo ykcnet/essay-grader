@@ -250,7 +250,8 @@ export function registerDataIpc(): void {
 
   ipcMain.handle(
     'library:set-prefs',
-    (_event, patch: { sort?: unknown; pins?: unknown }) => writeLibraryPrefs(patch ?? {})
+    (_event, patch: { sort?: unknown; pins?: unknown; cooldownDays?: unknown }) =>
+      writeLibraryPrefs(patch ?? {})
   )
 
   ipcMain.handle('work:get', (_event, classId: string, assignmentId: string, seat: string) =>

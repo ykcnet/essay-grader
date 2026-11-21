@@ -470,9 +470,11 @@ export async function countFinalReuse(
 }
 
 /**
- * 評語使用次數：只讀 work.json，不寫檔也不維護計數器。
- * annotation.library_id 每出現一次算 1 次；final_comment.library_id 算 1 次。
- * current 只算目前作業，overall 掃同班所有作業；損壞的 work.json 略過並記錄 warning。
+ * 評語使用次數與最後使用時間：只讀 work.json，不寫檔也不維護計數器。
+ * annotation.library_id 每出現一次算 1 次，時間用 annotation.created_at；
+ * final_comment.library_id 算 1 次，時間用該 work.updated_at。
+ * 同一條取最新的時間（max）；current 只算目前作業，overall 掃同班所有作業；
+ * 損壞的 work.json 略過並記錄 warning，時間不合法時忽略、不讓統計失敗。
  */
 export async function getLibraryUsage(
   classId: string,
@@ -483,23 +485,44 @@ export async function getLibraryUsage(
   const entries = await readdir(classDir, { withFileTypes: true })
   const current: Record<string, number> = {}
   const overall: Record<string, number> = {}
+  const currentLastUsed: Record<string, string> = {}
+  const overallLastUsed: Record<string, string> = {}
 
   const assignmentDirs = entries
     .filter((entry) => entry.isDirectory() && ASSIGNMENT_DIR.test(entry.name))
     .map((entry) => entry.name)
     .sort()
 
-  const addUsage = (target: Record<string, number>, id: string | undefined): void => {
-    if (!id) return
-    target[id] = (target[id] ?? 0) + 1
+  const toMs = (value: unknown): number | null => {
+    if (typeof value !== 'string' || value.length === 0) return null
+    const ts = Date.parse(value)
+    return Number.isFinite(ts) ? ts : null
   }
 
-  const mergeUsage = (
+  /** 取兩者中較新（毫秒較大）的原始字串；無效時間視為不存在。 */
+  const maxTime = (a: string | undefined, b: string | undefined): string | undefined => {
+    const aMs = toMs(a)
+    const bMs = toMs(b)
+    if (aMs === null) return bMs === null ? undefined : b
+    if (bMs === null) return a
+    return aMs >= bMs ? a : b
+  }
+
+  const mergeCount = (
     target: Record<string, number>,
     source: Record<string, number>
   ): void => {
     for (const [id, count] of Object.entries(source)) {
       target[id] = (target[id] ?? 0) + count
+    }
+  }
+
+  const mergeTime = (
+    target: Record<string, string>,
+    source: Record<string, string>
+  ): void => {
+    for (const [id, at] of Object.entries(source)) {
+      target[id] = maxTime(target[id], at) as string
     }
   }
 
@@ -538,15 +561,28 @@ export async function getLibraryUsage(
       if (!work) continue
 
       const counts: Record<string, number> = {}
-      for (const annotation of work.annotations) addUsage(counts, annotation.library_id)
-      addUsage(counts, work.final_comment?.library_id)
+      const times: Record<string, string> = {}
+      const track = (id: string | undefined, at: string | undefined): void => {
+        if (!id) return
+        counts[id] = (counts[id] ?? 0) + 1
+        times[id] = maxTime(times[id], at) as string
+      }
 
-      mergeUsage(overall, counts)
-      if (name === assignmentId) mergeUsage(current, counts)
+      for (const annotation of work.annotations) {
+        track(annotation.library_id, annotation.created_at)
+      }
+      track(work.final_comment?.library_id, work.updated_at)
+
+      mergeCount(overall, counts)
+      mergeTime(overallLastUsed, times)
+      if (name === assignmentId) {
+        mergeCount(current, counts)
+        mergeTime(currentLastUsed, times)
+      }
     }
   }
 
-  return { current, overall }
+  return { current, overall, currentLastUsed, overallLastUsed }
 }
 
 /**

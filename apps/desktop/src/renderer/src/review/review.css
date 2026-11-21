@@ -516,6 +516,19 @@
   color: #7a6a4f;
 }
 
+.rv-lib-lastused {
+  font-size: 10px;
+  color: #3f6a52;
+}
+
+.rv-lib-cooldown {
+  margin: -2px 0 8px;
+}
+
+.rv-lib-cooldown .rv-field {
+  margin-bottom: 4px;
+}
+
 /* 評分與量規 */
 
 .rv-rubric {

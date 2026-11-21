@@ -12,6 +12,7 @@ import {
 import {
   LIBRARY_LABELS,
   LIBRARY_MODE_LABELS,
+  LIBRARY_SORTS,
   LIBRARY_SORT_LABELS,
   RUBRIC_PRESET_LABELS,
   RUBRIC_PRESET_ORDER,
@@ -295,6 +296,7 @@ export default function ReviewView({
   const [libraryCategory, setLibraryCategory] = useState<AnnotationCategory>('typo')
   const [librarySort, setLibrarySort] = useState<LibrarySort>('default')
   const [libraryPins, setLibraryPins] = useState<string[]>([])
+  const [libraryCooldownDays, setLibraryCooldownDays] = useState(30)
   const [libraryUsage, setLibraryUsage] = useState<LibraryUsage | null>(null)
   const [libraryUsageLoading, setLibraryUsageLoading] = useState(false)
   const [libraryUsageError, setLibraryUsageError] = useState('')
@@ -1081,6 +1083,7 @@ export default function ReviewView({
         if (cancelled) return
         setLibrarySort(prefs.sort)
         setLibraryPins(prefs.pins)
+        setLibraryCooldownDays(prefs.cooldownDays)
       })
       .catch(() => undefined)
     return () => {
@@ -1141,13 +1144,18 @@ export default function ReviewView({
   }, [assignmentId, classId, libraryOpen, libraryUsageRequest])
 
   /** 偏好寫入排隊，避免連續釘選時 settings.json 互相覆蓋。 */
-  const saveLibraryPrefs = (patch: { sort?: LibrarySort; pins?: string[] }): void => {
+  const saveLibraryPrefs = (patch: {
+    sort?: LibrarySort
+    pins?: string[]
+    cooldownDays?: number
+  }): void => {
     prefsQueueRef.current = prefsQueueRef.current
       .catch(() => undefined)
       .then(async () => {
         const prefs = (await window.electronAPI.library.setPrefs(patch)) as LibraryPrefs
         setLibrarySort(prefs.sort)
         setLibraryPins(prefs.pins)
+        setLibraryCooldownDays(prefs.cooldownDays)
       })
       .catch((prefsError: unknown) => {
         setLibraryError(`儲存評語庫偏好失敗：${errorText(prefsError)}`)
@@ -1158,6 +1166,14 @@ export default function ReviewView({
     setLibrarySort(sort)
     setLibraryError('')
     saveLibraryPrefs({ sort })
+  }
+
+  const changeLibraryCooldownDays = (value: string): void => {
+    const parsed = Number(value)
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 365) return
+    setLibraryCooldownDays(parsed)
+    setLibraryError('')
+    saveLibraryPrefs({ cooldownDays: parsed })
   }
 
   const toggleLibraryPin = (id: string): void => {
@@ -1200,9 +1216,11 @@ export default function ReviewView({
       sortLibraryEntries(filteredEntries, {
         sort: librarySort,
         pins: libraryPins,
-        usage: libraryUsage
+        usage: libraryUsage,
+        lastUsed: libraryUsage?.overallLastUsed,
+        cooldownDays: libraryCooldownDays
       }),
-    [filteredEntries, libraryPins, librarySort, libraryUsage]
+    [filteredEntries, libraryPins, librarySort, libraryUsage, libraryCooldownDays]
   )
 
   const insertAtCursor = (
@@ -1782,7 +1800,7 @@ export default function ReviewView({
                     }
                     title="排序方式"
                   >
-                    {(['default', 'usage', 'unused'] as const).map((sort) => (
+                    {LIBRARY_SORTS.map((sort) => (
                       <option key={sort} value={sort}>
                         {LIBRARY_SORT_LABELS[sort]}
                       </option>
@@ -1795,6 +1813,24 @@ export default function ReviewView({
                     placeholder="搜尋評語…"
                   />
                 </div>
+                {librarySort === 'rotation' && (
+                  <div className="rv-lib-cooldown">
+                    <label className="rv-field">
+                      冷卻天數
+                      <input
+                        type="number"
+                        min={1}
+                        max={365}
+                        step={1}
+                        value={libraryCooldownDays}
+                        onChange={(event) => changeLibraryCooldownDays(event.target.value)}
+                      />
+                    </label>
+                    <p className="rv-note">
+                      超過 {libraryCooldownDays} 天沒用過的評語會優先顯示
+                    </p>
+                  </div>
+                )}
                 {libraryUsageLoading && (
                   <p className="rv-note rv-lib-usage-loading">使用次數統計中…</p>
                 )}
@@ -1808,6 +1844,11 @@ export default function ReviewView({
                     const pinned = libraryPins.includes(entry.id)
                     const currentUsage = libraryUsage?.current[entry.id] ?? 0
                     const overallUsage = libraryUsage?.overall[entry.id] ?? 0
+                    const lastUsedAt = libraryUsage?.overallLastUsed?.[entry.id]
+                    const lastUsedText =
+                      typeof lastUsedAt === 'string' && Number.isFinite(Date.parse(lastUsedAt))
+                        ? `上次使用：${lastUsedAt.slice(0, 10)}`
+                        : '尚未使用'
                     return (
                       <div
                         key={entry.id}
@@ -1827,6 +1868,9 @@ export default function ReviewView({
                           <span className="rv-lib-usage">
                             本批 {currentUsage} 次、累計 {overallUsage} 次
                           </span>
+                          {librarySort === 'rotation' && (
+                            <span className="rv-lib-lastused">{lastUsedText}</span>
+                          )}
                         </button>
                         <button
                           className={`rv-lib-pin${pinned ? ' is-pinned' : ''}`}

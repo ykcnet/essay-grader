@@ -2,7 +2,9 @@ import { app } from 'electron'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
+  isCooldownDays,
   isLibrarySort,
+  normalizeCooldownDays,
   normalizeLibraryMode,
   normalizeLibrarySort,
   type LibraryMode,
@@ -20,6 +22,8 @@ export interface Settings {
   librarySort?: LibrarySort
   /** 釘選的評語 id；只留字串並去重，切換版本時未知 id 會保留。 */
   libraryPins?: string[]
+  /** 冷卻輪替天數；非法值一律視為預設 30。 */
+  libraryCooldownDays?: number
 }
 
 /** 只留字串、去空白、去重，並保留第一次出現的順序。 */
@@ -48,10 +52,16 @@ export async function readSettings(): Promise<Settings> {
       ...parsed,
       libraryMode: normalizeLibraryMode(parsed.libraryMode),
       librarySort: normalizeLibrarySort(parsed.librarySort),
-      libraryPins: normalizeLibraryPins(parsed.libraryPins)
+      libraryPins: normalizeLibraryPins(parsed.libraryPins),
+      libraryCooldownDays: normalizeCooldownDays(parsed.libraryCooldownDays)
     }
   } catch {
-    return { libraryMode: 'auto', librarySort: 'default', libraryPins: [] }
+    return {
+      libraryMode: 'auto',
+      librarySort: 'default',
+      libraryPins: [],
+      libraryCooldownDays: normalizeCooldownDays(undefined)
+    }
   }
 }
 
@@ -61,6 +71,7 @@ export async function writeSettings(patch: Partial<Settings>): Promise<void> {
   next.libraryMode = normalizeLibraryMode(next.libraryMode)
   next.librarySort = normalizeLibrarySort(next.librarySort)
   next.libraryPins = normalizeLibraryPins(next.libraryPins)
+  next.libraryCooldownDays = normalizeCooldownDays(next.libraryCooldownDays)
   await writeFile(settingsPath(), JSON.stringify(next, null, 2), 'utf8')
 }
 
@@ -68,23 +79,26 @@ export async function readLibraryPrefs(): Promise<LibraryPrefs> {
   const settings = await readSettings()
   return {
     sort: normalizeLibrarySort(settings.librarySort),
-    pins: normalizeLibraryPins(settings.libraryPins)
+    pins: normalizeLibraryPins(settings.libraryPins),
+    cooldownDays: normalizeCooldownDays(settings.libraryCooldownDays)
   }
 }
 
 /**
  * 寫入評語庫偏好；只處理有給的欄位。
- * sort 僅接受 default／usage／unused，pins 會去重且只留字串。
+ * sort 僅接受 default／usage／unused／rotation，pins 會去重且只留字串，
+ * cooldownDays 必須是 1–365 的整數。
  */
 export async function writeLibraryPrefs(patch: {
   sort?: unknown
   pins?: unknown
+  cooldownDays?: unknown
 }): Promise<LibraryPrefs> {
   const next: Partial<Settings> = {}
 
   if (patch.sort !== undefined) {
     if (!isLibrarySort(patch.sort)) {
-      throw new Error('評語庫排序不合法，請選擇預設、常用（累計）或本批未用優先。')
+      throw new Error('評語庫排序不合法，請選擇預設、常用（累計）、本批未用優先或冷卻輪替。')
     }
     next.librarySort = patch.sort
   }
@@ -92,6 +106,13 @@ export async function writeLibraryPrefs(patch: {
   if (patch.pins !== undefined) {
     if (!Array.isArray(patch.pins)) throw new Error('釘選清單格式不正確。')
     next.libraryPins = normalizeLibraryPins(patch.pins)
+  }
+
+  if (patch.cooldownDays !== undefined) {
+    if (!isCooldownDays(patch.cooldownDays)) {
+      throw new Error('冷卻天數必須是 1–365 的整數。')
+    }
+    next.libraryCooldownDays = patch.cooldownDays
   }
 
   if (Object.keys(next).length > 0) await writeSettings(next)

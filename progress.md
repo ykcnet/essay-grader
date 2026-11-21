@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-21
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選完成；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替完成；下一步 M8 手機**
 
 ---
 
@@ -490,6 +490,19 @@ essay-grader-data/
 - 驗收：`m3:check` 擴充至 38/38，涵蓋三種排序、釘選優先與同次數穩定、未知 pin、兩份作品＋另一份作業的本批／累計計數、損壞 work.json 略過與只讀檢查、settings 寫入／重讀／非法值／去重、三支 IPC、UI 排序／釘選／次數標示、收合再展開與重新載入後保留。
 - 回歸：`typecheck`（desktop＋core）、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 38/38、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`junior:check` 17/17、`library:wording/structure/coverage/short`、`spike` 通過。
 - 已知限制：累計需掃描同班所有作業，作品或作業很多時會顯示「使用次數統計中」，但清單仍可操作；沒有 `library_id` 的舊作品或手動改寫過的評語不列入次數；釘選與排序是使用者層級的全域偏好，不分班級或資料庫。
+
+### D22 跨批冷卻輪替驗收（2026-11-21）
+
+- Core：`LIBRARY_SORTS` 加入 `rotation`，標籤「冷卻輪替（久未用優先）」；新增 `DEFAULT_COOLDOWN_DAYS = 30`、`isCooldownDays`／`normalizeCooldownDays`（1–365 整數，非法值一律回 30）、`LibraryUsage.currentLastUsed`／`overallLastUsed`、`LibraryPrefs.cooldownDays`；`sortLibraryEntries` 新增 `lastUsed`／`cooldownDays`／`now` 選項。
+- 排序規則：非釘選先分冷卻群（從未使用或超過天數）與近期群，冷卻群在前；冷卻群內從未使用最前，其餘依最後使用時間由舊到新；近期群亦由舊到新；同時間再依累計次數由少到多，最後保持原順序。釘選仍固定最前，釘選內依累計次數。
+- Repository：`getLibraryUsage` 的時間由 `work.json` 推導，批注用 `annotation.created_at`、總評用該作品 `updated_at`，同一條取最新；缺少或無效時間忽略，損壞檔案照舊略過，仍不寫檔。
+- Settings／IPC／preload：新增 `libraryCooldownDays`，讀寫皆正規化；`library:set-prefs` 與 `library.setPrefs` 接受 `cooldownDays`，非 1–365 整數會拒絕。
+- ReviewView：排序下拉改由 `LIBRARY_SORTS` 產生並含冷卻輪替；選用後出現冷卻天數輸入（1–365）與「上次使用：YYYY-MM-DD／尚未使用」；偏好排隊寫入，重開面板與重新載入視窗仍保留。
+- 驗收：`m3:check` 擴充至 46/46。rotation 實測順序 `A,B,E,D,C`（A 從未使用、B 40 天、E 31 天、D 20 天、C 5 天，冷卻天數 30）；釘選 C、D 後為 `C,D,A,B,E`；邊界 1／365 合法，0／366／3.5／字串／null 皆回 30，寫入非法值會被拒絕。
+- `getLibraryUsage` 實測：sentence 本批 4 次、comment 本批 3 次、另一作業的 comment 只進 overall；批注時間取自 `created_at`，總評時間取自 `updated_at`，`current` 與 `overall` 分開且取最新。
+- UI 實測：下拉含 rotation、天數預設 30 → 改 45 並寫入 settings、尚未使用排前、上次使用文字出現、重新載入後排序與天數皆保留。
+- 文件：README／`docs/使用說明.md`／features／plan／progress 同步記錄。
+- 回歸：`typecheck`、`build`、`m1:check`、`m2:check`、`m3:check` 46/46、`m4:check`、`m5:check`、`m6:check`、`m7:check`、`drive:check`、`excel:check`、`match:check`、`batch:check`、`compare:check`、`junior:check`、`library:wording／structure／coverage／short`、`spike` 通過。
 
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4）
 

@@ -4,13 +4,16 @@ import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
   BUILTIN_LIBRARY,
+  DEFAULT_COOLDOWN_DAYS,
   JUNIOR_LIBRARY,
   LIBRARY_VERSION,
   LibrarySchema,
   RUBRIC_PRESETS,
   SENIOR_LIBRARY,
   computeScore,
+  isCooldownDays,
   libraryForGrade,
+  normalizeCooldownDays,
   normalizeComment,
   resolveGrade,
   sortLibraryEntries,
@@ -68,6 +71,8 @@ interface LibraryToolsUiResult {
   sortDetail: string
   persistOk: boolean
   persistDetail: string
+  rotationUiOk: boolean
+  rotationDetail: string
 }
 
 interface LibraryUiExpectation {
@@ -85,7 +90,9 @@ const emptyLibraryTools = (): LibraryToolsUiResult => ({
   sortUiOk: false,
   sortDetail: '未執行',
   persistOk: false,
-  persistDetail: '未執行'
+  persistDetail: '未執行',
+  rotationUiOk: false,
+  rotationDetail: '未執行'
 })
 
 /** 開隱藏視窗載入 renderer，確認主畫面、新的 preload API 與批閱畫面都能載入。 */
@@ -141,6 +148,20 @@ async function runUiSmoke(
         if (!select) return false
         select.value = ${JSON.stringify(value)}
         select.dispatchEvent(new Event('change', { bubbles: true }))
+        return true
+      })()`
+    )) as boolean
+  const setInput = async (selector: string, value: string): Promise<boolean> =>
+    (await win.webContents.executeJavaScript(
+      `(() => {
+        const input = document.querySelector(${JSON.stringify(selector)})
+        if (!input) return false
+        const setter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype,
+          'value'
+        ).set
+        setter.call(input, ${JSON.stringify(value)})
+        input.dispatchEvent(new Event('input', { bubbles: true }))
         return true
       })()`
     )) as boolean
@@ -215,7 +236,9 @@ async function runUiSmoke(
           pins: ['E-01', 'E-01', 'E-02', 7]
         })
         const prefsAfter = await window.electronAPI.library.getPrefs()
-        await window.electronAPI.library.setPrefs({ sort: 'default', pins: [] })
+        const prefsCooldownSet = await window.electronAPI.library.setPrefs({ cooldownDays: 45 })
+        const prefsCooldownAfter = await window.electronAPI.library.getPrefs()
+        await window.electronAPI.library.setPrefs({ sort: 'default', pins: [], cooldownDays: 30 })
         return {
           ids: [initial.id, junior.id, restored.id],
           modes: [initial.mode, junior.mode, restored.mode],
@@ -228,7 +251,9 @@ async function runUiSmoke(
           usage,
           prefsBefore,
           prefsSet,
-          prefsAfter
+          prefsAfter,
+          prefsCooldownSet,
+          prefsCooldownAfter
         }
       })()`
     )) as {
@@ -236,10 +261,17 @@ async function runUiSmoke(
       modes: string[]
       versions: string[]
       counts: number[]
-      usage: { current: Record<string, number>; overall: Record<string, number> }
-      prefsBefore: { sort: string; pins: string[] }
-      prefsSet: { sort: string; pins: string[] }
-      prefsAfter: { sort: string; pins: string[] }
+      usage: {
+        current: Record<string, number>
+        overall: Record<string, number>
+        currentLastUsed: Record<string, string>
+        overallLastUsed: Record<string, string>
+      }
+      prefsBefore: { sort: string; pins: string[]; cooldownDays: number }
+      prefsSet: { sort: string; pins: string[]; cooldownDays: number }
+      prefsAfter: { sort: string; pins: string[]; cooldownDays: number }
+      prefsCooldownSet: { sort: string; pins: string[]; cooldownDays: number }
+      prefsCooldownAfter: { sort: string; pins: string[]; cooldownDays: number }
     }
     const libraryIpcOk =
       libraryIpc.ids.join(',') === 'senior,junior,senior' &&
@@ -255,18 +287,24 @@ async function runUiSmoke(
       libraryIpc.usage.current[usedCommentId] === 2 &&
       libraryIpc.usage.overall[usedSentenceId] === 4 &&
       libraryIpc.usage.overall[usedCommentId] === 2 &&
-      libraryIpc.usage.overall[expectation.otherCommentId] === 1
+      libraryIpc.usage.overall[expectation.otherCommentId] === 1 &&
+      Number.isFinite(Date.parse(libraryIpc.usage.overallLastUsed[usedSentenceId])) &&
+      Number.isFinite(Date.parse(libraryIpc.usage.overallLastUsed[usedCommentId])) &&
+      Number.isFinite(Date.parse(libraryIpc.usage.overallLastUsed[expectation.otherCommentId]))
     const prefsIpcOk =
       libraryIpc.prefsAfter.sort === 'unused' &&
       libraryIpc.prefsAfter.pins.join(',') === 'E-01,E-02' &&
       libraryIpc.prefsSet.sort === 'unused' &&
       libraryIpc.prefsSet.pins.join(',') === 'E-01,E-02'
+    const cooldownIpcOk =
+      libraryIpc.prefsCooldownSet.cooldownDays === 45 &&
+      libraryIpc.prefsCooldownAfter.cooldownDays === 45
     const libraryTools = emptyLibraryTools()
-    libraryTools.ipcOk = usageIpcOk && prefsIpcOk
+    libraryTools.ipcOk = usageIpcOk && prefsIpcOk && cooldownIpcOk
     libraryTools.ipcDetail = `usage 本批 ${libraryIpc.usage.current[usedSentenceId] ?? 0}／累計 ${
       libraryIpc.usage.overall[usedSentenceId] ?? 0
     }；prefs ${libraryIpc.prefsAfter.sort}／${libraryIpc.prefsAfter.pins.join(',') ||
-      '無'}`
+      '無'}；cooldownDays ${libraryIpc.prefsCooldownAfter.cooldownDays}`
 
     const assignmentReady = await waitFor(
       "document.querySelector('.assignment-row')",
@@ -590,6 +628,125 @@ async function runUiSmoke(
         libraryTools.sortDetail = '評語庫分類切到「評語」後清單未載入'
         libraryTools.persistDetail = '排序測試未完成'
       }
+
+      // ---- D22：冷卻輪替 UI（下拉、天數輸入、上次使用、重載保留） ---------
+      const rotationOpt = (await win.webContents.executeJavaScript(
+        `[...(document.querySelector('.rv-lib-sort')?.options ?? [])].map((option) => option.value)`
+      )) as string[]
+      const rotationOptionOk = Array.isArray(rotationOpt) && rotationOpt.includes('rotation')
+      await setSelect('.rv-lib-sort', 'rotation')
+      const cooldownInputReady = await waitFor(
+        "document.querySelector('.rv-lib-cooldown input')",
+        6000
+      )
+      const cooldownValue = cooldownInputReady
+        ? ((await win.webContents.executeJavaScript(
+            "document.querySelector('.rv-lib-cooldown input')?.value ?? ''"
+          )) as string)
+        : ''
+      const lastUsedReady = cooldownInputReady
+        ? await waitFor("document.querySelector('.rv-lib-item .rv-lib-lastused')", 6000)
+        : false
+      const rotationOrderIds = (await win.webContents.executeJavaScript(
+        `[...document.querySelectorAll('.rv-lib-item .rv-lib-meta')]
+          .map((el) => (el.textContent ?? '').trim().split(' · ')[0])`
+      )) as string[]
+      const rotationOrderOk =
+        rotationOrderIds.includes(expectation.defaultCommentId) &&
+        rotationOrderIds.includes(usedCommentId) &&
+        rotationOrderIds.indexOf(expectation.defaultCommentId) <
+          rotationOrderIds.indexOf(usedCommentId)
+      const neverUsedTextOk = (await win.webContents.executeJavaScript(
+        `[...document.querySelectorAll('.rv-lib-item')]
+          .some((item) => (item.querySelector('.rv-lib-lastused')?.textContent ?? '').includes('尚未使用'))`
+      )) as boolean
+
+      await setInput('.rv-lib-cooldown input', '45')
+      let rotationPrefs = (await win.webContents.executeJavaScript(
+        'window.electronAPI.library.getPrefs()'
+      )) as { sort: string; pins: string[]; cooldownDays: number }
+      for (let i = 0; i < 20; i++) {
+        if (rotationPrefs.sort === 'rotation' && rotationPrefs.cooldownDays === 45) break
+        await delay(150)
+        rotationPrefs = (await win.webContents.executeJavaScript(
+          'window.electronAPI.library.getPrefs()'
+        )) as { sort: string; pins: string[]; cooldownDays: number }
+      }
+      const rotationPrefsSavedOk =
+        rotationPrefs.sort === 'rotation' && rotationPrefs.cooldownDays === 45
+
+      await win.webContents.reload()
+      await waitForText('作文批閱', 12000)
+      const assignmentAgain2 = await waitFor("document.querySelector('.assignment-row')", 8000)
+      if (assignmentAgain2) {
+        await win.webContents.executeJavaScript(
+          "document.querySelector('.assignment-row')?.click()"
+        )
+      }
+      const reviewButtonAgain2 = assignmentAgain2
+        ? await waitFor(
+            `[...document.querySelectorAll('.import-panel button')].some(
+              (item) => item.textContent?.trim() === '批閱'
+            )`,
+            10000
+          )
+        : false
+      if (reviewButtonAgain2) {
+        await win.webContents.executeJavaScript(
+          `(() => {
+            const button = [...document.querySelectorAll('.import-panel button')]
+              .find((item) => item.textContent?.trim() === '批閱')
+            button?.click()
+            return Boolean(button)
+          })()`
+        )
+      }
+      const reviewAgain2 = reviewButtonAgain2
+        ? await waitFor("document.querySelector('.rv')", 8000)
+        : false
+      const panelAgain2 = reviewAgain2
+        ? await waitFor("document.querySelector('.rv-lib-sort')", 10000)
+        : false
+      const persistedRotationSort = panelAgain2
+        ? ((await win.webContents.executeJavaScript(
+            "document.querySelector('.rv-lib-sort')?.value ?? ''"
+          )) as string)
+        : ''
+      const persistedCooldownValue = panelAgain2
+        ? (await waitFor("document.querySelector('.rv-lib-cooldown input')", 6000))
+          ? ((await win.webContents.executeJavaScript(
+              "document.querySelector('.rv-lib-cooldown input')?.value ?? ''"
+            )) as string)
+          : ''
+        : ''
+      const persistedLastUsedOk = panelAgain2
+        ? await waitFor("document.querySelector('.rv-lib-item .rv-lib-lastused')", 6000)
+        : false
+
+      libraryTools.rotationUiOk =
+        rotationOptionOk &&
+        cooldownInputReady &&
+        cooldownValue === '30' &&
+        lastUsedReady &&
+        rotationOrderOk &&
+        neverUsedTextOk &&
+        rotationPrefsSavedOk &&
+        persistedRotationSort === 'rotation' &&
+        persistedCooldownValue === '45' &&
+        persistedLastUsedOk
+      libraryTools.rotationDetail = libraryTools.rotationUiOk
+        ? `下拉含 rotation；天數預設 ${cooldownValue} → 改 45；尚未使用排前；重載後 ${persistedRotationSort}／${persistedCooldownValue}`
+        : !rotationOptionOk
+          ? '排序下拉沒有冷卻輪替選項'
+          : !cooldownInputReady
+            ? '冷卻天數輸入未出現'
+            : !lastUsedReady
+              ? '未顯示上次使用文字'
+              : !rotationOrderOk
+                ? `rotation 順序未變（${rotationOrderIds.slice(0, 4).join(',')}…）`
+                : !rotationPrefsSavedOk
+                  ? '冷卻天數未寫入 settings'
+                  : `重載後未保留（sort ${persistedRotationSort}／天數 ${persistedCooldownValue}）`
     }
 
     let rubricEditorOk = false
@@ -633,9 +790,10 @@ async function runUiSmoke(
       rubricEditorOk &&
       libraryTools.ipcOk &&
       libraryTools.sortUiOk &&
-      libraryTools.persistOk
+      libraryTools.persistOk &&
+      libraryTools.rotationUiOk
     const detail = ok
-      ? `主畫面、preload API、批閱介面（S07）、評語庫切換／排序／釘選與量規編輯器正常`
+      ? `主畫面、preload API、批閱介面（S07）、評語庫切換／排序／釘選／冷卻輪替與量規編輯器正常`
       : !reviewMounted
         ? '按鈕已點擊，但批閱介面未掛載'
         : !canvasReady
@@ -654,7 +812,9 @@ async function runUiSmoke(
                       ? `評語庫使用次數或偏好 IPC 不符（${libraryTools.ipcDetail}）`
                       : !libraryTools.sortUiOk
                         ? `評語庫排序或釘選未生效（${libraryTools.sortDetail}）`
-                        : `重新載入後偏好未保留（${libraryTools.persistDetail}）`
+                        : !libraryTools.persistOk
+                          ? `重新載入後偏好未保留（${libraryTools.persistDetail}）`
+                          : `冷卻輪替 UI 未生效（${libraryTools.rotationDetail}）`
 
     return {
       ok,
@@ -877,6 +1037,128 @@ export async function runM3Check(): Promise<number> {
       'sortLibraryEntries 釘選優先、釘選內依累計、未知 pin 忽略',
       idsOf(pinnedDefault) === 'C,D,A,B,E' && idsOf(pinnedUnused) === 'B,A,C,E,D',
       `釘選 D／C 預設 ${idsOf(pinnedDefault)}；釘選 B 本批未用 ${idsOf(pinnedUnused)}；未知 Z 已忽略`
+    )
+
+    // ---- D22 冷卻輪替純函式 ------------------------------------------------
+    const fixedNowMs = Date.parse('2026-06-01T00:00:00.000Z')
+    const fixedNow = '2026-06-01T00:00:00.000Z'
+    const isoDaysAgo = (days: number): string =>
+      new Date(fixedNowMs - days * 86_400_000).toISOString()
+    const rotationEntries: LibraryEntry[] = ['A', 'B', 'C', 'D', 'E'].map((id) => ({
+      id,
+      category: 'typo',
+      subtype: 'general',
+      text: id,
+      tags: [],
+      disabled: false,
+      source: 'builtin'
+    }))
+    const rotationLastUsed = {
+      B: isoDaysAgo(40),
+      C: isoDaysAgo(5),
+      D: isoDaysAgo(20),
+      E: isoDaysAgo(31)
+    }
+    const rotationOverall = { A: 5, B: 2, C: 5, D: 3, E: 0 }
+    const rotationSorted = sortLibraryEntries(rotationEntries, {
+      sort: 'rotation',
+      usage: { overall: rotationOverall },
+      lastUsed: rotationLastUsed,
+      cooldownDays: 30,
+      now: fixedNow
+    })
+    add(
+      'sortLibraryEntries rotation：冷卻群（從未最前→舊到新）在近期群前',
+      idsOf(rotationSorted) === 'A,B,E,D,C',
+      `冷卻群 A→B→E、近期群 D→C，總序 ${idsOf(rotationSorted)}`
+    )
+
+    const rotationPinned = sortLibraryEntries(rotationEntries, {
+      sort: 'rotation',
+      pins: ['D', 'C', 'Z'],
+      usage: { overall: rotationOverall },
+      lastUsed: rotationLastUsed,
+      cooldownDays: 30,
+      now: fixedNow
+    })
+    add(
+      'sortLibraryEntries rotation 釘選仍最前、未知 pin 忽略',
+      idsOf(rotationPinned) === 'C,D,A,B,E',
+      `釘選 C／D 依累計在前，其餘 ${idsOf(rotationPinned)}`
+    )
+
+    // 同時間：依 overall 由少到多，再依原順序。
+    const sameTimeEntries: LibraryEntry[] = ['X', 'Y', 'Z'].map((id) => ({
+      id,
+      category: 'typo',
+      subtype: 'general',
+      text: id,
+      tags: [],
+      disabled: false,
+      source: 'builtin'
+    }))
+    const sameTimeLastUsed = {
+      X: isoDaysAgo(40),
+      Y: isoDaysAgo(40),
+      Z: isoDaysAgo(40)
+    }
+    const sameTimeOverall = { X: 3, Y: 1, Z: 3 }
+    const sameTimeSorted = sortLibraryEntries(sameTimeEntries, {
+      sort: 'rotation',
+      usage: { overall: sameTimeOverall },
+      lastUsed: sameTimeLastUsed,
+      cooldownDays: 30,
+      now: fixedNow
+    })
+    add(
+      'sortLibraryEntries rotation 同時間依 overall 少到多、再依原順序',
+      idsOf(sameTimeSorted) === 'Y,X,Z',
+      `同時 40 天前，累計 Y=1→X=3→Z=3，總序 ${idsOf(sameTimeSorted)}`
+    )
+
+    const rotationDaysOk =
+      normalizeCooldownDays(1) === 1 &&
+      normalizeCooldownDays(365) === 365 &&
+      normalizeCooldownDays(0) === DEFAULT_COOLDOWN_DAYS &&
+      normalizeCooldownDays(-1) === DEFAULT_COOLDOWN_DAYS &&
+      normalizeCooldownDays(366) === DEFAULT_COOLDOWN_DAYS &&
+      normalizeCooldownDays(3.5) === DEFAULT_COOLDOWN_DAYS &&
+      normalizeCooldownDays('30') === DEFAULT_COOLDOWN_DAYS &&
+      normalizeCooldownDays(null) === DEFAULT_COOLDOWN_DAYS &&
+      normalizeCooldownDays(undefined) === DEFAULT_COOLDOWN_DAYS &&
+      isCooldownDays(30) &&
+      !isCooldownDays(0) &&
+      !isCooldownDays(366)
+    add(
+      'cooldownDays 邊界：1／365 合法，非法值回 30',
+      rotationDaysOk,
+      `1→${normalizeCooldownDays(1)}、365→${normalizeCooldownDays(365)}、0→${normalizeCooldownDays(
+        0
+      )}、366→${normalizeCooldownDays(366)}、3.5→${normalizeCooldownDays(3.5)}`
+    )
+
+    // 無效時間視為從未使用：N 無效時間、M 2 天前。
+    const invalidTimeEntries: LibraryEntry[] = ['N', 'M'].map((id) => ({
+      id,
+      category: 'typo',
+      subtype: 'general',
+      text: id,
+      tags: [],
+      disabled: false,
+      source: 'builtin'
+    }))
+    const invalidTimeLastUsed = { N: 'not-a-date', M: isoDaysAgo(2) }
+    const invalidTimeSorted = sortLibraryEntries(invalidTimeEntries, {
+      sort: 'rotation',
+      usage: { overall: { N: 0, M: 0 } },
+      lastUsed: invalidTimeLastUsed,
+      cooldownDays: 30,
+      now: fixedNow
+    })
+    add(
+      'sortLibraryEntries rotation 無效時間視為從未使用',
+      idsOf(invalidTimeSorted) === 'N,M',
+      `N 無效時間視為未用排前，總序 ${idsOf(invalidTimeSorted)}`
     )
 
     // ---- normalizeComment --------------------------------------------------
@@ -1200,6 +1482,63 @@ export async function runM3Check(): Promise<number> {
       }；work.json ${s07Before === s07After ? '未變動' : '被改寫'}`
     )
 
+    // ---- D22 getLibraryUsage 最後使用時間 ----------------------------------
+    const s10Dir = join(root, created.id, assignment.id, 'S10')
+    await mkdir(s10Dir, { recursive: true })
+    const s10Work: WorkFile = {
+      ...baseWork,
+      seat: '10',
+      name: '林曉華',
+      annotations: [
+        {
+          ...d25,
+          id: 'usage-10-1',
+          anchor: { x: 0.11, y: 0.22 },
+          created_at: '2020-01-01T00:00:00.000Z'
+        },
+        {
+          ...d25,
+          id: 'usage-10-invalid',
+          anchor: { x: 0.33, y: 0.44 },
+          library_id: defaultCommentId,
+          created_at: 'not-a-date'
+        }
+      ],
+      final_comment: {
+        text: '這份作品的總評用於最後使用時間測試，句子完整、字數充足，與其他作品內容不同。',
+        library_id: usedCommentId,
+        library_version: SENIOR_LIBRARY.library_version
+      },
+      updated_at: '2020-01-01T00:00:00.000Z'
+    }
+    await saveWork(created.id, assignment.id, '10', s10Work)
+    const usageWithTimes = await getLibraryUsage(created.id, assignment.id)
+    await rm(s10Dir, { recursive: true, force: true })
+
+    const lastUsedOk =
+      usageWithTimes.current[sentenceLibraryId] === 4 &&
+      usageWithTimes.current[usedCommentId] === 3 &&
+      usageWithTimes.current[defaultCommentId] === 1 &&
+      usageWithTimes.currentLastUsed[sentenceLibraryId] === d25.created_at &&
+      Date.parse(usageWithTimes.currentLastUsed[usedCommentId]) ===
+        Date.parse(usageWork08.updated_at) &&
+      usageWithTimes.currentLastUsed[defaultCommentId] === undefined &&
+      usageWithTimes.overallLastUsed[otherCommentId] === otherAssignmentWork.updated_at &&
+      usageWithTimes.currentLastUsed[otherCommentId] === undefined
+    add(
+      'getLibraryUsage 最後使用時間（created_at／updated_at、max、current／overall 分開）',
+      lastUsedOk,
+      `sentence 本批 4 次、上次 ${usageWithTimes.currentLastUsed[sentenceLibraryId]?.slice(
+        0,
+        10
+      ) ?? '—'}；comment 本批 3 次、上次 ${usageWithTimes.currentLastUsed[usedCommentId]?.slice(
+        0,
+        10
+      ) ?? '—'}；otherCommentId 只進 overall（${
+        usageWithTimes.overallLastUsed[otherCommentId]?.slice(0, 10) ?? '—'
+      }）`
+    )
+
     const customGrades: GradeBand[] = [
       { label: '乙', min: 0 },
       { label: '優', min: 85 },
@@ -1320,6 +1659,31 @@ export async function runM3Check(): Promise<number> {
         ','
       )}）；寫入驗證${invalidPrefsRejected ? '已拒絕非法值' : '未拒絕非法值'}`
     )
+
+    // ---- D22 偏好設定：cooldownDays 寫入、重讀、非法值 --------------------
+    await writeSettings({ libraryCooldownDays: 45 })
+    const cooldownSaved = await readLibraryPrefs()
+    await writeSettings({ libraryCooldownDays: 0 })
+    const cooldownFallback = await readLibraryPrefs()
+    let invalidCooldownRejected = false
+    try {
+      await writeLibraryPrefs({ cooldownDays: 0 })
+    } catch {
+      invalidCooldownRejected = true
+    }
+    const cooldownPrefsOk =
+      cooldownSaved.cooldownDays === 45 &&
+      cooldownFallback.cooldownDays === DEFAULT_COOLDOWN_DAYS &&
+      invalidCooldownRejected
+    add(
+      'settings libraryCooldownDays 寫入、重讀與非法值回 30',
+      cooldownPrefsOk,
+      `寫入 45 → ${cooldownSaved.cooldownDays}；非法 0 → ${cooldownFallback.cooldownDays}；寫入驗證${
+        invalidCooldownRejected ? '已拒絕非法值' : '未拒絕非法值'
+      }`
+    )
+    await writeSettings({ libraryCooldownDays: 30 })
+
     await writeLibraryPrefs({ sort: 'default', pins: [] })
 
     // ---- UI 煙霧測試（資料庫保持開啟，讓主畫面能列出班級與作業） ----------
@@ -1338,7 +1702,8 @@ export async function runM3Check(): Promise<number> {
       await writeSettings({
         libraryMode: settingsBefore.libraryMode ?? 'auto',
         librarySort: prefsBefore.sort,
-        libraryPins: prefsBefore.pins
+        libraryPins: prefsBefore.pins,
+        libraryCooldownDays: prefsBefore.cooldownDays
       })
     }
     add('主畫面、API 與批閱介面', ui.ok, ui.detail)
@@ -1347,6 +1712,11 @@ export async function runM3Check(): Promise<number> {
     add('IPC library:usage／get-prefs／set-prefs', ui.libraryTools.ipcOk, ui.libraryTools.ipcDetail)
     add('評語庫常用排序、釘選與使用次數標示', ui.libraryTools.sortUiOk, ui.libraryTools.sortDetail)
     add('評語庫偏好重開面板與重新載入後保留', ui.libraryTools.persistOk, ui.libraryTools.persistDetail)
+    add(
+      '評語庫冷卻輪替 UI（下拉、天數輸入、上次使用、重載保留）',
+      ui.libraryTools.rotationUiOk,
+      ui.libraryTools.rotationDetail
+    )
 
     const workAfterLibrary = await loadWork(created.id, assignment.id, '07')
     add(

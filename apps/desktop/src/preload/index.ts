@@ -117,7 +117,7 @@ const api = {
     usage: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('library:usage', classId, assignmentId),
     getPrefs: () => ipcRenderer.invoke('library:get-prefs'),
-    setPrefs: (patch: { sort?: string; pins?: string[] }) =>
+    setPrefs: (patch: { sort?: string; pins?: string[]; cooldownDays?: number }) =>
       ipcRenderer.invoke('library:set-prefs', patch)
   },
   imports: {

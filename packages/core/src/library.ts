@@ -93,18 +93,19 @@ export function entriesByCategory(category: LibraryEntry['category']): LibraryEn
   )
 }
 
-/** 評語庫排序偏好；default 保留原順序，usage 依累計次數，unused 以本批未用優先。 */
-export const LIBRARY_SORTS = ['default', 'usage', 'unused'] as const
+/** 評語庫排序偏好；default 保留原順序，usage 依累計次數，unused 以本批未用優先，rotation 冷卻輪替。 */
+export const LIBRARY_SORTS = ['default', 'usage', 'unused', 'rotation'] as const
 export type LibrarySort = (typeof LIBRARY_SORTS)[number]
 
 export const LIBRARY_SORT_LABELS: Record<LibrarySort, string> = {
   default: '預設',
   usage: '常用（累計）',
-  unused: '本批未用優先'
+  unused: '本批未用優先',
+  rotation: '冷卻輪替（久未用優先）'
 }
 
 export function isLibrarySort(value: unknown): value is LibrarySort {
-  return value === 'default' || value === 'usage' || value === 'unused'
+  return value === 'default' || value === 'usage' || value === 'unused' || value === 'rotation'
 }
 
 /** 非法值一律回到 default，避免舊設定或手動編輯造成錯誤。 */
@@ -112,23 +113,52 @@ export function normalizeLibrarySort(value: unknown): LibrarySort {
   return isLibrarySort(value) ? value : 'default'
 }
 
-/** 使用次數全部由 work.json 的 library_id 即時推導，不另存計數器。 */
+/** 冷卻天數預設值與可允許範圍。 */
+export const DEFAULT_COOLDOWN_DAYS = 30
+
+/** 冷卻天數必須是 1–365 的整數。 */
+export function isCooldownDays(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isFinite(value) &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 365
+  )
+}
+
+/** 非法值一律回到預設 30。 */
+export function normalizeCooldownDays(value: unknown): number {
+  return isCooldownDays(value) ? value : DEFAULT_COOLDOWN_DAYS
+}
+
+/** 使用次數與最後使用時間全部由 work.json 的 library_id 即時推導，不另存計數器。 */
 export interface LibraryUsage {
   /** 只算目前作業。 */
   current: Record<string, number>
   /** 同班所有作業。 */
   overall: Record<string, number>
+  /** 目前作業每條評語的最後使用時間（ISO 字串）。 */
+  currentLastUsed: Record<string, string>
+  /** 同班所有作業每條評語的最後使用時間（ISO 字串）。 */
+  overallLastUsed: Record<string, string>
 }
 
 export interface LibraryPrefs {
   sort: LibrarySort
   pins: string[]
+  cooldownDays: number
 }
 
 export interface SortLibraryOptions {
   sort?: LibrarySort
   pins?: readonly string[]
   usage?: Partial<LibraryUsage> | null
+  /** 最後使用時間（ISO 字串）；rotation 用，通常傳 overallLastUsed。 */
+  lastUsed?: Record<string, string> | null
+  cooldownDays?: number
+  /** 排序基準時間，可注入固定值方便測試。 */
+  now?: string | number | Date
 }
 
 const usageCount = (usage: Record<string, number>, id: string): number => {
@@ -136,15 +166,38 @@ const usageCount = (usage: Record<string, number>, id: string): number => {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
 }
 
+/** 解析 ISO 時間為毫秒；無效或缺失回 null（視為從未使用）。 */
+const parseLastUsedMs = (value: unknown): number | null => {
+  if (typeof value !== 'string' || value.length === 0) return null
+  const ts = Date.parse(value)
+  return Number.isFinite(ts) ? ts : null
+}
+
+/** 排序基準時間；未提供或無法解析時用目前時間。 */
+const resolveNowMs = (value: string | number | Date | undefined): number => {
+  if (value instanceof Date) return value.getTime()
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const ts = Date.parse(value)
+    if (Number.isFinite(ts)) return ts
+  }
+  return Date.now()
+}
+
+const MS_PER_DAY = 86_400_000
+
 /**
  * 回傳排序後的新陣列，不改動來源。
  *
  * 釘選條目永遠在前；釘選內固定依 overall 使用次數由高到低，
- * 同次數依原順序（三種 sort 都相同）。其餘條目：
+ * 同次數依原順序（各種 sort 都相同）。其餘條目：
  * - default：原順序。
  * - usage：overall 由高到低，同次數依原順序。
  * - unused：current 為 0 的排前面；同群組再依 overall 由高到低，同次數依原順序。
- * 未知的 pin id 會忽略；usage 缺少的 id 視為 0。
+ * - rotation：非釘選先分「冷卻群」（從未使用或已超過 cooldownDays）與「近期群」，
+ *   冷卻群在前；冷卻群內從未使用最前，其餘依最後使用時間由舊到新；
+ *   近期群內依最後使用時間由舊到新；同時間再依 overall 由少到多，再依原順序。
+ * 未知的 pin id 會忽略；usage 缺少的 id 視為 0；缺少或無效時間視為從未使用。
  */
 export function sortLibraryEntries(
   entries: readonly LibraryEntry[],
@@ -156,6 +209,9 @@ export function sortLibraryEntries(
   )
   const current = options.usage?.current ?? {}
   const overall = options.usage?.overall ?? {}
+  const lastUsed = options.lastUsed ?? {}
+  const cooldownDays = normalizeCooldownDays(options.cooldownDays)
+  const nowMs = resolveNowMs(options.now)
 
   const indexed = entries.map((entry, index) => ({ entry, index }))
   const byOriginal = (a: { index: number }, b: { index: number }): number => a.index - b.index
@@ -163,6 +219,10 @@ export function sortLibraryEntries(
     a: { entry: LibraryEntry },
     b: { entry: LibraryEntry }
   ): number => usageCount(overall, b.entry.id) - usageCount(overall, a.entry.id)
+  const byOverallAsc = (
+    a: { entry: LibraryEntry },
+    b: { entry: LibraryEntry }
+  ): number => usageCount(overall, a.entry.id) - usageCount(overall, b.entry.id)
 
   const pinned = indexed
     .filter((item) => pins.has(item.entry.id))
@@ -177,6 +237,36 @@ export function sortLibraryEntries(
     rest.sort(
       (a, b) => unusedRank(a) - unusedRank(b) || byOverall(a, b) || byOriginal(a, b)
     )
+  } else if (sort === 'rotation') {
+    const rotationCompare = (
+      a: { entry: LibraryEntry; index: number },
+      b: { entry: LibraryEntry; index: number }
+    ): number => {
+      const aMs = parseLastUsedMs(lastUsed[a.entry.id])
+      const bMs = parseLastUsedMs(lastUsed[b.entry.id])
+      const aNever = aMs === null
+      const bNever = bMs === null
+      const aCooldown = aNever || nowMs - (aMs as number) > cooldownDays * MS_PER_DAY
+      const bCooldown = bNever || nowMs - (bMs as number) > cooldownDays * MS_PER_DAY
+
+      // 冷卻群排在近期群前面。
+      if (aCooldown !== bCooldown) return aCooldown ? -1 : 1
+
+      if (aCooldown) {
+        // 冷卻群內：從未使用最前。
+        if (aNever !== bNever) return aNever ? -1 : 1
+        if (!aNever && !bNever) {
+          // 皆曾使用：依最後使用時間由舊到新。
+          if (aMs !== bMs) return (aMs as number) - (bMs as number)
+        }
+        return byOverallAsc(a, b) || byOriginal(a, b)
+      }
+
+      // 近期群內：依最後使用時間由舊到新。
+      if (aMs !== bMs) return (aMs as number) - (bMs as number)
+      return byOverallAsc(a, b) || byOriginal(a, b)
+    }
+    rest.sort(rotationCompare)
   }
 
   return [...pinned, ...rest].map((item) => item.entry)
