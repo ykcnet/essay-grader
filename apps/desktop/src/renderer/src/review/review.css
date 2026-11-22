@@ -164,8 +164,9 @@
 }
 
 .rv-queue-item.active {
-  background: rgba(247, 241, 227, 0.13);
-  border-color: rgba(247, 241, 227, 0.24);
+  background: rgba(247, 241, 227, 0.2);
+  border-color: rgba(247, 241, 227, 0.36);
+  box-shadow: inset 3px 0 0 var(--cream);
 }
 
 .rv-queue-seat {
@@ -357,7 +358,11 @@
   font-size: 11px;
   border-radius: 999px;
   border: 1px solid var(--line-strong);
-  background: #fdfaf3;
+  background: #f1e9d8;
+}
+
+.rv-cat:hover:not(:disabled):not(.active) {
+  background: #e6dcc6;
 }
 
 .rv-cat.active {
@@ -466,18 +471,19 @@
   flex-wrap: wrap;
   gap: 6px;
   padding: 6px 8px;
-  border: 1px solid #ece4d5;
+  border: 1px solid #d6cab2;
   border-radius: 7px;
   background: #fdfaf3;
   text-align: left;
 }
 
 .rv-lib-item:hover {
-  background: #f7f1e3;
+  background: #efe6d5;
+  border-color: #b9ab8c;
 }
 
 .rv-lib-item.rv-lib-pinned {
-  border-color: #d8c48d;
+  border-color: #c8a85c;
   background: #fbf6e7;
 }
 
@@ -497,19 +503,28 @@
 .rv-lib-pin {
   flex: none;
   padding: 2px 6px;
-  border: 1px solid #ddd2bd;
+  border: 1px solid #c4b698;
   border-radius: 999px;
-  background: #fffaf0;
+  background: #f1e9d8;
   color: var(--muted);
   font-size: 10px;
   cursor: pointer;
 }
 
+.rv-lib-pin:hover {
+  background: #e6dcc6;
+  border-color: #a79878;
+}
+
 .rv-lib-pin.is-pinned {
-  border-color: #c8a85c;
-  background: #f6e7bd;
-  color: #7a5412;
+  border-color: #b8912f;
+  background: #efd58a;
+  color: #4a3200;
   font-weight: 600;
+}
+
+.rv-lib-pin.is-pinned:hover {
+  background: #e7c86e;
 }
 
 /* 自訂評語（D11） */
@@ -575,7 +590,7 @@
 /* 停用／啟用管理 */
 
 .rv-lib-disabled .rv-lib-insert {
-  opacity: 0.5;
+  opacity: 0.72;
 }
 
 .rv-lib-disabled .rv-lib-text {
@@ -584,6 +599,12 @@
 
 .rv-lib-insert:disabled {
   cursor: not-allowed;
+  background: transparent;
+  border-color: transparent;
+}
+
+.rv-lib-disabled .rv-lib-insert:disabled .rv-lib-text {
+  color: #56616d;
 }
 
 .rv-lib-tag {
@@ -608,15 +629,17 @@
 }
 
 .rv-lib-toggle.disable {
-  border: 1px solid #e0c7c2;
-  background: #fdf0ee;
-  color: #a33d31;
+  border: 1px solid #d49a8f;
+  background: #f9e0dc;
+  color: #8c2a1e;
+  font-weight: 600;
 }
 
 .rv-lib-toggle.enable {
-  border: 1px solid #b9d4c1;
-  background: #eef7f0;
-  color: #2e6b4a;
+  border: 1px solid #8fbca0;
+  background: #e0f0e5;
+  color: #22573a;
+  font-weight: 600;
 }
 
 .rv-lib-tag-custom {
@@ -632,9 +655,9 @@
   flex: none;
   align-self: flex-start;
   padding: 2px 7px;
-  border: 1px solid #ddd2bd;
+  border: 1px solid #c4b698;
   border-radius: 999px;
-  background: #fffaf0;
+  background: #f1e9d8;
   color: var(--navy-soft);
   font-size: 10px;
   cursor: pointer;
@@ -642,17 +665,19 @@
 }
 
 .rv-lib-edit:hover {
-  background: #f2ead9;
+  background: #e6dcc6;
+  border-color: #a79878;
 }
 
 .rv-lib-delete {
-  border-color: #e0c7c2;
-  background: #fdf0ee;
-  color: #a33d31;
+  border-color: #d49a8f;
+  background: #f9e0dc;
+  color: #8c2a1e;
 }
 
 .rv-lib-delete:hover {
-  background: #f8e3df;
+  background: #f0c9c2;
+  border-color: #c0796b;
 }
 
 .rv-lib-text {

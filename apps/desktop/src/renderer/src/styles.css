@@ -45,17 +45,31 @@ textarea {
 button {
   padding: 7px 13px;
   border-radius: 7px;
-  border: 1px solid var(--line-strong);
+  border: 1px solid #cbbfa6;
   background: #fff;
   cursor: pointer;
 }
 
 button:hover:not(:disabled) {
-  background: #f7f2e7;
+  background: #efe6d5;
+  border-color: #b9ab8c;
+}
+
+button:active:not(:disabled) {
+  background: #e2d6bd;
+  border-color: #a79878;
+}
+
+button:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
 }
 
 button:disabled {
-  opacity: 0.45;
+  opacity: 0.55;
+  background: #ebe5d6;
+  color: #6f7985;
+  border-color: #d3cab6;
   cursor: default;
 }
 
@@ -69,6 +83,17 @@ button.primary:hover:not(:disabled) {
   background: var(--navy-soft);
 }
 
+button.primary:active:not(:disabled) {
+  background: #061831;
+  border-color: #061831;
+}
+
+button.primary:disabled {
+  background: #4f6077;
+  border-color: #4f6077;
+  color: #e6dfcd;
+}
+
 button.ghost {
   background: transparent;
   border-color: rgba(247, 241, 227, 0.3);
@@ -77,6 +102,16 @@ button.ghost {
 
 button.ghost:hover:not(:disabled) {
   background: rgba(247, 241, 227, 0.1);
+}
+
+button.ghost:active:not(:disabled) {
+  background: rgba(247, 241, 227, 0.18);
+}
+
+button.ghost:disabled {
+  background: transparent;
+  border-color: rgba(247, 241, 227, 0.2);
+  color: rgba(247, 241, 227, 0.55);
 }
 
 button.small {
@@ -99,6 +134,12 @@ button.link {
 
 button.link.danger {
   color: var(--red);
+}
+
+button.link:disabled {
+  background: none;
+  border-color: transparent;
+  color: var(--muted);
 }
 
 input,
@@ -261,8 +302,9 @@ input[type='checkbox'] {
 }
 
 .class-item.active {
-  background: rgba(247, 241, 227, 0.12);
-  border-color: rgba(247, 241, 227, 0.22);
+  background: rgba(247, 241, 227, 0.2);
+  border-color: rgba(247, 241, 227, 0.36);
+  box-shadow: inset 3px 0 0 var(--cream);
 }
 
 .class-name {
@@ -500,20 +542,21 @@ input[type='checkbox'] {
   justify-content: space-between;
   gap: 12px;
   padding: 9px 11px;
-  border: 1px solid #ece4d5;
+  border: 1px solid #ddd2bd;
   border-radius: 8px;
   background: #fdfaf3;
   text-align: left;
 }
 
 .assignment-row:hover {
-  background: #f7f1e3;
+  background: #efe6d5;
+  border-color: #cbbfa6;
 }
 
 .assignment-row.active {
-  border-color: var(--blue);
-  box-shadow: 0 0 0 2px rgba(43, 108, 176, 0.16);
-  background: #fff;
+  border-color: #6f98c7;
+  box-shadow: inset 3px 0 0 var(--blue);
+  background: #eef4fb;
 }
 
 .assignment-list li.muted {
@@ -691,6 +734,7 @@ input[type='checkbox'] {
 
 .unmatched-card.selected {
   border-color: var(--blue);
+  background: #eef4fb;
   box-shadow: 0 0 0 1px rgba(43, 108, 176, 0.25);
 }
 
