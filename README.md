@@ -32,7 +32,7 @@ npm run typecheck    # 兩份 tsconfig 都檢查
 npm run spike        # 自動驗證 Canvas／PDF／監看／記憶體
 npm run m1:check     # 資料層驗收（建檔、名單、壞檔還原、鎖、主畫面）
 npm run m2:check     # 匯入驗收（10 檔配對、去重、unmatched、Excel 名單）
-npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫與排序釘選、量規與等第、計分、驗證、work 存取、UI 煙霧）
+npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫與排序釘選停用、量規與等第、計分、驗證、work 存取、UI 煙霧）
 npm run m4:check     # 批次檢查驗收（45 人、44 份作品、重複／缺頁／未匯入、UI 煙霧）
 npm run m5:check     # 回饋單驗收（資料推導、檔名、單頁 PDF、溢頁阻擋、UI 煙霧）
 npm run m6:check     # 統計驗收（G1／G2／G3、分數摘要、CSV 四檔、UI 煙霧）
@@ -139,6 +139,21 @@ runtime 已同時載入國中版與高中職版：預設 `auto` 會依班級學�
 - 冷卻輪替只影響評語清單的顯示順序，不會改寫已插入的評語、批注、分數或 autosave 內容。
 - 偏好寫在 `settings.json` 的 `librarySort` 與 `libraryCooldownDays`；非法天數一律回到 30。
 
+### 停用與啟用評語（D23）
+
+評語庫面板右上角新增「管理」切換。開啟後每條評語旁會多一個「停用」按鈕，面板也會顯示
+「停用不會刪除評語，舊批注仍保留文字。」的說明；再按「完成管理」即可回到一般瀏覽。
+
+- 停用只是把該條從日常清單隱藏，**不會刪除內建評語**，也不會改寫任何已存在的 `work.json`。
+- 管理關閉時，停用條目不會出現在清單；開啟管理後才會以淡化樣式顯示，並標上「已停用」與
+  「啟用」按鈕。停用期間該條的插入按鈕會停用，避免誤用。
+- 已插入作品或已批閱的舊批注只保存當時的文字與 `library_id`；之後停用或重新啟用該條，
+  舊作品的總評、批注文字與來源都保持原樣。需要換掉時仍由老師手動改寫。
+- 國中版與高中職版的停用清單分開保存，切換版本只會看到該版本自己的停用狀態；
+  同一時間只有目前版本受影響。
+- 停用清單寫在 `settings.json` 的 `libraryDisabled`（`junior`／`senior` 各一組 id），
+  寫入時只留字串並去重，重開程式仍保留；IPC 會驗證版本、評語 id 與 boolean。
+
 國中版用語以平鋪直敘為主，避免抽象術語；`npm run junior:readability` 只掃評語文字，
 列出脈絡、層次、張力等難詞的 ID 並以 exit 1 阻擋，單條超過 90 字只警告。
 2026-11-21 已全面白話化 95 條，並更換 JE-10、JS-13、JG-01、JG-02 為通用說法。
@@ -241,6 +256,8 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 釘選為全域偏好並跨作業保留；使用次數即時由 `work.json` 的 `library_id` 推導。
 評語庫另支援跨批冷卻輪替（D22）：「冷卻輪替（久未用優先）」會依每條評語最後使用時間排序，
 冷卻天數預設 30 天、可調 1–365 天；時間同樣由 `work.json` 推導，釘選優先且只影響顯示順序。
+評語庫也支援停用與啟用（D23）：面板「管理」可暫時隱藏不常用的評語，停用不會刪除條目，
+舊批注仍保留當時的文字與來源；國中／高中職停用清單分開保存，重開程式仍保留。
 兩套評語庫已完成用語清洗：總評、佳句、結構不再以引號假設特定詞句，改用通用指稱；
 `npm run library:wording` 與 `junior:check` 會檢查此規則，違規即失敗。
 兩套 144 條總評已改為五面向平衡：結構、立意取材、語言表達、情感體驗、格式應用；
@@ -253,7 +270,7 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 移除特定詞句、段落編號、事件與人物假設，改為條件式與通用描述；
 `npm run library:short` 會檢查引號、段落編號、禁用題材與重複，違規即失敗；
 其中 sentence 的 word_choice（用詞辨析）可用引號標示具體詞語，其他短評仍禁用。
-驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 46/46、`m4:check` 17/17、
+驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 59/59、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
 `praise:check` 15/15、`junior:check`、`library:wording/structure/coverage/short` 與 `spike` 通過。

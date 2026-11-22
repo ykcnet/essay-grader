@@ -294,6 +294,7 @@ export default function ReviewView({
   const [libraryRequest, setLibraryRequest] = useState(0)
   const [libraryQuery, setLibraryQuery] = useState('')
   const [libraryCategory, setLibraryCategory] = useState<AnnotationCategory>('typo')
+  const [libraryManage, setLibraryManage] = useState(false)
   const [librarySort, setLibrarySort] = useState<LibrarySort>('default')
   const [libraryPins, setLibraryPins] = useState<string[]>([])
   const [libraryCooldownDays, setLibraryCooldownDays] = useState(30)
@@ -1185,6 +1186,20 @@ export default function ReviewView({
     saveLibraryPrefs({ pins: next })
   }
 
+  /** 停用／啟用評語；寫入 settings 後重新載入評語庫以套用狀態。 */
+  const toggleLibraryDisabled = async (entryId: string): Promise<void> => {
+    const entry = library?.entries.find((item) => item.id === entryId)
+    if (!entry) return
+    const nextDisabled = !entry.disabled
+    setLibraryError('')
+    try {
+      await window.electronAPI.library.setDisabled(libraryId, entryId, nextDisabled)
+      setLibraryRequest((value) => value + 1)
+    } catch (disabledError) {
+      setLibraryError(`停用設定失敗：${errorText(disabledError)}`)
+    }
+  }
+
   /** 切換版本只重新載入評語庫，不動目前批注、分數或已插入文字。 */
   const changeLibraryMode = async (mode: LibraryMode): Promise<void> => {
     setLibraryMode(mode)
@@ -1203,13 +1218,13 @@ export default function ReviewView({
     const query = libraryQuery.trim()
     return library.entries.filter(
       (entry) =>
-        !entry.disabled &&
+        (libraryManage || !entry.disabled) &&
         entry.category === libraryCategory &&
         (!query ||
           entry.text.includes(query) ||
           entry.tags.some((tag) => tag.includes(query)))
     )
-  }, [library, libraryCategory, libraryQuery])
+  }, [library, libraryCategory, libraryManage, libraryQuery])
 
   const sortedEntries = useMemo(
     () =>
@@ -1742,9 +1757,19 @@ export default function ReviewView({
           <section className="rv-card">
             <div className="rv-card-head">
               <h3>評語庫</h3>
-              <button className="small" onClick={() => setLibraryOpen((value) => !value)}>
-                {libraryOpen ? '收合' : '展開'}
-              </button>
+              <div className="rv-card-head-actions">
+                <button
+                  className={`small${libraryManage ? ' active' : ''}`}
+                  onClick={() => setLibraryManage((value) => !value)}
+                  title="管理停用／啟用評語"
+                  aria-pressed={libraryManage}
+                >
+                  {libraryManage ? '完成管理' : '管理'}
+                </button>
+                <button className="small" onClick={() => setLibraryOpen((value) => !value)}>
+                  {libraryOpen ? '收合' : '展開'}
+                </button>
+              </div>
             </div>
 
             {libraryOpen && (
@@ -1776,6 +1801,9 @@ export default function ReviewView({
                 </div>
                 {libraryId === 'junior' && (
                   <p className="rv-note">國中版為草稿，建議校閱後使用。</p>
+                )}
+                {libraryManage && (
+                  <p className="rv-note">停用不會刪除評語，舊批注仍保留文字。</p>
                 )}
                 {libraryError && <p className="rv-warn">{libraryError}</p>}
                 <div className="rv-lib-filter">
@@ -1849,15 +1877,22 @@ export default function ReviewView({
                       typeof lastUsedAt === 'string' && Number.isFinite(Date.parse(lastUsedAt))
                         ? `上次使用：${lastUsedAt.slice(0, 10)}`
                         : '尚未使用'
+                    const itemClass = [
+                      'rv-lib-item',
+                      pinned ? 'rv-lib-pinned' : '',
+                      entry.disabled ? 'rv-lib-disabled' : ''
+                    ]
+                      .filter(Boolean)
+                      .join(' ')
                     return (
-                      <div
-                        key={entry.id}
-                        className={`rv-lib-item${pinned ? ' rv-lib-pinned' : ''}`}
-                      >
+                      <div key={entry.id} className={itemClass}>
                         <button
                           className="rv-lib-insert"
                           onClick={() => insertLibrary(entry)}
-                          title="插入到最近聚焦的欄位"
+                          disabled={entry.disabled}
+                          title={
+                            entry.disabled ? '已停用，重新啟用後才可插入' : '插入到最近聚焦的欄位'
+                          }
                         >
                           <span className="rv-lib-text">{entry.text}</span>
                           <span className="rv-lib-meta">
@@ -1872,6 +1907,7 @@ export default function ReviewView({
                             <span className="rv-lib-lastused">{lastUsedText}</span>
                           )}
                         </button>
+                        {entry.disabled && <span className="rv-lib-tag">已停用</span>}
                         <button
                           className={`rv-lib-pin${pinned ? ' is-pinned' : ''}`}
                           onClick={() => toggleLibraryPin(entry.id)}
@@ -1880,6 +1916,14 @@ export default function ReviewView({
                         >
                           {pinned ? '已釘選' : '釘選'}
                         </button>
+                        {libraryManage && (
+                          <button
+                            className={`rv-lib-toggle${entry.disabled ? ' enable' : ' disable'}`}
+                            onClick={() => void toggleLibraryDisabled(entry.id)}
+                          >
+                            {entry.disabled ? '啟用' : '停用'}
+                          </button>
+                        )}
                       </div>
                     )
                   })}

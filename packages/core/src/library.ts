@@ -87,6 +87,30 @@ export function libraryForGrade(
   }
 }
 
+/**
+ * 依使用者停用清單標記條目 disabled，回傳新 payload；不改動內建常數。
+ * 回傳的 entries 仍保留停用條目，供 UI 管理與重新啟用。
+ */
+export function applyLibraryDisabled(
+  payload: LibraryPayload,
+  disabledIds: readonly string[]
+): LibraryPayload {
+  const disabledSet = new Set(
+    (disabledIds ?? []).filter((id): id is string => typeof id === 'string' && id.length > 0)
+  )
+  const entries = payload.library.entries.map((entry) => ({
+    ...entry,
+    disabled: entry.disabled || disabledSet.has(entry.id)
+  }))
+  return {
+    ...payload,
+    library: {
+      ...payload.library,
+      entries
+    }
+  }
+}
+
 export function entriesByCategory(category: LibraryEntry['category']): LibraryEntry[] {
   return BUILTIN_LIBRARY.entries.filter(
     (entry) => !entry.disabled && entry.category === category

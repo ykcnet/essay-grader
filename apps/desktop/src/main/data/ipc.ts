@@ -2,12 +2,15 @@ import { app, clipboard, dialog, ipcMain, shell } from 'electron'
 import { stat } from 'node:fs/promises'
 import { join, resolve, sep } from 'node:path'
 import {
+  applyLibraryDisabled,
+  isLibraryId,
   isLibraryMode,
   libraryForGrade,
   normalizeLibraryMode,
   type ClassFile,
   type CreateAssignmentInput,
   type CreateClassInput,
+  type LibraryId,
   type LibraryMode,
   type Rubric,
   type WorkFile
@@ -32,8 +35,10 @@ import {
 } from '../import/unmatched'
 import {
   clearExternalInboxRoot,
+  readLibraryDisabled,
   readLibraryPrefs,
   readSettings,
+  writeLibraryDisabled,
   writeLibraryPrefs,
   writeSettings
 } from './settings'
@@ -220,6 +225,7 @@ export function registerDataIpc(): void {
   /**
    * 回傳目前適用的評語庫 payload。
    * 給 classId 時讀 class.json 的 grade；未給時以 auto 的高中職版或手動模式為準。
+   * 套用該版本的停用清單到 entries，但仍保留停用條目供 UI 管理與重新啟用。
    */
   ipcMain.handle('library:get', async (_event, classId?: string) => {
     const settings = await readSettings()
@@ -234,7 +240,8 @@ export function registerDataIpc(): void {
       }
     }
 
-    return libraryForGrade(grade, mode)
+    const payload = libraryForGrade(grade, mode)
+    return applyLibraryDisabled(payload, settings.libraryDisabled?.[payload.id] ?? [])
   })
 
   ipcMain.handle('library:set-mode', async (_event, mode: LibraryMode) => {
@@ -242,6 +249,29 @@ export function registerDataIpc(): void {
     await writeSettings({ libraryMode: mode })
     return { mode }
   })
+
+  ipcMain.handle(
+    'library:set-disabled',
+    async (_event, libraryId: LibraryId, entryId: string, disabled: boolean) => {
+      if (!isLibraryId(libraryId)) throw new Error('評語庫版本不合法，請選擇國中版或高中職版。')
+      if (typeof entryId !== 'string' || entryId.length === 0) {
+        throw new Error('評語 id 不合法。')
+      }
+      if (typeof disabled !== 'boolean') throw new Error('停用狀態不合法。')
+
+      const base = libraryForGrade(undefined, libraryId).library
+      if (!base.entries.some((entry) => entry.id === entryId)) {
+        throw new Error('找不到該評語，可能已更新版本。')
+      }
+
+      const current = await readLibraryDisabled(libraryId)
+      const next = disabled
+        ? Array.from(new Set([...current, entryId]))
+        : current.filter((id) => id !== entryId)
+      const disabledIds = await writeLibraryDisabled(libraryId, next)
+      return { libraryId, disabledIds }
+    }
+  )
 
   ipcMain.handle('library:usage', (_event, classId: string, assignmentId: string) =>
     getLibraryUsage(classId, assignmentId)

@@ -114,6 +114,8 @@ const api = {
   library: {
     get: (classId?: string) => ipcRenderer.invoke('library:get', classId),
     setMode: (mode: string) => ipcRenderer.invoke('library:set-mode', mode),
+    setDisabled: (libraryId: string, entryId: string, disabled: boolean) =>
+      ipcRenderer.invoke('library:set-disabled', libraryId, entryId, disabled),
     usage: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('library:usage', classId, assignmentId),
     getPrefs: () => ipcRenderer.invoke('library:get-prefs'),

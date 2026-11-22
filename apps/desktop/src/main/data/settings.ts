@@ -7,10 +7,13 @@ import {
   normalizeCooldownDays,
   normalizeLibraryMode,
   normalizeLibrarySort,
+  type LibraryId,
   type LibraryMode,
   type LibraryPrefs,
   type LibrarySort
 } from '@essay-grader/core'
+
+export type LibraryDisabledMap = Record<LibraryId, string[]>
 
 export interface Settings {
   lastDatabase?: string
@@ -24,6 +27,8 @@ export interface Settings {
   libraryPins?: string[]
   /** 冷卻輪替天數；非法值一律視為預設 30。 */
   libraryCooldownDays?: number
+  /** 各版本停用的評語 id；以版本為 key，只留字串並去重。 */
+  libraryDisabled?: LibraryDisabledMap
 }
 
 /** 只留字串、去空白、去重，並保留第一次出現的順序。 */
@@ -41,6 +46,18 @@ export function normalizeLibraryPins(value: unknown): string[] {
   return pins
 }
 
+/** 正規化各版本停用清單；兩邊一定存在，只留字串並去重。 */
+export function normalizeLibraryDisabled(value: unknown): LibraryDisabledMap {
+  const source =
+    value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {}
+  return {
+    junior: normalizeLibraryPins(source.junior),
+    senior: normalizeLibraryPins(source.senior)
+  }
+}
+
 function settingsPath(): string {
   return join(app.getPath('userData'), 'settings.json')
 }
@@ -53,14 +70,16 @@ export async function readSettings(): Promise<Settings> {
       libraryMode: normalizeLibraryMode(parsed.libraryMode),
       librarySort: normalizeLibrarySort(parsed.librarySort),
       libraryPins: normalizeLibraryPins(parsed.libraryPins),
-      libraryCooldownDays: normalizeCooldownDays(parsed.libraryCooldownDays)
+      libraryCooldownDays: normalizeCooldownDays(parsed.libraryCooldownDays),
+      libraryDisabled: normalizeLibraryDisabled(parsed.libraryDisabled)
     }
   } catch {
     return {
       libraryMode: 'auto',
       librarySort: 'default',
       libraryPins: [],
-      libraryCooldownDays: normalizeCooldownDays(undefined)
+      libraryCooldownDays: normalizeCooldownDays(undefined),
+      libraryDisabled: { junior: [], senior: [] }
     }
   }
 }
@@ -72,6 +91,7 @@ export async function writeSettings(patch: Partial<Settings>): Promise<void> {
   next.librarySort = normalizeLibrarySort(next.librarySort)
   next.libraryPins = normalizeLibraryPins(next.libraryPins)
   next.libraryCooldownDays = normalizeCooldownDays(next.libraryCooldownDays)
+  next.libraryDisabled = normalizeLibraryDisabled(next.libraryDisabled)
   await writeFile(settingsPath(), JSON.stringify(next, null, 2), 'utf8')
 }
 
@@ -117,6 +137,27 @@ export async function writeLibraryPrefs(patch: {
 
   if (Object.keys(next).length > 0) await writeSettings(next)
   return readLibraryPrefs()
+}
+
+/** 讀取某版本的停用評語 id 清單（已去重、只留字串）。 */
+export async function readLibraryDisabled(libraryId: LibraryId): Promise<string[]> {
+  const settings = await readSettings()
+  return normalizeLibraryPins(settings.libraryDisabled?.[libraryId])
+}
+
+/** 寫入某版本的停用清單；回傳正規化後的清單。 */
+export async function writeLibraryDisabled(
+  libraryId: LibraryId,
+  ids: string[]
+): Promise<string[]> {
+  const settings = await readSettings()
+  const next: LibraryDisabledMap = {
+    junior: normalizeLibraryPins(settings.libraryDisabled?.junior),
+    senior: normalizeLibraryPins(settings.libraryDisabled?.senior),
+    [libraryId]: normalizeLibraryPins(ids)
+  }
+  await writeSettings({ libraryDisabled: next })
+  return next[libraryId]
 }
 
 /** 清除外部 inbox 設定；JSON.stringify 會略過 undefined，key 不會留下。 */

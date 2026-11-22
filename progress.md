@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
-> 最後更新：2026-11-21
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替完成；下一步 M8 手機**
+> 最後更新：2026-11-22
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替＋D23 停用取代刪除完成；下一步 M8 手機**
 
 ---
 
@@ -520,6 +520,21 @@ essay-grader-data/
 - UI／preload 實測：主畫面有「佳句庫」、面板預設顯示「4 句、7 次使用 · 高中302」、切全部變 5 句／8 次、搜尋「口袋」由 5 筆縮為 1 筆再清除、清單不含姓名／座號、單筆與全部複製按鈕及關閉按鈕皆存在、關閉後面板消失；`praise.bank` 本班／全部與 `clipboard.writeText` 型別皆正確。
 - 回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 46/46、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`junior:check` 17/17、`library:wording/structure/coverage/short`、`spike` 通過。
 - 已知限制：佳句庫一次掃描指定範圍內所有作業與作品，資料量大時開啟面板需等待；沒有分頁或虛擬列表。只以文字正規化去重，不會判斷語意相近的改寫句。範圍只有「本班／全部班級」，沒有單一作業或日期區間篩選。面板不提供編輯或停用佳句，來源仍是 `work.json`。複製全部會以空行串接目前篩選結果，尚未提供 CSV／Markdown 匯出。
+
+### D23 停用取代刪除驗收（2026-11-22）
+
+- Core：新增 `applyLibraryDisabled(payload, disabledIds)`，依停用清單把條目標記 `disabled=true`，回傳新 payload；仍保留所有條目供管理與重新啟用，且不改動內建常數。清單會忽略非字串與空字串並去重。
+- Settings：新增 `libraryDisabled`（`junior`／`senior` 各一組 id）；讀寫皆經 `normalizeLibraryDisabled`，缺少或格式錯誤一律補成空陣列，寫入時只留字串並去重。另有 `readLibraryDisabled(libraryId)`／`writeLibraryDisabled(libraryId, ids)`，只改指定版本。
+- IPC／preload：`library:get` 依目前版本套用該版本停用清單；新增 `library:set-disabled`，驗證 `libraryId`（`junior`／`senior`）、`entryId`（非空且存在於該版本）與 `disabled`（boolean），非法值直接拒絕。preload 對應 `library.setDisabled`。
+- ReviewView：面板右上角新增「管理／完成管理」切換；管理開啟時顯示停用說明、淡化停用條目、標示「已停用」並提供「停用／啟用」按鈕；管理關閉時停用條目從清單隱藏。停用期間插入按鈕停用，避免誤用。
+- 舊批注快照：停用只改設定與清單，不寫 `work.json`。已插入或已批閱的作品仍保留當下的文字與 `library_id`，停用或重新啟用都不會改寫。
+- 驗收：`m3:check` 擴充至 59/59。settings 預設 `junior`／`senior` 皆空陣列；寫入重複與非字串後為 `JC-01`／`C-01,C-05`，只改 senior 不影響 junior；非法值（版本、空 id、不存在 id、非 boolean）4 種皆拒絕。
+- IPC 實測：停用 `C-05` 後 `library:get(senior 班)` 仍回 138 條且 `C-05 disabled=true`；重新啟用後 `disabled` 回到原值、停用清單回到空。停用 junior `JC-01` 時 senior payload 不受影響，切到 junior 才看到 `JC-01 disabled=true`。
+- UI 實測：有「管理」與停用說明；停用 `C-01` 後關閉管理即消失，重新載入仍停用；開啟管理顯示「已停用」與「啟用」，按啟用後恢復可插入；停用 `C-01` 後切國中版 `JC-01` 仍啟用，停用 `JC-01` 再切回高中職 `C-01` 仍停用，兩份清單互不影響。
+- 舊批注快照實測：停用 `C-05` 後 `S07/work.json` 位元組完全不變，總評文字與 `library_id`（`C-05`）、批注「此句可再精簡」與來源 `S-01` 全部保留。
+- 文件：README／`docs/使用說明.md`／features／plan／progress 同步記錄。
+- 回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 59/59、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`junior:check` 17/17、`library:wording／structure／coverage／short`、`spike` 通過。
+- 已知限制：停用是全域 UI 設定，不分班級或資料庫；切換版本只顯示該版本清單。停用不會改寫既有作品，也不會自動替換舊批注，老師仍需手動調整已批內容。停用清單只存 id，若未來版本移除該 id，設定會保留但不再有對應條目。
 
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4＋G6）
 

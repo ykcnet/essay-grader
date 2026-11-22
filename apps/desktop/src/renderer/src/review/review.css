@@ -318,6 +318,18 @@
   color: var(--navy-soft);
 }
 
+.rv-card-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rv-card-head-actions .small.active {
+  border-color: var(--navy);
+  background: var(--navy);
+  color: var(--cream);
+}
+
 .rv-muted {
   font-size: 11px;
   color: var(--muted);
@@ -497,6 +509,53 @@
   background: #f6e7bd;
   color: #7a5412;
   font-weight: 600;
+}
+
+/* 停用／啟用管理 */
+
+.rv-lib-disabled .rv-lib-insert {
+  opacity: 0.5;
+}
+
+.rv-lib-disabled .rv-lib-text {
+  color: var(--muted);
+}
+
+.rv-lib-insert:disabled {
+  cursor: not-allowed;
+}
+
+.rv-lib-tag {
+  flex: none;
+  align-self: flex-start;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #e8e2d4;
+  color: var(--muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.rv-lib-toggle {
+  flex: none;
+  align-self: flex-start;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rv-lib-toggle.disable {
+  border: 1px solid #e0c7c2;
+  background: #fdf0ee;
+  color: #a33d31;
+}
+
+.rv-lib-toggle.enable {
+  border: 1px solid #b9d4c1;
+  background: #eef7f0;
+  color: #2e6b4a;
 }
 
 .rv-lib-text {

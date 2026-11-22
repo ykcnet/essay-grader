@@ -10,6 +10,7 @@ import {
   LibrarySchema,
   RUBRIC_PRESETS,
   SENIOR_LIBRARY,
+  applyLibraryDisabled,
   computeScore,
   isCooldownDays,
   libraryForGrade,
@@ -40,7 +41,16 @@ import {
   saveWork,
   updateAssignmentRubric
 } from './repository'
-import { readLibraryPrefs, readSettings, writeLibraryPrefs, writeSettings } from './settings'
+import {
+  normalizeLibraryDisabled,
+  readLibraryDisabled,
+  readLibraryPrefs,
+  readSettings,
+  writeLibraryDisabled,
+  writeLibraryPrefs,
+  writeSettings,
+  type Settings
+} from './settings'
 
 interface Check {
   label: string
@@ -75,6 +85,28 @@ interface LibraryToolsUiResult {
   rotationDetail: string
 }
 
+/** D23 停用／啟用：IPC 與 UI 分項結果。 */
+interface LibraryDisabledUiResult {
+  validateOk: boolean
+  validateDetail: string
+  applyOk: boolean
+  applyDetail: string
+  restoreOk: boolean
+  restoreDetail: string
+  scopeOk: boolean
+  scopeDetail: string
+  manageOk: boolean
+  manageDetail: string
+  hideOk: boolean
+  hideDetail: string
+  persistOk: boolean
+  persistDetail: string
+  enableOk: boolean
+  enableDetail: string
+  splitOk: boolean
+  splitDetail: string
+}
+
 interface LibraryUiExpectation {
   classId: string
   assignmentId: string
@@ -82,6 +114,7 @@ interface LibraryUiExpectation {
   usedCommentId: string
   otherCommentId: string
   defaultCommentId: string
+  juniorCommentId: string
 }
 
 const emptyLibraryTools = (): LibraryToolsUiResult => ({
@@ -95,6 +128,28 @@ const emptyLibraryTools = (): LibraryToolsUiResult => ({
   rotationDetail: '未執行'
 })
 
+const emptyLibraryDisabled = (): LibraryDisabledUiResult => ({
+  validateOk: false,
+  validateDetail: '未執行',
+  applyOk: false,
+  applyDetail: '未執行',
+  restoreOk: false,
+  restoreDetail: '未執行',
+  scopeOk: false,
+  scopeDetail: '未執行',
+  manageOk: false,
+  manageDetail: '未執行',
+  hideOk: false,
+  hideDetail: '未執行',
+  persistOk: false,
+  persistDetail: '未執行',
+  enableOk: false,
+  enableDetail: '未執行',
+  splitOk: false,
+  splitDetail: '未執行'
+})
+
+
 /** 開隱藏視窗載入 renderer，確認主畫面、新的 preload API 與批閱畫面都能載入。 */
 async function runUiSmoke(
   expectation: LibraryUiExpectation
@@ -106,6 +161,7 @@ async function runUiSmoke(
   libraryDetail: string
   workStableOk: boolean
   libraryTools: LibraryToolsUiResult
+  disabledLibrary: LibraryDisabledUiResult
 }> {
   const { classId, assignmentId, usedCommentId, usedSentenceId } = expectation
   const win = new BrowserWindow({
@@ -165,6 +221,108 @@ async function runUiSmoke(
         return true
       })()`
     )) as boolean
+
+  /** 評語庫清單中依 id 找條目的 JS 運算式（供 executeJavaScript 內嵌）。 */
+  const libraryItemExpr = (id: string): string =>
+    `[...document.querySelectorAll('.rv-lib-item')].find(
+      (item) => ((item.querySelector('.rv-lib-meta')?.textContent ?? '').trim().split(' · ')[0]) === ${JSON.stringify(id)}
+    )`
+
+  interface LibraryItemState {
+    present: boolean
+    disabled: boolean
+    tag: string
+    insertDisabled: boolean
+    toggleLabels: string[]
+  }
+
+  const readLibraryItem = async (id: string): Promise<LibraryItemState> =>
+    (await win.webContents.executeJavaScript(
+      `(() => {
+        const item = ${libraryItemExpr(id)}
+        if (!item) return { present: false, disabled: false, tag: '', insertDisabled: false, toggleLabels: [] }
+        return {
+          present: true,
+          disabled: item.classList.contains('rv-lib-disabled'),
+          tag: (item.querySelector('.rv-lib-tag')?.textContent ?? '').trim(),
+          insertDisabled: Boolean(item.querySelector('.rv-lib-insert')?.disabled),
+          toggleLabels: [...item.querySelectorAll('.rv-lib-toggle')].map(
+            (button) => (button.textContent ?? '').trim()
+          )
+        }
+      })()`
+    )) as LibraryItemState
+
+  const clickLibraryItemButton = async (id: string, label: string): Promise<boolean> =>
+    (await win.webContents.executeJavaScript(
+      `(() => {
+        const item = ${libraryItemExpr(id)}
+        if (!item) return false
+        const button = [...item.querySelectorAll('.rv-lib-toggle')].find(
+          (candidate) => (candidate.textContent ?? '').trim() === ${JSON.stringify(label)}
+        )
+        button?.click()
+        return Boolean(button)
+      })()`
+    )) as boolean
+
+  const clickLibraryManage = async (): Promise<boolean> =>
+    (await win.webContents.executeJavaScript(
+      `(() => {
+        const button = document.querySelector(
+          '.rv-card-head-actions button[title="管理停用／啟用評語"]'
+        )
+        button?.click()
+        return Boolean(button)
+      })()`
+    )) as boolean
+
+  const readLibraryManage = async (): Promise<{
+    text: string
+    pressed: string
+    note: boolean
+  }> =>
+    (await win.webContents.executeJavaScript(
+      `(() => {
+        const button = document.querySelector(
+          '.rv-card-head-actions button[title="管理停用／啟用評語"]'
+        )
+        return {
+          text: (button?.textContent ?? '').trim(),
+          pressed: button?.getAttribute('aria-pressed') ?? '',
+          note: document.body.innerText.includes('停用不會刪除評語，舊批注仍保留文字。')
+        }
+      })()`
+    )) as { text: string; pressed: string; note: boolean }
+
+  /** 重新載入後回到批閱畫面，回傳評語庫面板是否就緒。 */
+  const enterReviewView = async (): Promise<boolean> => {
+    await waitForText('作文批閱', 12000)
+    const assignment = await waitFor("document.querySelector('.assignment-row')", 8000)
+    if (assignment) {
+      await win.webContents.executeJavaScript("document.querySelector('.assignment-row')?.click()")
+    }
+    const reviewButton = assignment
+      ? await waitFor(
+          `[...document.querySelectorAll('.import-panel button')].some(
+            (item) => item.textContent?.trim() === '批閱'
+          )`,
+          10000
+        )
+      : false
+    if (reviewButton) {
+      await win.webContents.executeJavaScript(
+        `(() => {
+          const button = [...document.querySelectorAll('.import-panel button')]
+            .find((item) => item.textContent?.trim() === '批閱')
+          button?.click()
+          return Boolean(button)
+        })()`
+      )
+    }
+    const mounted = reviewButton ? await waitFor("document.querySelector('.rv')", 8000) : false
+    return mounted ? await waitFor("document.querySelector('.rv-lib-sort')", 10000) : false
+  }
   const fail = (
     detail: string
   ): {
@@ -175,6 +333,7 @@ async function runUiSmoke(
     libraryDetail: string
     workStableOk: boolean
     libraryTools: LibraryToolsUiResult
+    disabledLibrary: LibraryDisabledUiResult
   } => ({
     ok: false,
     detail,
@@ -182,7 +341,8 @@ async function runUiSmoke(
     libraryUiOk: false,
     libraryDetail: '未執行',
     workStableOk: false,
-    libraryTools: emptyLibraryTools()
+    libraryTools: emptyLibraryTools(),
+    disabledLibrary: emptyLibraryDisabled()
   })
 
   try {
@@ -305,6 +465,151 @@ async function runUiSmoke(
       libraryIpc.usage.overall[usedSentenceId] ?? 0
     }；prefs ${libraryIpc.prefsAfter.sort}／${libraryIpc.prefsAfter.pins.join(',') ||
       '無'}；cooldownDays ${libraryIpc.prefsCooldownAfter.cooldownDays}`
+
+    // ---- D23 停用／啟用 IPC ------------------------------------------------
+    const disabledLibrary = emptyLibraryDisabled()
+    const disabledIpc = (await win.webContents.executeJavaScript(
+      `(async () => {
+        const classId = ${JSON.stringify(classId)}
+        const seniorId = ${JSON.stringify(usedCommentId)}
+        const juniorId = ${JSON.stringify(expectation.juniorCommentId)}
+        const invalid = []
+        const attempts = [
+          ['bogus', seniorId, true],
+          ['senior', '', true],
+          ['senior', 'NO-SUCH-ID', true],
+          ['senior', seniorId, 'yes']
+        ]
+        for (const [libraryId, entryId, flag] of attempts) {
+          try {
+            await window.electronAPI.library.setDisabled(libraryId, entryId, flag)
+            invalid.push('accepted')
+          } catch {
+            invalid.push('rejected')
+          }
+        }
+        await window.electronAPI.library.setMode('auto')
+        await window.electronAPI.library.setDisabled('senior', seniorId, false)
+        await window.electronAPI.library.setDisabled('junior', juniorId, false)
+        const base = await window.electronAPI.library.get(classId)
+        const baseDisabled = base.library.entries
+          .filter((entry) => entry.disabled)
+          .map((entry) => entry.id)
+          .sort()
+        const baseCount = base.library.entries.length
+        const setResult = await window.electronAPI.library.setDisabled('senior', seniorId, true)
+        const afterDisable = await window.electronAPI.library.get(classId)
+        const afterDisabled = afterDisable.library.entries
+          .filter((entry) => entry.disabled)
+          .map((entry) => entry.id)
+          .sort()
+        const disabledEntry = afterDisable.library.entries.find((entry) => entry.id === seniorId)
+        await window.electronAPI.library.setDisabled('junior', juniorId, true)
+        const seniorAfterJunior = await window.electronAPI.library.get(classId)
+        const seniorDisabledAfterJunior = seniorAfterJunior.library.entries
+          .filter((entry) => entry.disabled)
+          .map((entry) => entry.id)
+          .sort()
+        await window.electronAPI.library.setMode('junior')
+        const juniorPayload = await window.electronAPI.library.get(classId)
+        const juniorEntry = juniorPayload.library.entries.find((entry) => entry.id === juniorId)
+        await window.electronAPI.library.setMode('auto')
+        await window.electronAPI.library.setDisabled('senior', seniorId, false)
+        await window.electronAPI.library.setDisabled('junior', juniorId, false)
+        const restored = await window.electronAPI.library.get(classId)
+        const restoredDisabled = restored.library.entries
+          .filter((entry) => entry.disabled)
+          .map((entry) => entry.id)
+          .sort()
+        const restoredEntry = restored.library.entries.find((entry) => entry.id === seniorId)
+        return {
+          invalid,
+          baseId: base.id,
+          baseCount,
+          baseDisabled,
+          setIds: setResult.disabledIds,
+          afterCount: afterDisable.library.entries.length,
+          afterDisabled,
+          disabledEntry: Boolean(disabledEntry?.disabled),
+          seniorPayloadId: seniorAfterJunior.id,
+          seniorDisabledAfterJunior,
+          seniorJuniorEntryDisabled: Boolean(
+            seniorAfterJunior.library.entries.find((entry) => entry.id === juniorId)?.disabled
+          ),
+          juniorPayloadId: juniorPayload.id,
+          juniorEntryDisabled: Boolean(juniorEntry?.disabled),
+          restoredCount: restored.library.entries.length,
+          restoredDisabled,
+          restoredEntry: Boolean(restoredEntry?.disabled)
+        }
+      })()`
+    )) as {
+      invalid: string[]
+      baseId: string
+      baseCount: number
+      baseDisabled: string[]
+      setIds: string[]
+      afterCount: number
+      afterDisabled: string[]
+      disabledEntry: boolean
+      seniorPayloadId: string
+      seniorDisabledAfterJunior: string[]
+      seniorJuniorEntryDisabled: boolean
+      juniorPayloadId: string
+      juniorEntryDisabled: boolean
+      restoredCount: number
+      restoredDisabled: string[]
+      restoredEntry: boolean
+    }
+
+    const expectedAfter = [...disabledIpc.baseDisabled, usedCommentId].sort()
+    disabledLibrary.validateOk =
+      disabledIpc.invalid.length === 4 &&
+      disabledIpc.invalid.every((item) => item === 'rejected') &&
+      disabledIpc.setIds.includes(usedCommentId)
+    disabledLibrary.validateDetail = disabledLibrary.validateOk
+      ? `4 種非法值皆拒絕（版本／空 id／不存在的 id／非 boolean）；合法停用寫入 ${usedCommentId}`
+      : `非法值未全數拒絕（${disabledIpc.invalid.join(',')}）`
+
+    disabledLibrary.applyOk =
+      disabledIpc.baseId === 'senior' &&
+      disabledIpc.afterCount === disabledIpc.baseCount &&
+      disabledIpc.afterCount === 138 &&
+      disabledIpc.disabledEntry &&
+      disabledIpc.afterDisabled.join(',') === expectedAfter.join(',') &&
+      disabledIpc.afterDisabled.length === disabledIpc.baseDisabled.length + 1
+    disabledLibrary.applyDetail = disabledLibrary.applyOk
+      ? `library:get(senior 班) 條目仍 ${disabledIpc.afterCount} 條，${usedCommentId} disabled=true`
+      : `停用後 payload 不符（${disabledIpc.afterCount} 條、${usedCommentId} disabled=${
+          disabledIpc.disabledEntry
+        }、停用清單 ${disabledIpc.afterDisabled.join(',') || '無'}）`
+
+    disabledLibrary.restoreOk =
+      disabledIpc.restoredEntry === false &&
+      disabledIpc.restoredCount === disabledIpc.baseCount &&
+      disabledIpc.restoredDisabled.join(',') === disabledIpc.baseDisabled.join(',')
+    disabledLibrary.restoreDetail = disabledLibrary.restoreOk
+      ? `${usedCommentId} 重新啟用後 disabled 回到原值（停用清單 ${
+          disabledIpc.restoredDisabled.join(',') || '空'
+        }）`
+      : `重新啟用後未回原值（disabled=${disabledIpc.restoredEntry}、清單 ${
+          disabledIpc.restoredDisabled.join(',') || '空'
+        }）`
+
+    disabledLibrary.scopeOk =
+      disabledIpc.seniorPayloadId === 'senior' &&
+      disabledIpc.seniorPayloadId !== disabledIpc.juniorPayloadId &&
+      disabledIpc.seniorDisabledAfterJunior.join(',') === expectedAfter.join(',') &&
+      disabledIpc.seniorJuniorEntryDisabled === false &&
+      disabledIpc.juniorPayloadId === 'junior' &&
+      disabledIpc.juniorEntryDisabled
+    disabledLibrary.scopeDetail = disabledLibrary.scopeOk
+      ? `高中職停用 ${usedCommentId}；國中停用 ${expectation.juniorCommentId}，兩邊 payload 各自套用、互不影響`
+      : `版本停用未分開（senior ${disabledIpc.seniorPayloadId}／${
+          disabledIpc.seniorDisabledAfterJunior.join(',') || '無'
+        }；junior ${disabledIpc.juniorPayloadId}／${expectation.juniorCommentId} disabled=${
+          disabledIpc.juniorEntryDisabled
+        }）`
 
     const assignmentReady = await waitFor(
       "document.querySelector('.assignment-row')",
@@ -747,6 +1052,238 @@ async function runUiSmoke(
                 : !rotationPrefsSavedOk
                   ? '冷卻天數未寫入 settings'
                   : `重載後未保留（sort ${persistedRotationSort}／天數 ${persistedCooldownValue}）`
+
+      // ---- D23 停用／啟用 UI（管理切換、隱藏、重載保留、版本分開） -------
+      await setSelect('.rv-lib-category', 'comment')
+      await setSelect('.rv-lib-sort', 'default')
+      const d23Target = expectation.defaultCommentId
+      const d23Junior = expectation.juniorCommentId
+      const d23ListReady = await waitFor(
+        `Boolean(${libraryItemExpr(d23Target)})`,
+        8000
+      )
+      const manageOff = await readLibraryManage()
+      const targetBefore = await readLibraryItem(d23Target)
+      const manageClicked = await clickLibraryManage()
+      const manageOn = manageClicked
+        ? await waitFor(
+            `(() => {
+              const button = document.querySelector(
+                '.rv-card-head-actions button[title="管理停用／啟用評語"]'
+              )
+              return button?.getAttribute('aria-pressed') === 'true' &&
+                document.body.innerText.includes('停用不會刪除評語，舊批注仍保留文字。')
+            })()`,
+            6000
+          )
+        : false
+      const manageState = await readLibraryManage()
+      const targetManaged = await readLibraryItem(d23Target)
+      const manageOk =
+        d23ListReady &&
+        targetBefore.present &&
+        !targetBefore.disabled &&
+        manageOff.text === '管理' &&
+        !manageOff.note &&
+        manageOn &&
+        manageState.text === '完成管理' &&
+        manageState.pressed === 'true' &&
+        targetManaged.present &&
+        !targetManaged.disabled &&
+        targetManaged.toggleLabels.includes('停用')
+      disabledLibrary.manageOk = manageOk
+      disabledLibrary.manageDetail = manageOk
+        ? `面板有「管理」切換；開啟後顯示「完成管理」與停用說明，${d23Target} 出現停用按鈕`
+        : `管理切換未生效（按鈕 ${manageState.text || '—'}、aria ${
+            manageState.pressed || '—'
+          }、說明 ${manageState.note ? '有' : '無'}）`
+
+      const disableClicked = await clickLibraryItemButton(d23Target, '停用')
+      const disableApplied = disableClicked
+        ? await waitFor(
+            `(() => {
+              const item = ${libraryItemExpr(d23Target)}
+              if (!item) return false
+              return item.classList.contains('rv-lib-disabled') &&
+                (item.querySelector('.rv-lib-tag')?.textContent ?? '').trim() === '已停用' &&
+                item.querySelector('.rv-lib-insert')?.disabled === true &&
+                [...item.querySelectorAll('.rv-lib-toggle')].some(
+                  (button) => (button.textContent ?? '').trim() === '啟用'
+                )
+            })()`,
+            8000
+          )
+        : false
+      const disabledPersistedApi = (await win.webContents.executeJavaScript(
+        `(async () => {
+          const payload = await window.electronAPI.library.get(${JSON.stringify(classId)})
+          return payload.library.entries
+            .filter((entry) => entry.disabled)
+            .map((entry) => entry.id)
+        })()`
+      )) as string[]
+
+      const closeClicked = await clickLibraryManage()
+      const hiddenAfterClose = closeClicked
+        ? await waitFor(`!(${libraryItemExpr(d23Target)})`, 6000)
+        : false
+      await win.webContents.reload()
+      const reloaded = await enterReviewView()
+      if (reloaded) {
+        await setSelect('.rv-lib-category', 'comment')
+        await setSelect('.rv-lib-sort', 'default')
+      }
+      const reloadListReady = reloaded
+        ? await waitFor("document.querySelectorAll('.rv-lib-item').length > 5", 8000)
+        : false
+      const hiddenAfterReload = reloadListReady
+        ? await waitFor(`!(${libraryItemExpr(d23Target)})`, 4000)
+        : false
+      disabledLibrary.hideOk = hiddenAfterClose && hiddenAfterReload
+      disabledLibrary.hideDetail = disabledLibrary.hideOk
+        ? `停用 ${d23Target} 後關閉管理即消失；重新載入仍不在清單`
+        : `關閉管理${hiddenAfterClose ? '已隱藏' : '未隱藏'}；重新載入${
+            hiddenAfterReload ? '已隱藏' : '仍出現'
+          }`
+
+      const manageAgainClicked = reloadListReady ? await clickLibraryManage() : false
+      const manageAgain = manageAgainClicked
+        ? await waitFor(
+            `(() => {
+              const button = document.querySelector(
+                '.rv-card-head-actions button[title="管理停用／啟用評語"]'
+              )
+              return button?.getAttribute('aria-pressed') === 'true'
+            })()`,
+            6000
+          )
+        : false
+      const persistedTarget: LibraryItemState = manageAgain
+        ? await readLibraryItem(d23Target)
+        : { present: false, disabled: false, tag: '', insertDisabled: false, toggleLabels: [] }
+      disabledLibrary.persistOk =
+        disableApplied &&
+        disabledPersistedApi.includes(d23Target) &&
+        hiddenAfterReload &&
+        manageAgain &&
+        persistedTarget.disabled &&
+        persistedTarget.tag === '已停用' &&
+        persistedTarget.toggleLabels.includes('啟用')
+      disabledLibrary.persistDetail = disabledLibrary.persistOk
+        ? `停用後 settings 與 payload 皆有 ${d23Target}；重新載入並開啟管理，條目顯示「已停用」與「啟用」`
+        : !disableApplied
+          ? '按停用後條目未標記為已停用'
+          : `重新載入後狀態不符（清單 ${disabledPersistedApi.join(',') || '空'}、標籤 ${
+              persistedTarget.tag || '無'
+            }）`
+
+      await setSelect('.rv-lib-version select', 'junior')
+      const d23JuniorReady = await waitFor(
+        `(() => {
+          const current = document.querySelector('.rv-lib-current')?.textContent ?? ''
+          return current.includes('國中版') && Boolean(${libraryItemExpr(d23Junior)})
+        })()`,
+        10000
+      )
+      const juniorBefore = await readLibraryItem(d23Junior)
+      const juniorDisableClicked = d23JuniorReady
+        ? await clickLibraryItemButton(d23Junior, '停用')
+        : false
+      const juniorDisabled = juniorDisableClicked
+        ? await waitFor(
+            `Boolean(${libraryItemExpr(d23Junior)}?.classList.contains('rv-lib-disabled'))`,
+            8000
+          )
+        : false
+      await setSelect('.rv-lib-version select', 'senior')
+      const seniorBackReady = await waitFor(
+        `(() => {
+          const current = document.querySelector('.rv-lib-current')?.textContent ?? ''
+          return current.includes('高中職版') && Boolean(${libraryItemExpr(d23Target)})
+        })()`,
+        10000
+      )
+      const seniorStillDisabled: LibraryItemState = seniorBackReady
+        ? await readLibraryItem(d23Target)
+        : { present: false, disabled: false, tag: '', insertDisabled: false, toggleLabels: [] }
+      const juniorAbsentInSenior = seniorBackReady
+        ? !(await readLibraryItem(d23Junior)).present
+        : false
+      const enableClicked = seniorBackReady
+        ? await clickLibraryItemButton(d23Target, '啟用')
+        : false
+      const seniorEnabled = enableClicked
+        ? await waitFor(
+            `(() => {
+              const item = ${libraryItemExpr(d23Target)}
+              if (!item) return false
+              return !item.classList.contains('rv-lib-disabled') &&
+                (item.querySelector('.rv-lib-tag')?.textContent ?? '').trim() === '' &&
+                item.querySelector('.rv-lib-insert')?.disabled === false &&
+                [...item.querySelectorAll('.rv-lib-toggle')].some(
+                  (button) => (button.textContent ?? '').trim() === '停用'
+                )
+            })()`,
+            8000
+          )
+        : false
+      await setSelect('.rv-lib-version select', 'junior')
+      const juniorAgainReady = await waitFor(
+        `(() => {
+          const current = document.querySelector('.rv-lib-current')?.textContent ?? ''
+          return current.includes('國中版') &&
+            Boolean(${libraryItemExpr(d23Junior)}?.classList.contains('rv-lib-disabled'))
+        })()`,
+        10000
+      )
+      const juniorEnableClicked = juniorAgainReady
+        ? await clickLibraryItemButton(d23Junior, '啟用')
+        : false
+      const juniorEnabled = juniorEnableClicked
+        ? await waitFor(
+            `(() => {
+              const item = ${libraryItemExpr(d23Junior)}
+              return Boolean(item) && !item.classList.contains('rv-lib-disabled')
+            })()`,
+            8000
+          )
+        : false
+      await setSelect('.rv-lib-version select', 'auto')
+      const autoBack = await waitFor(
+        `(document.querySelector('.rv-lib-current')?.textContent ?? '').includes('高中職版')`,
+        10000
+      )
+      const closeFinal = autoBack ? await clickLibraryManage() : false
+      const finalVisible = closeFinal
+        ? await waitFor(`Boolean(${libraryItemExpr(d23Target)})`, 6000)
+        : false
+
+      disabledLibrary.enableOk =
+        seniorEnabled && juniorEnabled && finalVisible && autoBack
+      disabledLibrary.enableDetail = disabledLibrary.enableOk
+        ? `啟用 ${d23Target}／${d23Junior} 後恢復可插入；關閉管理仍在清單`
+        : `啟用後未恢復（${d23Target} ${
+            seniorEnabled ? '已恢復' : '未恢復'
+          }、${d23Junior} ${juniorEnabled ? '已恢復' : '未恢復'}、關閉管理後${
+            finalVisible ? '可見' : '消失'
+          }）`
+      disabledLibrary.splitOk =
+        d23JuniorReady &&
+        juniorBefore.present &&
+        !juniorBefore.disabled &&
+        juniorDisabled &&
+        seniorStillDisabled.disabled &&
+        juniorAbsentInSenior &&
+        seniorEnabled &&
+        juniorAgainReady &&
+        juniorEnabled
+      disabledLibrary.splitDetail = disabledLibrary.splitOk
+        ? `停用 ${d23Target} 後切國中版，${d23Junior} 仍為啟用；停用 ${d23Junior} 再切高中職，${
+            d23Target
+          } 仍停用且互不出現在對方清單`
+        : `版本清單未分開（junior ${d23JuniorReady ? '已載入' : '未載入'}、${d23Junior} disabled=${
+            juniorDisabled
+          }；${d23Target} 切回 senior disabled=${seniorStillDisabled.disabled}）`
     }
 
     let rubricEditorOk = false
@@ -791,9 +1328,18 @@ async function runUiSmoke(
       libraryTools.ipcOk &&
       libraryTools.sortUiOk &&
       libraryTools.persistOk &&
-      libraryTools.rotationUiOk
+      libraryTools.rotationUiOk &&
+      disabledLibrary.validateOk &&
+      disabledLibrary.applyOk &&
+      disabledLibrary.restoreOk &&
+      disabledLibrary.scopeOk &&
+      disabledLibrary.manageOk &&
+      disabledLibrary.hideOk &&
+      disabledLibrary.persistOk &&
+      disabledLibrary.enableOk &&
+      disabledLibrary.splitOk
     const detail = ok
-      ? `主畫面、preload API、批閱介面（S07）、評語庫切換／排序／釘選／冷卻輪替與量規編輯器正常`
+      ? `主畫面、preload API、批閱介面（S07）、評語庫切換／排序／釘選／冷卻輪替／停用與量規編輯器正常`
       : !reviewMounted
         ? '按鈕已點擊，但批閱介面未掛載'
         : !canvasReady
@@ -814,7 +1360,25 @@ async function runUiSmoke(
                         ? `評語庫排序或釘選未生效（${libraryTools.sortDetail}）`
                         : !libraryTools.persistOk
                           ? `重新載入後偏好未保留（${libraryTools.persistDetail}）`
-                          : `冷卻輪替 UI 未生效（${libraryTools.rotationDetail}）`
+                          : !libraryTools.rotationUiOk
+                            ? `冷卻輪替 UI 未生效（${libraryTools.rotationDetail}）`
+                            : !disabledLibrary.validateOk
+                              ? `停用 IPC 驗證未生效（${disabledLibrary.validateDetail}）`
+                              : !disabledLibrary.applyOk
+                                ? `停用未套用到 payload（${disabledLibrary.applyDetail}）`
+                                : !disabledLibrary.restoreOk
+                                  ? `重新啟用未回原值（${disabledLibrary.restoreDetail}）`
+                                  : !disabledLibrary.scopeOk
+                                    ? `版本停用未分開（${disabledLibrary.scopeDetail}）`
+                                    : !disabledLibrary.manageOk
+                                      ? `停用管理切換未生效（${disabledLibrary.manageDetail}）`
+                                      : !disabledLibrary.hideOk
+                                        ? `停用條目未隱藏（${disabledLibrary.hideDetail}）`
+                                        : !disabledLibrary.persistOk
+                                          ? `停用狀態未保留（${disabledLibrary.persistDetail}）`
+                                          : !disabledLibrary.enableOk
+                                            ? `啟用後未恢復（${disabledLibrary.enableDetail}）`
+                                            : `版本停用清單未分開（${disabledLibrary.splitDetail}）`
 
     return {
       ok,
@@ -823,7 +1387,8 @@ async function runUiSmoke(
       libraryUiOk,
       libraryDetail: `${libraryIpc.ids.join('→')}；${libraryUiDetail}`,
       workStableOk,
-      libraryTools
+      libraryTools,
+      disabledLibrary
     }
   } finally {
     win.destroy()
@@ -1161,6 +1726,39 @@ export async function runM3Check(): Promise<number> {
       `N 無效時間視為未用排前，總序 ${idsOf(invalidTimeSorted)}`
     )
 
+    // ---- D23 停用純函式 ----------------------------------------------------
+    const disableBase = libraryForGrade('senior')
+    const disableTargets = disableBase.library.entries.slice(0, 2).map((entry) => entry.id)
+    const disabledPayload = applyLibraryDisabled(disableBase, [
+      ...disableTargets,
+      disableTargets[0],
+      '',
+      42 as unknown as string
+    ])
+    const disabledEntries = disabledPayload.library.entries.filter((entry) => entry.disabled)
+    const reEnabledPayload = applyLibraryDisabled(disableBase, [])
+    const disablePureOk =
+      disabledPayload.library.entries.length === disableBase.library.entries.length &&
+      disabledEntries.length === 2 &&
+      disabledEntries.every((entry) => disableTargets.includes(entry.id)) &&
+      disabledPayload.library.entries.every((entry) =>
+        disableTargets.includes(entry.id) ? entry.disabled : !entry.disabled
+      ) &&
+      SENIOR_LIBRARY.entries.every((entry) => !entry.disabled) &&
+      reEnabledPayload.library.entries.every(
+        (entry) => entry.disabled === disableBase.library.entries.find((base) => base.id === entry.id)?.disabled
+      ) &&
+      applyLibraryDisabled(libraryForGrade('junior'), disableTargets).library.entries.every(
+        (entry) => !entry.disabled
+      )
+    add(
+      'applyLibraryDisabled 保留條目、去重並可還原',
+      disablePureOk,
+      `停用 ${disableTargets.join('、')}（重複與非字串忽略）→ payload 仍 ${
+        disabledPayload.library.entries.length
+      } 條、停用 ${disabledEntries.length} 條；來源未變；清空清單後回到內建 disabled 值`
+    )
+
     // ---- normalizeComment --------------------------------------------------
     const normalized = normalizeComment('  {姓名}你好，世界！\nABC  ')
     add(
@@ -1258,6 +1856,10 @@ export async function runM3Check(): Promise<number> {
     const defaultCommentId = commentEntries[0]?.id ?? 'C-01'
     const usedCommentId = commentEntries[4]?.id ?? defaultCommentId
     const otherCommentId = commentEntries[5]?.id ?? usedCommentId
+    const juniorCommentId =
+      JUNIOR_LIBRARY.entries.find(
+        (entry) => !entry.disabled && entry.category === 'comment'
+      )?.id ?? 'JC-01'
     const baseWork: WorkFile = {
       schema_version: 1,
       class_id: created.id,
@@ -1684,6 +2286,55 @@ export async function runM3Check(): Promise<number> {
     )
     await writeSettings({ libraryCooldownDays: 30 })
 
+    // ---- D23 停用清單：預設、寫入、重讀、去重與非法值 ---------------------
+    const disabledBefore = {
+      junior: await readLibraryDisabled('junior'),
+      senior: await readLibraryDisabled('senior')
+    }
+    const disabledDefault = normalizeLibraryDisabled(undefined)
+    const disabledDefaultPartial = normalizeLibraryDisabled({
+      junior: ['JC-01', 'JC-01', '', 7, null],
+      senior: 'not-an-array'
+    })
+    const disabledDefaultOk =
+      disabledDefault.junior.length === 0 &&
+      disabledDefault.senior.length === 0 &&
+      normalizeLibraryDisabled({}).junior.length === 0 &&
+      normalizeLibraryDisabled({}).senior.length === 0 &&
+      normalizeLibraryDisabled(null).junior.length === 0 &&
+      normalizeLibraryDisabled([] as unknown).senior.length === 0 &&
+      disabledDefaultPartial.junior.join(',') === 'JC-01' &&
+      disabledDefaultPartial.senior.length === 0
+    add(
+      'settings libraryDisabled 預設兩版本皆空陣列',
+      disabledDefaultOk,
+      `undefined／null／空物件／陣列 → junior 0、senior 0；部分非法只留 JC-01`
+    )
+
+    await writeSettings({
+      libraryDisabled: {
+        junior: ['JC-01', 'JC-01', '', 42, null],
+        senior: ['C-01', 'C-01', '  ', 'C-05']
+      } as unknown as Settings['libraryDisabled']
+    })
+    const disabledSaved = await readSettings()
+    await writeLibraryDisabled('senior', ['C-05', 'C-05', '', 7 as unknown as string])
+    const disabledViaApi = await readLibraryDisabled('senior')
+    const disabledJuniorAfterApi = await readLibraryDisabled('junior')
+    const disabledSettingsOk =
+      disabledSaved.libraryDisabled?.junior.join(',') === 'JC-01' &&
+      disabledSaved.libraryDisabled?.senior.join(',') === 'C-01,C-05' &&
+      disabledViaApi.join(',') === 'C-05' &&
+      disabledJuniorAfterApi.join(',') === 'JC-01'
+    add(
+      'settings libraryDisabled 寫入、重讀、去重與版本分開',
+      disabledSettingsOk,
+      `寫入重複與非字串 → junior ${disabledSaved.libraryDisabled?.junior.join(',')}、senior ${
+        disabledSaved.libraryDisabled?.senior.join(',')
+      }；只改 senior 後 junior 仍 ${disabledJuniorAfterApi.join(',') || '空'}`
+    )
+    await writeSettings({ libraryDisabled: disabledBefore })
+
     await writeLibraryPrefs({ sort: 'default', pins: [] })
 
     // ---- UI 煙霧測試（資料庫保持開啟，讓主畫面能列出班級與作業） ----------
@@ -1696,14 +2347,16 @@ export async function runM3Check(): Promise<number> {
         usedSentenceId: sentenceLibraryId,
         usedCommentId,
         otherCommentId,
-        defaultCommentId
+        defaultCommentId,
+        juniorCommentId
       })
     } finally {
       await writeSettings({
         libraryMode: settingsBefore.libraryMode ?? 'auto',
         librarySort: prefsBefore.sort,
         libraryPins: prefsBefore.pins,
-        libraryCooldownDays: prefsBefore.cooldownDays
+        libraryCooldownDays: prefsBefore.cooldownDays,
+        libraryDisabled: settingsBefore.libraryDisabled ?? { junior: [], senior: [] }
       })
     }
     add('主畫面、API 與批閱介面', ui.ok, ui.detail)
@@ -1717,6 +2370,51 @@ export async function runM3Check(): Promise<number> {
       ui.libraryTools.rotationUiOk,
       ui.libraryTools.rotationDetail
     )
+    add(
+      'IPC library:set-disabled 驗證版本、id 與 boolean',
+      ui.disabledLibrary.validateOk,
+      ui.disabledLibrary.validateDetail
+    )
+    add(
+      'IPC library:get 套用 senior 停用並保留條目',
+      ui.disabledLibrary.applyOk,
+      ui.disabledLibrary.applyDetail
+    )
+    add(
+      'IPC 重新啟用後 disabled 回到原值',
+      ui.disabledLibrary.restoreOk,
+      ui.disabledLibrary.restoreDetail
+    )
+    add(
+      'IPC junior 停用不影響 senior',
+      ui.disabledLibrary.scopeOk,
+      ui.disabledLibrary.scopeDetail
+    )
+    add(
+      '評語庫「管理」切換與停用說明',
+      ui.disabledLibrary.manageOk,
+      ui.disabledLibrary.manageDetail
+    )
+    add(
+      '管理關閉時停用條目不顯示',
+      ui.disabledLibrary.hideOk,
+      ui.disabledLibrary.hideDetail
+    )
+    add(
+      '管理開啟時顯示已停用標籤、啟用按鈕且重載仍停用',
+      ui.disabledLibrary.persistOk,
+      ui.disabledLibrary.persistDetail
+    )
+    add(
+      '按啟用後恢復並可插入',
+      ui.disabledLibrary.enableOk,
+      ui.disabledLibrary.enableDetail
+    )
+    add(
+      '國中／高中職停用清單分開',
+      ui.disabledLibrary.splitOk,
+      ui.disabledLibrary.splitDetail
+    )
 
     const workAfterLibrary = await loadWork(created.id, assignment.id, '07')
     add(
@@ -1728,6 +2426,46 @@ export async function runM3Check(): Promise<number> {
         workAfterLibrary.scores?.total ?? '—'
       }`
     )
+
+    // ---- D23 停用後舊批注快照不變 -----------------------------------------
+    let snapshotOk = false
+    let snapshotDetail = ''
+    try {
+      const rawBefore = await readFile(s07Path, 'utf8')
+      const workBeforeDisable = await loadWork(created.id, assignment.id, '07')
+      const disabledNow = await writeLibraryDisabled('senior', [
+        ...disabledBefore.senior,
+        usedCommentId
+      ])
+      const payload = applyLibraryDisabled(libraryForGrade('senior'), disabledNow)
+      const payloadEntry = payload.library.entries.find((entry) => entry.id === usedCommentId)
+      const rawAfter = await readFile(s07Path, 'utf8')
+      const workAfterDisable = await loadWork(created.id, assignment.id, '07')
+      const annotationBefore = workBeforeDisable.annotations[0]
+      const annotationAfter = workAfterDisable.annotations[0]
+      snapshotOk =
+        payloadEntry?.disabled === true &&
+        rawBefore === rawAfter &&
+        workBeforeDisable.final_comment?.text === workAfterDisable.final_comment?.text &&
+        workAfterDisable.final_comment?.text === validFinal &&
+        workBeforeDisable.final_comment?.library_id === workAfterDisable.final_comment?.library_id &&
+        workAfterDisable.final_comment?.library_id === usedCommentId &&
+        annotationBefore?.text === annotationAfter?.text &&
+        annotationBefore?.library_id === annotationAfter?.library_id &&
+        annotationAfter?.library_id === sentenceLibraryId
+      snapshotDetail = snapshotOk
+        ? `停用 ${usedCommentId} 後 work.json 位元組不變；總評文字與 library_id ${
+            workAfterDisable.final_comment?.library_id
+          }、批注「${annotationAfter?.text ?? '—'}」均保留`
+        : `停用後 work 快照改變（位元組${rawBefore === rawAfter ? '相同' : '不同'}、總評 ${
+            workAfterDisable.final_comment?.library_id ?? '—'
+          }、批注 ${annotationAfter?.library_id ?? '—'}）`
+    } catch (error) {
+      snapshotDetail = `停用快照測試失敗：${message(error)}`
+    } finally {
+      await writeLibraryDisabled('senior', disabledBefore.senior)
+    }
+    add('停用評語後既有 work 快照保留文字與 library_id', snapshotOk, snapshotDetail)
 
     await closeDatabase()
     add('關閉資料庫', true, 'watcher 已停止')
