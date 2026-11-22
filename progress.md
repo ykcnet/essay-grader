@@ -594,6 +594,22 @@ essay-grader-data/
 - 回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23（未破壞既有 23 項）、`manifest:check` 11/11、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`library-import:check` 19/19、`junior:check`、`junior:readability`、`library:wording`、`library:structure`、`library:coverage`、`library:short`、`validate:fixtures`、`spike` 全數通過。
 - 待實機驗證：ML Kit 掃描／裁切與多頁品質、Google Play services 缺失時的提示、SAF 權限保存與撤銷、Google Drive 上傳與離線補傳、桌機端「manifest → 手機掃描 3 頁 → Drive → 自動匯入」端到端流程。B2 拖拉排序、B6 自動回相機、B7 逐頁清單／重拍刪除尚未實作。
 
+### D19 近似重複偵測驗收（2026-11-22）
+
+- 核心：`packages/core/src/review.ts` 新增 `FINAL_SIMILARITY_THRESHOLD = 0.85`、`commentSimilarity`（`normalizeComment` 後取字元 bigram 的 Jaccard；單字元改用 unigram；任一方為空回 0）、`findSimilarFinalComments`（門檻以上才列入，依相似度高到低、座號小到大，`exact` 表示正規化後完全相同）與 `FinalReuseMatch`／`FinalReuseResult`。`validateWork` 訊息改為「同批已用 N 次（含相同或近似）」。
+- Repository：`countFinalReuse` 回傳 `count`／`seats`／`matches`，排除自己與空文字；`work:reuse` IPC 沿用。
+- 批次檢查：`packages/core/src/audit.ts` 的 `final_reuse` 改為依座號逐一比對前面已處理作品，相同或近似（同一門檻）計入；前 `final_max_reuse` 次合法，超過才標記；訊息為「相同或近似的總評已用於座號 …（N 次），這是第 N+1 次，超過上限 M 次」。仍只比對 `final_comment.text`，不用姓名、不改 `work.json`。
+- ReviewView：顯示「同批已有 N 份使用相同總評」或「同批有 N 份相近總評（座號 百分比）」，近似計入 `final_max_reuse`；達上限紅字阻擋。
+- 測試資料：`m4:check` 的 29 份合法作品（加上 S43、S44 共 31 份）改為各自獨立的總評，不再只改座號；未評分與總評不足各 5 份也各自不同。實測 44 份作品兩兩最高相似度 0.085（`valid5` 與 `valid30`），遠低於門檻，因此未放寬門檻。
+- 新增 `npm run similarity:check`（`apps/desktop/src/main/data/similarity-check.ts`，`--similarity-check`）13/13。
+  - 相似度實測：完全相同 1（exact=true）；改「段落之間→段落間」0.9348、「銜接→連接」0.9149，皆 ≥0.85 且非 exact；明顯不同 0.0317；只多一個「再」0.8421，低於門檻不計入；空字串與僅標點皆 0；單字元「好」vs「好！」=1、「好」vs「的」=0。
+  - findSimilar 排序：`02,09,07,04`（前兩筆 exact，後兩筆近似，相似度 0.9348 排在 0.9149 前）；exact 與近似不重複；門檻等於相似度時列入，高於則排除。
+  - countFinalReuse（座號 01）：count 3、seats `02,03,04`、exact `true,false,false`；排除自己與空白，門檻外的 06 與不同的 05 不列入；空白查詢回 0。
+  - 批次檢查：標記 `03,04`，與獨立以相似度計算的結果 7/7 一致；訊息列出 01、02 並說明「相同或近似」與第 3 次超限；S01、S02、S05、S06、S07 無誤標。
+  - 批閱 UI（獨立資料庫）：API `work:reuse` 回傳 1 筆近似（非 exact）；輸入近似文字後顯示「相近 01 93%」；加入第二份相同總評後顯示「已用 2 次（01 93%、03 93%）、已達上限」紅字（背景 rgba(192, 57, 43, 0.09)）；改為完全相同文字後顯示「（01、03）」，確認相同與近似一起計入。
+- m4 驗收：`m4:check` 17/17；在學 45、已匯入 44、待批 0、批閱中 11、已批 33、未匯入 1；問題 14、提醒 11、合計 25 不變；重複組 S40／S41 合法，只標 S42。
+- 已知限制：只比對 `final_comment.text`，其他批註的近似重複不在本輪；字元 bigram 無法判斷語意改寫，換句話說或語序大幅改變時相似度會下降；短總評（約 20 字以下）的 bigram 數量少，兩三字差異就可能明顯改變相似度；僅限同一作業；批閱畫面計數的是同批所有其他作品，批次檢查則只看座號在前的作品（兩者同門檻，但第 N 份的計數基準不同）；門檻 0.85 為固定值，未開放設定。
+
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4＋G6＋M8）
 
 - soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。

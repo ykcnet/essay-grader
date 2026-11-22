@@ -31,16 +31,61 @@ const message = (error: unknown): string => (error instanceof Error ? error.mess
 const now = (): string => new Date().toISOString()
 const pad = (value: number): string => String(value).padStart(2, '0')
 
-/** 30 份合法作品使用的總評；座號入文，確保正規化後不重複。 */
-const validFinal = (seat: string): string =>
-  `第 ${Number(seat)} 號作品以生活細節開展主題，情感真摯，段落安排清楚；若能在結尾補上具體反思，會讓主旨更集中。`
+/**
+ * 31 份合法作品的總評（S01–S29、S43、S44）。每份題材與句式都不同，彼此的相似度
+ * 必須低於 FINAL_SIMILARITY_THRESHOLD，否則會被近似重複規則誤標。
+ */
+const VALID_FINALS: readonly string[] = [
+  '文章以母親的飯菜為線索串起童年記憶，畫面具體，情感自然；若能再補上一個轉折場景，層次會更豐富。',
+  '作者描寫夏日海邊的景色細膩，從潮聲寫到晚霞，氣氛營造成功；結尾可以再點出個人成長，使主旨更鮮明。',
+  '圖書館的安靜午後被寫得很有畫面，段落間的銜接流暢；若能減少重複的形容詞，語言會更精練有力。',
+  '運動會接力賽的緊張感掌握得不錯，動作與心理交替描寫，節奏明快；建議在結尾說明這次經驗帶來的改變。',
+  '祖父菜園的描寫具有生活氣息，對植物生長過程的觀察扎實；若能把與祖父的互動再拉近一些，會更打動讀者。',
+  '雨天搭公車的情節安排合理，人物對話生動，車窗水痕的運用值得肯定；主題可以再聚焦於一個核心感受。',
+  '第一次打工的經歷寫得真實，從緊張到熟悉的心路歷程清楚呈現，段落比例也適當，唯獨開頭稍顯冗長。',
+  '寵物貓的日常敘述活潑有趣，擬人化手法運用得當；若能加入一次具體的衝突事件，文章的張力會明顯提升。',
+  '社區廟會的熱鬧場面以多感官描寫呈現，聲音、香氣與人群交織，讀來身歷其境；結構上可再依時間順序整理。',
+  '颱風過後的街道與樹木被寫得很有層次，作者能從自然災害聯想到人與環境的關係，見解成熟，惟論述略顯簡短。',
+  '音樂課上學習直笛的過程描寫誠懇，失敗與練習的循環安排得當；結尾的感想可以更具體，讓讀者感受到收穫。',
+  '料理實作的步驟敘寫清楚，從切菜到出爐的每個環節都有紀錄，條理分明；若能加入味覺的主觀評價，會更有個人風格。',
+  '迷路的經驗敘事緊湊，懸念設計得宜，讀者能跟著主角的腳步推進；建議檢視標點使用，部分長句可以拆短。',
+  '考試失利後的心情轉折寫得坦率，作者沒有迴避挫折，反而從中找到調整方向；文字精準，題目與內容的對應還可加強。',
+  '數位時代的閱讀習慣討論有見地，舉例貼近生活，論點推進有條理；若能補充正反兩面的比較，論證會更完整。',
+  '環保回收的主題切入具體，從家中分類垃圾寫到社區行動，行文由小至大；個別段落的過渡詞較少，可再加以串接。',
+  '爺爺留下的舊手錶是全文的核心意象，作者用它串起家族記憶，象徵手法運用成熟；若能控制敘述速度，效果會更好。',
+  '鄰居阿姨每天傍晚的散步路線被寫得像一幅安靜的風景畫，人物與環境相互映襯；語句優美，建議檢查部分重複的修飾語。',
+  '夜市攤販的叫賣聲、熱氣與燈光互相交織，作者以感官切入觀察，畫面鮮活；文章後段可以再回到自己的感受，形成收束。',
+  '游泳比賽的備戰過程寫得扎實，從每日訓練到比賽當天的心跳，情緒推進有層次；若能再說明教練給予的啟發，會更有深度。',
+  '登山途中的補給與休息安排被寫得很細，讀者能理解作者的準備與堅持；主旨可以更明確地點出登頂之後的省思。',
+  '家庭聚餐的座位與話題描寫生動，從熱鬧到沉默的轉換很有意思；若能統整段落的重心，全文會更具整體感。',
+  '電影院裡的一場意外停電，作者寫出了群眾的反應與自己的心情變化，角度特別；結構上可以把高潮提早，節奏會更緊湊。',
+  '暑期補習班的生活被寫得有自嘲的幽默感，同時保留真實的疲憊，語氣拿捏恰當；若能補上一段反思，立意會更完整。',
+  '書店角落的一本舊書成為全文的引子，作者從書頁的泛黃寫到閱讀的初衷，描寫細緻，思緒連貫，結構相當完整。',
+  '捷運站裡的人群被寫成一組流動的剪影，觀察角度新穎；文中部分句子較長，可以適度斷句，讓節奏更加明快。',
+  '生日禮物的選擇過程寫出了對朋友的體貼，從猶豫到決定的心理變化很自然；惟禮物本身的描寫較少，可再補充細節。',
+  '醫院探病的場景冷靜而克制，作者以簡潔文字承載沉重情感，留白處理得宜；若能更清楚交代探病的原因，讀者會更容易進入情境。',
+  '整理舊相簿時的回憶段落，時間跳躍的安排自然，照片成為記憶的錨點；建議在結尾點出現在的自己，讓時間感更完整。',
+  '雪景的描寫以色彩變化為主軸，白、灰、藍層次分明，作者的觀察力值得肯定；若能加入人物的活動，畫面會更有生命力。',
+  '社團招募當天的熱鬧氣氛與自己的猶豫被寫得真切，決定加入後的期待也有交代；文章完整，語句通順，可再精修部分用詞。'
+]
 
-/** 5 份未評分作品使用；與合法作品不同，避免誤觸重複規則。 */
-const unscoredFinal = (seat: string): string =>
-  `第 ${Number(seat)} 號作品取材自日常經驗，段落安排清楚，語句大致通順，結尾若再回應題旨會更完整。`
+/** 5 份未評分作品的總評；每份內容都不同，避免誤觸重複規則。 */
+const UNSCORED_FINALS: readonly string[] = [
+  '本篇取材自校園午休時光，段落安排清楚，語句大致通順，結尾若再回應題旨會更完整。',
+  '文章以旅行途中的小插曲為主軸，敘事線條單純，描寫的順序合理，但情緒的起伏仍可再加強。',
+  '作者從一張泛黃的明信片談起，思緒由遠而近，立意不錯，然而部分句子重複使用同樣的主語。',
+  '題材貼近青少年的生活，觀點真誠，用詞平實，若能補上具體例子，論述的說服力將會提高。',
+  '全文以季節更替串起個人的成長過程，段落之間的轉換流暢，唯有幾處標點使用不一致，宜再檢視。'
+]
 
-/** 5 份總評不足使用；每份都不同，避免同時被重複規則標記。 */
-const shortFinal = (seat: string): string => `第 ${Number(seat)} 號篇幅較短，尚待補寫。`
+/** 5 份總評不足作品的總評；每份都不同，且字數不足 30 字。 */
+const SHORT_FINALS: readonly string[] = [
+  '文章開頭有吸引力，後段尚未完成，待補寫。',
+  '主題方向清楚，論述部分還沒展開，請再補寫。',
+  '目前只寫了一小段，等學生補交後再批閱。',
+  '段落太少，內容還不足以完整表達想法。',
+  '題目切入點有趣，可惜篇幅仍然偏短。'
+]
 
 /** 3 份刻意共用的總評，第 3 份（座號 42）應被抓到超限。 */
 const DUPLICATE_FINAL =
@@ -370,31 +415,38 @@ export async function runM4Check(): Promise<number> {
     const duplicateSeats = ['40', '41', '42']
     const missingPageSeats = ['43', '44']
 
-    for (const seat of validSeats) {
+    for (const [index, seat] of validSeats.entries()) {
       await writePage(seat)
       await saveWork(
         created.id,
         assignment.id,
         seat,
-        makeWork(created.id, assignment.id, seat, 'done', validFinal(seat), true)
+        makeWork(created.id, assignment.id, seat, 'done', VALID_FINALS[index] ?? '', true)
       )
     }
-    for (const seat of shortSeats) {
+    for (const [index, seat] of shortSeats.entries()) {
       await writePage(seat)
       await saveWork(
         created.id,
         assignment.id,
         seat,
-        makeWork(created.id, assignment.id, seat, 'grading', shortFinal(seat), true)
+        makeWork(created.id, assignment.id, seat, 'grading', SHORT_FINALS[index] ?? '', true)
       )
     }
-    for (const seat of unscoredSeats) {
+    for (const [index, seat] of unscoredSeats.entries()) {
       await writePage(seat)
       await saveWork(
         created.id,
         assignment.id,
         seat,
-        makeWork(created.id, assignment.id, seat, 'grading', unscoredFinal(seat), false)
+        makeWork(
+          created.id,
+          assignment.id,
+          seat,
+          'grading',
+          UNSCORED_FINALS[index] ?? '',
+          false
+        )
       )
     }
     for (const [index, seat] of duplicateSeats.entries()) {
@@ -413,13 +465,20 @@ export async function runM4Check(): Promise<number> {
         )
       )
     }
-    for (const seat of missingPageSeats) {
+    for (const [index, seat] of missingPageSeats.entries()) {
       // 刻意不寫 p1.jpg，只留 work.json 的頁面紀錄。
       await saveWork(
         created.id,
         assignment.id,
         seat,
-        makeWork(created.id, assignment.id, seat, 'done', validFinal(seat), true)
+        makeWork(
+          created.id,
+          assignment.id,
+          seat,
+          'done',
+          VALID_FINALS[validSeats.length + index] ?? '',
+          true
+        )
       )
     }
 

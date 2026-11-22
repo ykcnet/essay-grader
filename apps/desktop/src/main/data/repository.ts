@@ -14,6 +14,8 @@ import {
   assignmentFolderId,
   classFolderId,
   formatIssues,
+  FINAL_SIMILARITY_THRESHOLD,
+  findSimilarFinalComments,
   normalizeComment,
   sortGradeBands,
   validateGradeBands,
@@ -33,6 +35,7 @@ import {
   type CreateAssignmentInput,
   type CreateClassInput,
   type DatabaseState,
+  type FinalReuseResult,
   type LibraryUsage,
   type PraiseAssignmentInfo,
   type PraiseBank,
@@ -442,14 +445,14 @@ export async function countFinalReuse(
   assignmentId: string,
   seat: string,
   text: string
-): Promise<{ count: number; seats: string[] }> {
+): Promise<FinalReuseResult> {
   const root = requireRoot()
   const normalized = normalizeComment(text)
-  if (!normalized) return { count: 0, seats: [] }
+  if (!normalized) return { count: 0, seats: [], matches: [] }
 
   const dir = join(root, classId, assignmentId)
   const entries = await readdir(dir, { withFileTypes: true })
-  const seats: string[] = []
+  const candidates: { seat: string; text: string }[] = []
 
   for (const entry of entries) {
     if (!entry.isDirectory() || !/^S\d{2}$/.test(entry.name)) continue
@@ -460,16 +463,23 @@ export async function countFinalReuse(
         join(dir, entry.name, 'work.json'),
         WorkSchema
       )
-      if (normalizeComment(data.final_comment?.text ?? '') === normalized) {
-        seats.push(data.seat)
-      }
+      candidates.push({ seat: data.seat, text: data.final_comment?.text ?? '' })
     } catch {
       continue
     }
   }
 
-  seats.sort()
-  return { count: seats.length, seats }
+  const matches = findSimilarFinalComments(
+    text,
+    candidates,
+    FINAL_SIMILARITY_THRESHOLD
+  )
+
+  return {
+    count: matches.length,
+    seats: matches.map((match) => match.seat),
+    matches
+  }
 }
 
 /**

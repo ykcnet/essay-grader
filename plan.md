@@ -496,7 +496,7 @@ essay-grader/
 | 快捷鍵 | 1–5 切類型、Enter 下一份、Ctrl+Z/Y、Del 刪除、+/- 縮放、PageUp/Down 翻頁；輸入框聚焦時停用全域快捷鍵 |
 | 復原 | 以 command／patch 為單位，保留 100 步；切換學生不清除，關閉程式才清 |
 | 自動儲存 | 變更後 500ms debounce；切換學生、關閉視窗、匯出前強制 flush |
-| 重複檢查 | 正規化：去 `{變數}`、標點、空白；P0 精確比對，P1 再加相似度 ≥0.85 |
+| 重複檢查 | 正規化：去 `{變數}`、標點、空白；P0 精確比對，D19 已加相似度 ≥0.85（字元 bigram Jaccard），相同與近似一起計入上限，批次檢查同規則 |
 | 總評 30 字 | 去空白與標點後計算；顯示剩餘字數；未達不可完成批閱 |
 | 等第門檻 | 評分前可編輯等第名稱與最低分；至少一筆、名稱去空白不重複、最低分 0–100 不重複；儲存時由高到低排序，既有 `scores` 不改寫 |
 | 完成檢查表 | 列出總評不足、總評重複第 3 次、未評分、缺頁；可點擊跳轉 |
@@ -722,6 +722,7 @@ essay-grader/
 8. D13 常用排序與釘選已完成（2026-11-21）：`sortLibraryEntries` 支援預設／常用（累計）／本批未用優先，釘選在三種排序都最先，釘選內依累計次數由高到低；使用次數由 `work.json` 的 `library_id` 即時推導，不維護計數器。`settings.json` 新增 `librarySort`／`libraryPins`，釘選為跨作業的全域 UI 偏好；`m3:check` 38/38 涵蓋排序、計數、偏好與 UI 重載。
 9. G6 佳句庫累積已完成（2026-11-21）：`buildPraiseBank` 跨作業收集 `done` 作品的佳句、`normalizeComment` 去重、統計次數與來源作業，輸出不含座號姓名；Repository `getPraiseBank(classId?)` 支援本班／全部班級並跳過壞作業；主畫面「佳句庫」面板可搜尋、複製與關閉；`praise:check` 15/15。
 10. D21 評語庫版本更新已完成（2026-11-22）：管理模式「匯入新版」只新增缺少 id 與正規化後不重複的文字，不覆蓋自訂、停用或既有條目；匯入條目存 `_library/*.json` 的 `imported` 並記錄 `imported_version`，沒有新增時不改版本、不寫檔；國中／高中職各自獨立，舊檔缺少新欄位仍可讀；`library-import:check` 19/19。
+11. D19 近似重複偵測已完成（2026-11-22）：總評去除變數、標點與空白後以字元 bigram Jaccard 計算相似度，門檻 0.85（`FINAL_SIMILARITY_THRESHOLD`）；相同與近似一起計入 `final_max_reuse`；批閱畫面顯示「相同」或「相近＋百分比」並在達上限時紅字阻擋；批次檢查（`audit.ts`）同步採用，依座號逐一比對前面作品；`similarity:check` 13/13。只比對 `final_comment.text`，其他批注的近似重複不在本輪。
 11. M8 桌面 manifest 已完成（2026-11-22）：外部 inbox 根目錄的 `manifest.json` 只含目前班級、全部作業與在學學生座號／姓名，不含分數、批注、總評或作品內容；原子寫入、覆蓋舊檔與無 root 錯誤皆納入 `manifest:check` 11/11。Android App 已建置（AGP 8.7.3、Kotlin 2.0.21、Gradle 8.9、compileSdk 35），13 個 JVM 測試通過，APK 位於 `apps/android/app/build/outputs/apk/debug/app-debug.apk`。待辦：實機驗證 ML Kit、SAF、Drive 上傳與桌機端到端流程，之後進入 M9。
 
 > 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7＋F2＋10 分鐘 soak＋M8 桌面 manifest 與 Android App 建置已完成並建立對應 commit。

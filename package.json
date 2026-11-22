@@ -24,6 +24,7 @@
     "m5:check": "electron apps/desktop --m5-check",
     "m6:check": "electron apps/desktop --m6-check",
     "m7:check": "electron apps/desktop --m7-check",
+    "similarity:check": "electron apps/desktop --similarity-check",
     "drive:check": "electron apps/desktop --drive-check",
     "manifest:check": "electron apps/desktop --manifest-check",
     "excel:check": "electron apps/desktop --excel-check",

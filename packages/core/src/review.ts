@@ -11,6 +11,91 @@ export function countFinalChars(text: string): number {
   return normalizeComment(text).length
 }
 
+/** 近似重複判定的相似度門檻（0–1）。 */
+export const FINAL_SIMILARITY_THRESHOLD = 0.85
+
+export interface FinalReuseMatch {
+  seat: string
+  similarity: number
+  exact: boolean
+}
+
+export interface FinalReuseResult {
+  count: number
+  seats: string[]
+  matches: FinalReuseMatch[]
+}
+
+/**
+ * 兩段總評的相似度（0–1）：先正規化，再用字元 bigram 的 Jaccard 相似度；
+ * 長度為 1 時改用 unigram，避免 bigram 為空。不回傳負值、也不依賴英文斷詞。
+ */
+export function commentSimilarity(a: string, b: string): number {
+  const na = normalizeComment(a)
+  const nb = normalizeComment(b)
+  if (!na || !nb) return 0
+  if (na === nb) return 1
+
+  const grams = (text: string): string[] => {
+    const chars = [...text]
+    if (chars.length === 1) return chars
+    const result: string[] = []
+    for (let i = 0; i + 1 < chars.length; i += 1) {
+      const left = chars[i]
+      const right = chars[i + 1]
+      if (left !== undefined && right !== undefined) result.push(left + right)
+    }
+    return result
+  }
+
+  const setA = new Set(grams(na))
+  const setB = new Set(grams(nb))
+  let intersection = 0
+  for (const gram of setA) {
+    if (setB.has(gram)) intersection += 1
+  }
+  const union = setA.size + setB.size - intersection
+  return union === 0 ? 0 : intersection / union
+}
+
+/**
+ * 在候選總評中找出與 target 相同或近似的項目。
+ * 排除空文字（target 或候選）；是否排除自己由呼叫端處理。
+ * exact=true 表示正規化後完全相同；相似度 >= threshold 才列入。
+ * 結果依 similarity 由高到低、seat 由小到大排序。
+ */
+export function findSimilarFinalComments(
+  targetText: string,
+  candidates: readonly { seat: string; text: string }[],
+  threshold: number = FINAL_SIMILARITY_THRESHOLD
+): FinalReuseMatch[] {
+  const target = normalizeComment(targetText)
+  if (!target) return []
+
+  const matches: FinalReuseMatch[] = []
+  for (const candidate of candidates) {
+    const text = candidate?.text ?? ''
+    const normalized = normalizeComment(text)
+    if (!normalized) continue
+
+    const similarity = commentSimilarity(targetText, text)
+    if (similarity < threshold) continue
+
+    matches.push({
+      seat: candidate.seat,
+      similarity,
+      exact: normalized === target
+    })
+  }
+
+  matches.sort((a, b) => {
+    if (b.similarity !== a.similarity) return b.similarity - a.similarity
+    return a.seat.localeCompare(b.seat)
+  })
+
+  return matches
+}
+
 export interface ComputedScore {
   itemsTotal: number
   deduction: number
@@ -132,7 +217,7 @@ export function validateWork(
 
   if (reusedByOthers >= assignment.rules.final_max_reuse) {
     issues.push(
-      `總評同批已用 ${reusedByOthers} 次，第 ${reusedByOthers + 1} 次須改寫`
+      `總評同批已用 ${reusedByOthers} 次（含相同或近似），第 ${reusedByOthers + 1} 次須改寫`
     )
   }
 

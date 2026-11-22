@@ -2,6 +2,7 @@ import type { AssignmentFile, Student, WorkFile, WorkStatus } from './schema'
 import {
   computeScore,
   countFinalChars,
+  findSimilarFinalComments,
   normalizeComment,
   type ComputedScore
 } from './review'
@@ -181,14 +182,18 @@ export function auditWorks(
     workBySeat.set(work.seat, work)
   }
 
-  // 先依座號決定重複順序：前 final_max_reuse 次合法，之後才標記。
-  const reuseSeats = new Map<string, string[]>()
-  for (const work of [...workBySeat.values()].sort((a, b) => a.seat.localeCompare(b.seat))) {
-    const normalized = normalizeComment(work.final_comment?.text ?? '')
-    if (!normalized) continue
-    const list = reuseSeats.get(normalized) ?? []
-    list.push(work.seat)
-    reuseSeats.set(normalized, list)
+  // 依座號逐一比對前面已處理的作品：相同或近似（同一門檻）的總評計入重複，超過上限才標記。
+  const orderedWorks = [...workBySeat.values()].sort((a, b) => a.seat.localeCompare(b.seat))
+  const processedComments: { seat: string; text: string }[] = []
+  const priorReuseBySeat = new Map<string, string[]>()
+  for (const work of orderedWorks) {
+    const text = work.final_comment?.text ?? ''
+    if (!normalizeComment(text)) continue
+    const priorSeats = findSimilarFinalComments(text, processedComments)
+      .map((match) => match.seat)
+      .sort((a, b) => a.localeCompare(b))
+    priorReuseBySeat.set(work.seat, priorSeats)
+    processedComments.push({ seat: work.seat, text })
   }
 
   const rows: AuditWorkRow[] = enrolled.map((student) => {
@@ -220,21 +225,16 @@ export function auditWorks(
       )
     }
 
-    const normalized = normalizeComment(finalText)
-    if (normalized) {
-      const group = reuseSeats.get(normalized) ?? []
-      const index = group.indexOf(work.seat)
-      const priorSeats = index > 0 ? group.slice(0, index) : []
-      if (priorSeats.length >= assignment.rules.final_max_reuse) {
-        issues.push(
-          makeIssue(
-            'final_reuse',
-            `相同的總評已用於座號 ${priorSeats.join('、')}（${priorSeats.length} 次），這是第 ${
-              priorSeats.length + 1
-            } 次，超過上限 ${assignment.rules.final_max_reuse} 次`
-          )
+    const priorSeats = priorReuseBySeat.get(work.seat)
+    if (priorSeats && priorSeats.length >= assignment.rules.final_max_reuse) {
+      issues.push(
+        makeIssue(
+          'final_reuse',
+          `相同或近似的總評已用於座號 ${priorSeats.join('、')}（${priorSeats.length} 次），這是第 ${
+            priorSeats.length + 1
+          } 次，超過上限 ${assignment.rules.final_max_reuse} 次`
         )
-      }
+      )
     }
 
     const scoreProblem = scoreIssue(work, assignment)

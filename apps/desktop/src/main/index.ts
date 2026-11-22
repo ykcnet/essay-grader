@@ -7,6 +7,7 @@ import { runM4Check } from './data/m4-check'
 import { runM5Check } from './data/m5-check'
 import { runM6Check } from './data/m6-check'
 import { runM7Check } from './data/m7-check'
+import { runSimilarityCheck } from './data/similarity-check'
 import { autoOpenLastDatabase } from './data/repository'
 import { readSettings } from './data/settings'
 import { registerFeedbackIpc } from './feedback/ipc'
@@ -34,6 +35,7 @@ const m4Mode = process.argv.includes('--m4-check')
 const m5Mode = process.argv.includes('--m5-check')
 const m6Mode = process.argv.includes('--m6-check')
 const m7Mode = process.argv.includes('--m7-check')
+const similarityMode = process.argv.includes('--similarity-check')
 const driveMode = process.argv.includes('--drive-check')
 const manifestMode = process.argv.includes('--manifest-check')
 const excelMode = process.argv.includes('--excel-check')
@@ -51,6 +53,7 @@ const checkMode =
   m5Mode ||
   m6Mode ||
   m7Mode ||
+  similarityMode ||
   driveMode ||
   manifestMode ||
   excelMode ||
@@ -208,6 +211,12 @@ if (!gotLock) {
 
     if (m7Mode) {
       const code = await runM7Check()
+      app.exit(code)
+      return
+    }
+
+    if (similarityMode) {
+      const code = await runSimilarityCheck()
       app.exit(code)
       return
     }

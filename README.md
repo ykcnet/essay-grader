@@ -35,6 +35,7 @@ npm run m1:check     # 資料層驗收（建檔、名單、壞檔還原、鎖、
 npm run m2:check     # 匯入驗收（10 檔配對、去重、unmatched、Excel 名單）
 npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫與排序釘選停用、量規與等第、計分、驗證、work 存取、UI 煙霧）
 npm run m4:check     # 批次檢查驗收（45 人、44 份作品、重複／缺頁／未匯入、UI 煙霧）
+npm run similarity:check # D19 近似重複驗收（相似度與門檻、countFinalReuse、批次一致、批閱 UI 相近與阻擋）
 npm run m5:check     # 回饋單驗收（資料推導、檔名、單頁 PDF、溢頁阻擋、UI 煙霧）
 npm run m6:check     # 統計驗收（G1／G2／G3、分數摘要、CSV 四檔、UI 煙霧）
 npm run m7:check     # 交付驗收（備份／還原、zip slip、日誌輪替、ErrorBoundary、打包設定）
@@ -237,6 +238,11 @@ senior 為結構 33、立意取材 25、語言表達 12、情感體驗 18、格�
 直接開啟該份；從批閱返回時若面板開著會自動重查。問題只會標記總評重複超限的那一份
 （依座號順序，前 2 次合法），未完成批閱列為提醒、不算錯誤。
 
+總評近似重複：總評去除 `{變數}`、標點與空白後，以字元 bigram Jaccard 計算相似度，
+達 0.85（`FINAL_SIMILARITY_THRESHOLD`）即視為近似。相同與近似一起計入 `final_max_reuse`
+（預設 2），第 3 次起阻擋完成；批閱畫面顯示「相同」或「相近＋百分比」，達上限為紅字警告；
+批次檢查採用同一套規則，訊息會列出前面的座號。只比對總評，其他批注不在本規則內。
+
 回饋單：作品完成批閱後，匯入佇列該列會出現「回饋單」，批閱畫面右下角也有按鈕。
 預覽視窗提供列印、匯出 PDF、另存 PDF；匯出固定存到 `S{座號}/S{座號}_feedback.pdf`，
 另存預設為中文檔名 `{班級}_{題目}_S{座號}_{姓名}_回饋單_{日期}.pdf`。
@@ -331,7 +337,7 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
-`praise:check` 15/15、`library-import:check` 19/19、`manifest:check` 11/11、`junior:check`、
+`praise:check` 15/15、`library-import:check` 19/19、`manifest:check` 11/11、`similarity:check` 13/13、`junior:check`、
 `library:wording/structure/coverage/short` 與 `spike` 通過；Android JVM 測試 13/13、debug APK 建置通過。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；

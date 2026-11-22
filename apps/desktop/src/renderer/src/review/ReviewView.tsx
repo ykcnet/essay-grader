@@ -27,7 +27,8 @@ import {
   resolveGrade,
   sortGradeBands,
   validateGradeBands,
-  validateWork
+  validateWork,
+  type FinalReuseResult
 } from '@essay-grader/core/review'
 import type {
   Annotation,
@@ -275,7 +276,7 @@ export default function ReviewView({
 
   const [scoreItems, setScoreItems] = useState<Record<string, string>>({})
   const [override, setOverride] = useState('')
-  const [reuse, setReuse] = useState<{ count: number; seats: string[] }>({ count: 0, seats: [] })
+  const [reuse, setReuse] = useState<FinalReuseResult>({ count: 0, seats: [], matches: [] })
   const [issues, setIssues] = useState<string[]>([])
 
   const [rubricOpen, setRubricOpen] = useState(false)
@@ -424,7 +425,7 @@ export default function ReviewView({
         setDraftMeta(emptyDraftMeta())
         setDraftLibrary(null)
         setIssues([])
-        setReuse({ count: 0, seats: [] })
+        setReuse({ count: 0, seats: [], matches: [] })
         setPageImage(null)
         setSaveState('saved')
         setWorks((prev) =>
@@ -1036,12 +1037,30 @@ export default function ReviewView({
   const reuseBlocked = Boolean(
     assignment && reuse.count >= assignment.rules.final_max_reuse
   )
+  const reuseExact = reuse.matches.filter((match) => match.exact)
+  const reuseNear = reuse.matches.filter((match) => !match.exact)
+  const reuseExactSeats = reuseExact.map((match) => match.seat).join('、')
+  const reuseNearText = reuseNear
+    .map((match) => `${match.seat} ${Math.round(match.similarity * 100)}%`)
+    .join('、')
+  const reuseBreakdown =
+    reuseExact.length > 0 && reuseNear.length > 0
+      ? `相同：${reuseExactSeats}；近似：${reuseNearText}`
+      : reuseExact.length > 0
+        ? reuseExactSeats
+        : reuseNearText
+  const reuseNote =
+    reuseExact.length > 0 && reuseNear.length > 0
+      ? `同批有 ${reuse.count} 份相同或相近總評（相同：${reuseExactSeats}；近似：${reuseNearText}）`
+      : reuseExact.length > 0
+        ? `同批已有 ${reuse.count} 份使用相同總評（座號 ${reuseExactSeats}）`
+        : `同批有 ${reuse.count} 份相近總評（${reuseNearText}）`
 
   useEffect(() => {
     if (!work) return
     const text = work.final_comment?.text ?? ''
     if (!text.trim()) {
-      setReuse({ count: 0, seats: [] })
+      setReuse({ count: 0, seats: [], matches: [] })
       return
     }
 
@@ -1049,7 +1068,7 @@ export default function ReviewView({
     const timer = setTimeout(() => {
       void window.electronAPI.work
         .reuse(work.class_id, work.assignment_id, work.seat, text)
-        .then((result: { count: number; seats: string[] }) => {
+        .then((result: FinalReuseResult) => {
           if (!cancelled) setReuse(result)
         })
         .catch(() => undefined)
@@ -1415,7 +1434,7 @@ export default function ReviewView({
         work.assignment_id,
         work.seat,
         finalText
-      )) as { count: number; seats: string[] }
+      )) as FinalReuseResult
       setReuse(latestReuse)
 
       const payload = assembleWork(work, scoreItems, override, assignment.rubric)
@@ -2431,13 +2450,11 @@ export default function ReviewView({
 
             {reuseBlocked ? (
               <p className="rv-warn">
-                此總評同批已用 {reuse.count} 次（座號 {reuse.seats.join('、')}），已達上限
+                此總評同批已用 {reuse.count} 次（{reuseBreakdown}），已達上限
                 {assignment?.rules.final_max_reuse}，請改寫後再完成。
               </p>
             ) : reuse.count > 0 ? (
-              <p className="rv-note">
-                同批已有 {reuse.count} 份使用相同總評（座號 {reuse.seats.join('、')}）。
-              </p>
+              <p className="rv-note">{reuseNote}</p>
             ) : null}
           </section>
 
