@@ -47,6 +47,7 @@ button {
   border-radius: 7px;
   border: 1px solid #cbbfa6;
   background: #fff;
+  color: var(--ink);
   cursor: pointer;
 }
 

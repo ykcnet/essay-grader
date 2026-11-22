@@ -659,6 +659,14 @@ essay-grader-data/
 - Android 目前只有 debug APK，未提供正式簽署的發行檔或 Google Play 上架設定。
 - 連續執行多個 Electron 驗收時，`m3:check` 與 `library-import:check` 的隱藏視窗 UI 步驟曾出現時序性失敗（分別 70/72、18/19），單獨重跑皆回到 72/72、19/19；功能資料檢查無誤，測試穩定性仍可改善。
 
+### 0.2.0 版號、頂部按鈕對比與重新打包（2026-11-22）
+- 版本：root／`apps/desktop`／`packages/core` 三份 `package.json` 與 `package-lock.json` 統一為 `0.2.0`；Android `versionName` `0.2.0`、`versionCode` 2；README 與 `docs/使用說明.md` 的版本與產物名稱同步更新。
+- UI：`styles.css` 的 `button` 基礎樣式明確設定 `color: var(--ink)`，避免深色 topbar 繼承 cream 文字造成白底白字；主畫面「開啟資料夾」改為 `ghost`，與其他頂部動作按鈕一致；副標改為「M8 Android＋Google Drive」。`primary` 維持不變，其餘版面未動。
+- `m7:check` 的版本一致性與產物命名改為讀取 root `package.json` 版本後嚴格比對，不再寫死 `0.1.0`，門檻未放寬。
+- 驗收：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`m8:check`（Android JVM 測試＋debug APK 建置）、`similarity:check`、`drive:check` 23/23、`manifest:check` 11/11、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`library-import:check` 19/19、`junior:check` 17/17。
+- 打包：`npm run dist:win` 成功，`EssayGrader-0.2.0-Setup.exe` 134,206,337 bytes、`EssayGrader-0.2.0-Portable.exe` 120,845,265 bytes；舊 0.1.0 產物移至 `apps/desktop/release/archive-0.1.0/` 保留，未提交 release。
+- 已知限制：安裝檔仍未簽章；Android 仍只有 debug APK，實機 ML Kit／SAF／Drive 流程待驗證。
+
 ---
 
 ## 六、施工順序（建議）

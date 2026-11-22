@@ -708,7 +708,7 @@ export default function App(): JSX.Element {
           <span className="brand-mark">作</span>
           <div>
             <h1>作文批閱</h1>
-            <p className="brand-sub">M7＋Google Drive inbox</p>
+            <p className="brand-sub">M8 Android＋Google Drive</p>
           </div>
         </div>
 
@@ -720,7 +720,9 @@ export default function App(): JSX.Element {
           {busy && <span className="busy">處理中…</span>}
           {state?.root ? (
             <>
-              <button onClick={() => void window.electronAPI.db.reveal()}>開啟資料夾</button>
+              <button className="ghost" onClick={() => void window.electronAPI.db.reveal()}>
+                開啟資料夾
+              </button>
               <button className="ghost" onClick={() => setPraiseOpen(true)}>
                 佳句庫
               </button>

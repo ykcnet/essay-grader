@@ -514,6 +514,10 @@ export async function runM7Check(): Promise<number> {
     const iconInfo = await stat(iconPath).catch(() => null)
     add('安裝檔圖示存在', Boolean(iconInfo?.isFile() && iconInfo.size > 0), iconInfo ? `${iconInfo.size} bytes` : '找不到 app.ico')
 
+    const rootJson = JSON.parse(await readFile(join(repoRoot, 'package.json'), 'utf8')) as {
+      version?: string
+    }
+    const expectedVersion = rootJson.version ?? ''
     const versions = await Promise.all(
       [
         join(repoRoot, 'package.json'),
@@ -525,8 +529,8 @@ export async function runM7Check(): Promise<number> {
       })
     )
     add(
-      '版本一致為 0.1.0',
-      versions.every((version) => version === '0.1.0'),
+      `版本一致為 ${expectedVersion}`,
+      Boolean(expectedVersion) && versions.every((version) => version === expectedVersion),
       versions.join('／')
     )
 
@@ -542,12 +546,12 @@ export async function runM7Check(): Promise<number> {
     } catch {
       artifacts = []
     }
+    const artifactPattern = new RegExp(
+      `^EssayGrader-${expectedVersion.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(Setup|Portable)\\.exe$`
+    )
     const artifactOk =
       artifacts.length === 0 ||
-      artifacts.every(
-        (artifact) =>
-          artifact.size > 0 && /^EssayGrader-0\.1\.0-(Setup|Portable)\.exe$/.test(artifact.name)
-      )
+      artifacts.every((artifact) => artifact.size > 0 && artifactPattern.test(artifact.name))
     add(
       '打包產物（若有）非空且命名正確',
       artifactOk,
