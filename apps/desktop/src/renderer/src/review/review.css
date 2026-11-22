@@ -463,6 +463,7 @@
   width: 100%;
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 6px;
   padding: 6px 8px;
   border: 1px solid #ece4d5;
@@ -509,6 +510,66 @@
   background: #f6e7bd;
   color: #7a5412;
   font-weight: 600;
+}
+
+/* 自訂評語（D11） */
+
+.rv-custom-form {
+  min-width: 0;
+  margin: 4px 0 8px;
+  padding: 9px 10px 8px;
+  border: 1px dashed #c9bfa9;
+  border-radius: 8px;
+  background: #fbf7ee;
+}
+
+.rv-custom-form-title {
+  margin: 0 0 7px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--navy-soft);
+}
+
+.rv-custom-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 6px;
+}
+
+.rv-custom-form-row .rv-field,
+.rv-custom-form .rv-field {
+  min-width: 0;
+}
+
+.rv-custom-form textarea {
+  resize: vertical;
+  min-height: 74px;
+  max-height: 180px;
+  overflow-y: auto;
+  line-height: 1.6;
+}
+
+.rv-custom-form input,
+.rv-custom-form select,
+.rv-custom-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.rv-custom-form .rv-count {
+  margin: -2px 0 8px;
+}
+
+.rv-custom-form .rv-warn {
+  margin: 0 0 8px;
+}
+
+.rv-custom-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 /* 停用／啟用管理 */
@@ -558,10 +619,49 @@
   color: #2e6b4a;
 }
 
+.rv-lib-tag-custom {
+  max-width: 100%;
+  background: #e3ecf6;
+  color: #2f5a86;
+  font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.rv-lib-edit {
+  flex: none;
+  align-self: flex-start;
+  padding: 2px 7px;
+  border: 1px solid #ddd2bd;
+  border-radius: 999px;
+  background: #fffaf0;
+  color: var(--navy-soft);
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.rv-lib-edit:hover {
+  background: #f2ead9;
+}
+
+.rv-lib-delete {
+  border-color: #e0c7c2;
+  background: #fdf0ee;
+  color: #a33d31;
+}
+
+.rv-lib-delete:hover {
+  background: #f8e3df;
+}
+
 .rv-lib-text {
   font-size: 12px;
   line-height: 1.55;
   color: var(--ink);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .rv-lib-meta {

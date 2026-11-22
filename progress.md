@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-22
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替＋D23 停用取代刪除完成；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D11 自訂評語增刪改＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替＋D23 停用取代刪除完成；下一步 M8 手機**
 
 ---
 
@@ -535,6 +535,20 @@ essay-grader-data/
 - 文件：README／`docs/使用說明.md`／features／plan／progress 同步記錄。
 - 回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 59/59、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`junior:check` 17/17、`library:wording／structure／coverage／short`、`spike` 通過。
 - 已知限制：停用是全域 UI 設定，不分班級或資料庫；切換版本只顯示該版本清單。停用不會改寫既有作品，也不會自動替換舊批注，老師仍需手動調整已批內容。停用清單只存 id，若未來版本移除該 id，設定會保留但不再有對應條目。
+
+### D11 自訂評語增刪改驗收（2026-11-22）
+
+- Core schema／library：新增 `CustomLibrarySchema`／`CustomLibraryFile`，只存自訂條目（`source` 一律 `custom`）；新增 `normalizeCustomTags`、`validateCustomLibraryEntry`、`mergeLibraryEntries`。驗證涵蓋類別、子類（typo／praise／other 固定 general）、去空白後非空、comment 以 `countFinalChars` 至少 30 字、與內建或其他自訂文字正規化後不可重複；合併時內建 id 優先，自訂不覆蓋內建。
+- 儲存：`main/data/library-custom.ts` 的 `readCustomEntries`／`writeCustomEntries` 存 `<db>/_library/{junior|senior}.json`，使用原子寫入與 `.bak` 回復；無資料庫或檔案不存在回空清單，不視為錯誤。`writeCustomEntries` 另擋重複 id，避免檔案出現兩筆同 id。
+- IPC／preload：`library:get` 合併目前版本的自訂條目後再套用停用清單；`library:save-custom` 新增時產生 `CUSTOM-*` id，編輯時只接受既有自訂 id；`library:delete-custom` 只刪自訂，內建 id 回「內建評語不可刪除，請改用停用」。preload 對應 `library.saveCustom`／`library.deleteCustom`。
+- ReviewView：管理模式新增「新增評語」；表單可選類別／子類、輸入文字與逗號分隔標籤，comment 顯示字數與 30 字提示；自訂條目顯示「自訂」標籤與「編輯／刪除」，刪除前確認。表單錯誤訊息留在表單內，不關閉清單。
+- CSS：新增 `.rv-custom-form`、`.rv-custom-form-title`、`.rv-custom-form-row`、`.rv-custom-form-actions`、`.rv-lib-tag-custom`、`.rv-lib-edit`、`.rv-lib-delete`；表單在面板內不溢出，textarea 可垂直捲動，長評語與長標籤會換行，刪除使用 danger 色。
+- 驗收：`m3:check` 擴充至 72/72。自訂檔案實測 `_library/senior.json` 為 schema 1、`library_id=senior`、1 條，合併後 139 條；空文字、comment <30、非法類別、非法子類、與內建重複、與自訂重複 6 種皆被拒，合法輸入通過，tags 去空白去重。
+- 健壯性：重複 id 寫入被拒且既有檔案位元組不變；關閉再重開資料庫後仍讀回 `CUSTOM-D11-1`；自訂列入使用次數（本批 1 次），刪除後 `S11/work.json` 位元組不變、總評文字與 `library_id` 保留。
+- UI／IPC 實測：新增後 `library:get` 出現 `CUSTOM-*`、`source=custom`、tags 正確並顯示「自訂」；編輯文字與標籤後重讀一致；comment <30 顯示錯誤且可取消；重新載入後仍在；可停用（payload `disabled=true`、插入停用）再啟用；插入後總評含自訂文字且 `library_id` 正確、本批次數 1；刪除後清單與 API 皆消失，內建 `C-05` 刪除被拒並提示停用；空文字、短評語、非法類別／子類、重複內建／自訂文字、重複內建 id、非自訂 id 共 8 種皆拒絕。
+- 文件：README／`docs/使用說明.md`／features／plan／progress 同步記錄。
+- 回歸：`npm run typecheck -w @essay-grader/core`、`npm run typecheck`、`npm run build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`junior:check` 17/17、`library:wording／structure／coverage／short`、`spike` 通過。
+- 已知限制：自訂評語存在各資料庫內，換資料庫或搬移資料庫時需連同 `_library/` 一起備份；目前沒有匯入／匯出或跨資料庫複製。刪除自訂後，`settings.json` 可能保留已不存在的停用 id，但不影響清單。重複文字只做正規化比對，不判斷語意相近的改寫。既有作品的 `library_id` 不會因自訂評語刪除而清除，仍可在統計中看到歷史次數。
 
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4＋G6）
 

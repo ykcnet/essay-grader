@@ -116,6 +116,16 @@ const api = {
     setMode: (mode: string) => ipcRenderer.invoke('library:set-mode', mode),
     setDisabled: (libraryId: string, entryId: string, disabled: boolean) =>
       ipcRenderer.invoke('library:set-disabled', libraryId, entryId, disabled),
+    saveCustom: (input: {
+      libraryId: string
+      id?: string
+      category: string
+      subtype?: string
+      text: string
+      tags?: string[]
+    }) => ipcRenderer.invoke('library:save-custom', input),
+    deleteCustom: (input: { libraryId: string; id: string }) =>
+      ipcRenderer.invoke('library:delete-custom', input),
     usage: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('library:usage', classId, assignmentId),
     getPrefs: () => ipcRenderer.invoke('library:get-prefs'),

@@ -240,6 +240,18 @@ export const LibrarySchema = z.object({
 })
 export type LibraryFile = z.infer<typeof LibrarySchema>
 
+/**
+ * 自訂評語檔案，存在資料庫根目錄的 `_library/{junior|senior}.json`。
+ * 只存自訂條目（source 一律 custom），不與內建庫混寫。
+ */
+export const CustomLibrarySchema = z.object({
+  schema_version: z.literal(1),
+  library_id: z.enum(['junior', 'senior']),
+  entries: z.array(LibraryEntrySchema),
+  updated_at: TimestampSchema
+})
+export type CustomLibraryFile = z.infer<typeof CustomLibrarySchema>
+
 // ---------------------------------------------------------------------------
 // 成績表寫回（E6）
 // ---------------------------------------------------------------------------

@@ -66,6 +66,15 @@ interface DraftMeta {
   reason: string
 }
 
+/** 自訂評語的新增／編輯表單；tags 用逗號分隔的字串方便輸入。 */
+interface CustomFormState {
+  id?: string
+  category: AnnotationCategory
+  subtype: string
+  text: string
+  tags: string
+}
+
 const STATUS_LABELS: Record<WorkSummary['status'], string> = {
   pending: '待批',
   grading: '批閱中',
@@ -302,6 +311,10 @@ export default function ReviewView({
   const [libraryUsageLoading, setLibraryUsageLoading] = useState(false)
   const [libraryUsageError, setLibraryUsageError] = useState('')
   const [libraryUsageRequest, setLibraryUsageRequest] = useState(0)
+
+  const [customForm, setCustomForm] = useState<CustomFormState | null>(null)
+  const [customError, setCustomError] = useState('')
+  const [customSaving, setCustomSaving] = useState(false)
 
   const stageRef = useRef<Konva.Stage | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
@@ -1213,6 +1226,77 @@ export default function ReviewView({
     }
   }
 
+  // ---- 自訂評語（D11） ----------------------------------------------------
+
+  const customSubtypeOptions = customForm ? subtypeOptions(customForm.category) : []
+  const customFormChars = customForm ? countFinalChars(customForm.text) : 0
+
+  const updateCustomForm = (patch: Partial<CustomFormState>): void => {
+    setCustomForm((previous) => (previous ? { ...previous, ...patch } : previous))
+    setCustomError('')
+  }
+
+  const openCustomForm = (entry?: LibraryEntry): void => {
+    setCustomForm(
+      entry
+        ? {
+            id: entry.id,
+            category: entry.category,
+            subtype: entry.subtype,
+            text: entry.text,
+            tags: entry.tags.join('、')
+          }
+        : { category: libraryCategory, subtype: '', text: '', tags: '' }
+    )
+    setCustomError('')
+  }
+
+  const closeCustomForm = (): void => {
+    setCustomForm(null)
+    setCustomError('')
+  }
+
+  const submitCustomForm = async (): Promise<void> => {
+    if (!customForm) return
+    setCustomSaving(true)
+    setCustomError('')
+    try {
+      const isGeneral =
+        customForm.category === 'typo' ||
+        customForm.category === 'praise' ||
+        customForm.category === 'other'
+      const tags = customForm.tags
+        .split(/[,，、]/)
+        .map((tag) => tag.trim())
+        .filter(Boolean)
+      await window.electronAPI.library.saveCustom({
+        libraryId,
+        ...(customForm.id ? { id: customForm.id } : {}),
+        category: customForm.category,
+        subtype: isGeneral ? 'general' : customForm.subtype || undefined,
+        text: customForm.text,
+        tags
+      })
+      setCustomForm(null)
+      setLibraryRequest((value) => value + 1)
+    } catch (saveError) {
+      setCustomError(errorText(saveError))
+    } finally {
+      setCustomSaving(false)
+    }
+  }
+
+  const deleteCustomEntry = async (entry: LibraryEntry): Promise<void> => {
+    if (!window.confirm('確定要刪除這條自訂評語嗎？已插入的舊批注不受影響。')) return
+    setLibraryError('')
+    try {
+      await window.electronAPI.library.deleteCustom({ libraryId, id: entry.id })
+      setLibraryRequest((value) => value + 1)
+    } catch (deleteError) {
+      setLibraryError(`刪除失敗：${errorText(deleteError)}`)
+    }
+  }
+
   const filteredEntries = useMemo(() => {
     if (!library) return []
     const query = libraryQuery.trim()
@@ -1758,6 +1842,11 @@ export default function ReviewView({
             <div className="rv-card-head">
               <h3>評語庫</h3>
               <div className="rv-card-head-actions">
+                {libraryManage && (
+                  <button className="small" onClick={() => openCustomForm()}>
+                    新增評語
+                  </button>
+                )}
                 <button
                   className={`small${libraryManage ? ' active' : ''}`}
                   onClick={() => setLibraryManage((value) => !value)}
@@ -1806,6 +1895,82 @@ export default function ReviewView({
                   <p className="rv-note">停用不會刪除評語，舊批注仍保留文字。</p>
                 )}
                 {libraryError && <p className="rv-warn">{libraryError}</p>}
+                {customForm && (
+                  <div className="rv-custom-form">
+                    <p className="rv-custom-form-title">
+                      {customForm.id ? '編輯自訂評語' : '新增自訂評語'}
+                    </p>
+                    <div className="rv-custom-form-row">
+                      <label className="rv-field">
+                        類別
+                        <select
+                          value={customForm.category}
+                          onChange={(event) =>
+                            updateCustomForm({
+                              category: event.target.value as AnnotationCategory,
+                              subtype: ''
+                            })
+                          }
+                        >
+                          {ANNOTATION_CATEGORIES.map((category) => (
+                            <option key={category} value={category}>
+                              {ANNOTATION_CATEGORY_LABELS[category]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {customSubtypeOptions.length > 0 && (
+                        <label className="rv-field">
+                          子類
+                          <select
+                            value={customForm.subtype}
+                            onChange={(event) => updateCustomForm({ subtype: event.target.value })}
+                          >
+                            <option value="">（未分類）</option>
+                            {customSubtypeOptions.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                    </div>
+                    <label className="rv-field">
+                      評語文字
+                      <textarea
+                        rows={4}
+                        value={customForm.text}
+                        placeholder="輸入自訂評語內容"
+                        onChange={(event) => updateCustomForm({ text: event.target.value })}
+                      />
+                    </label>
+                    {customForm.category === 'comment' && (
+                      <p className={`rv-count ${customFormChars >= 30 ? 'ok' : 'warn'}`}>
+                        {customFormChars} / 30 字
+                      </p>
+                    )}
+                    <label className="rv-field">
+                      標籤（逗號分隔）
+                      <input
+                        value={customForm.tags}
+                        placeholder="例如：通用、開頭"
+                        onChange={(event) => updateCustomForm({ tags: event.target.value })}
+                      />
+                    </label>
+                    {customError && <p className="rv-warn">{customError}</p>}
+                    <div className="rv-custom-form-actions">
+                      <button onClick={closeCustomForm}>取消</button>
+                      <button
+                        className="primary"
+                        disabled={customSaving}
+                        onClick={() => void submitCustomForm()}
+                      >
+                        {customSaving ? '儲存中…' : '儲存'}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="rv-lib-filter">
                   <select
                     className="rv-lib-category"
@@ -1908,6 +2073,9 @@ export default function ReviewView({
                           )}
                         </button>
                         {entry.disabled && <span className="rv-lib-tag">已停用</span>}
+                        {libraryManage && entry.source === 'custom' && (
+                          <span className="rv-lib-tag rv-lib-tag-custom">自訂</span>
+                        )}
                         <button
                           className={`rv-lib-pin${pinned ? ' is-pinned' : ''}`}
                           onClick={() => toggleLibraryPin(entry.id)}
@@ -1916,6 +2084,19 @@ export default function ReviewView({
                         >
                           {pinned ? '已釘選' : '釘選'}
                         </button>
+                        {libraryManage && entry.source === 'custom' && (
+                          <>
+                            <button className="rv-lib-edit" onClick={() => openCustomForm(entry)}>
+                              編輯
+                            </button>
+                            <button
+                              className="rv-lib-edit rv-lib-delete"
+                              onClick={() => void deleteCustomEntry(entry)}
+                            >
+                              刪除
+                            </button>
+                          </>
+                        )}
                         {libraryManage && (
                           <button
                             className={`rv-lib-toggle${entry.disabled ? ' enable' : ' disable'}`}

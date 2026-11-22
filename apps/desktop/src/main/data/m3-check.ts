@@ -14,10 +14,13 @@ import {
   computeScore,
   isCooldownDays,
   libraryForGrade,
+  mergeLibraryEntries,
   normalizeCooldownDays,
   normalizeComment,
+  normalizeCustomTags,
   resolveGrade,
   sortLibraryEntries,
+  validateCustomLibraryEntry,
   validateWork,
   type Annotation,
   type AssignmentFile,
@@ -28,6 +31,7 @@ import {
   type WorkFile
 } from '@essay-grader/core'
 import { preprocessImage } from '../import/image'
+import { readCustomEntries, writeCustomEntries } from './library-custom'
 import {
   closeDatabase,
   createAssignment,
@@ -117,6 +121,26 @@ interface LibraryUiExpectation {
   juniorCommentId: string
 }
 
+/** D11 自訂評語：UI 與 IPC 分項結果。 */
+interface LibraryCustomUiResult {
+  createOk: boolean
+  createDetail: string
+  editOk: boolean
+  editDetail: string
+  errorOk: boolean
+  errorDetail: string
+  persistOk: boolean
+  persistDetail: string
+  validateOk: boolean
+  validateDetail: string
+  toggleOk: boolean
+  toggleDetail: string
+  insertOk: boolean
+  insertDetail: string
+  deleteOk: boolean
+  deleteDetail: string
+}
+
 const emptyLibraryTools = (): LibraryToolsUiResult => ({
   ipcOk: false,
   ipcDetail: '未執行',
@@ -149,6 +173,25 @@ const emptyLibraryDisabled = (): LibraryDisabledUiResult => ({
   splitDetail: '未執行'
 })
 
+const emptyLibraryCustom = (): LibraryCustomUiResult => ({
+  createOk: false,
+  createDetail: '未執行',
+  editOk: false,
+  editDetail: '未執行',
+  errorOk: false,
+  errorDetail: '未執行',
+  persistOk: false,
+  persistDetail: '未執行',
+  validateOk: false,
+  validateDetail: '未執行',
+  toggleOk: false,
+  toggleDetail: '未執行',
+  insertOk: false,
+  insertDetail: '未執行',
+  deleteOk: false,
+  deleteDetail: '未執行'
+})
+
 
 /** 開隱藏視窗載入 renderer，確認主畫面、新的 preload API 與批閱畫面都能載入。 */
 async function runUiSmoke(
@@ -162,6 +205,7 @@ async function runUiSmoke(
   workStableOk: boolean
   libraryTools: LibraryToolsUiResult
   disabledLibrary: LibraryDisabledUiResult
+  customLibrary: LibraryCustomUiResult
 }> {
   const { classId, assignmentId, usedCommentId, usedSentenceId } = expectation
   const win = new BrowserWindow({
@@ -219,6 +263,43 @@ async function runUiSmoke(
         setter.call(input, ${JSON.stringify(value)})
         input.dispatchEvent(new Event('input', { bubbles: true }))
         return true
+      })()`
+    )) as boolean
+  const setTextarea = async (selector: string, value: string): Promise<boolean> =>
+    (await win.webContents.executeJavaScript(
+      `(() => {
+        const area = document.querySelector(${JSON.stringify(selector)})
+        if (!area) return false
+        const setter = Object.getOwnPropertyDescriptor(
+          window.HTMLTextAreaElement.prototype,
+          'value'
+        ).set
+        setter.call(area, ${JSON.stringify(value)})
+        area.dispatchEvent(new Event('input', { bubbles: true }))
+        return true
+      })()`
+    )) as boolean
+  const setSelectIndex = async (
+    selector: string,
+    index: number,
+    value: string
+  ): Promise<boolean> =>
+    (await win.webContents.executeJavaScript(
+      `(() => {
+        const select = document.querySelectorAll(${JSON.stringify(selector)})[${index}]
+        if (!select) return false
+        select.value = ${JSON.stringify(value)}
+        select.dispatchEvent(new Event('change', { bubbles: true }))
+        return true
+      })()`
+    )) as boolean
+  const clickTextButton = async (scope: string, label: string): Promise<boolean> =>
+    (await win.webContents.executeJavaScript(
+      `(() => {
+        const button = [...document.querySelectorAll(${JSON.stringify(scope)} + ' button')]
+          .find((item) => (item.textContent ?? '').trim() === ${JSON.stringify(label)})
+        button?.click()
+        return Boolean(button)
       })()`
     )) as boolean
 
@@ -334,6 +415,7 @@ async function runUiSmoke(
     workStableOk: boolean
     libraryTools: LibraryToolsUiResult
     disabledLibrary: LibraryDisabledUiResult
+    customLibrary: LibraryCustomUiResult
   } => ({
     ok: false,
     detail,
@@ -342,7 +424,8 @@ async function runUiSmoke(
     libraryDetail: '未執行',
     workStableOk: false,
     libraryTools: emptyLibraryTools(),
-    disabledLibrary: emptyLibraryDisabled()
+    disabledLibrary: emptyLibraryDisabled(),
+    customLibrary: emptyLibraryCustom()
   })
 
   try {
@@ -468,6 +551,7 @@ async function runUiSmoke(
 
     // ---- D23 停用／啟用 IPC ------------------------------------------------
     const disabledLibrary = emptyLibraryDisabled()
+    const customLibrary = emptyLibraryCustom()
     const disabledIpc = (await win.webContents.executeJavaScript(
       `(async () => {
         const classId = ${JSON.stringify(classId)}
@@ -1284,6 +1368,507 @@ async function runUiSmoke(
         : `版本清單未分開（junior ${d23JuniorReady ? '已載入' : '未載入'}、${d23Junior} disabled=${
             juniorDisabled
           }；${d23Target} 切回 senior disabled=${seniorStillDisabled.disabled}）`
+
+      // ---- D11 自訂評語：新增／編輯／錯誤／重載／停用／插入／刪除 ----------
+      const customText =
+        '這是一條測試用的自訂評語，內容刻意寫得比較長，用來確認新增、編輯、刪除與重新載入之後仍可正確保存。'
+      const customTextEdited =
+        '這是一條編輯後的自訂評語，內容同樣刻意寫得比較長，用來確認修改文字與標籤之後可以正確讀回並保存。'
+      const customTags = ['測試', '自訂']
+      const customTagsEdited = ['測試', '已編輯']
+
+      const manageStateD11 = await readLibraryManage()
+      if (manageStateD11.pressed !== 'true') await clickLibraryManage()
+      const addButtonReady = await waitFor(
+        `[...document.querySelectorAll('.rv-card-head-actions button')].some(
+          (item) => (item.textContent ?? '').trim() === '新增評語'
+        )`,
+        6000
+      )
+      const addClicked = addButtonReady
+        ? ((await win.webContents.executeJavaScript(
+            `(() => {
+              const button = [...document.querySelectorAll('.rv-card-head-actions button')]
+                .find((item) => (item.textContent ?? '').trim() === '新增評語')
+              button?.click()
+              return Boolean(button)
+            })()`
+          )) as boolean)
+        : false
+      const formReady = addClicked
+        ? await waitFor("document.querySelector('.rv-custom-form')", 5000)
+        : false
+      const formFieldsOk = formReady
+        ? ((await win.webContents.executeJavaScript(
+            `(() => {
+              const form = document.querySelector('.rv-custom-form')
+              return Boolean(
+                form?.querySelector('select') &&
+                form?.querySelector('textarea') &&
+                form?.querySelector('input')
+              )
+            })()`
+          )) as boolean)
+        : false
+      const categorySet = formReady
+        ? await setSelectIndex('.rv-custom-form select', 0, 'comment')
+        : false
+      const subtypeReady = categorySet
+        ? await waitFor("document.querySelectorAll('.rv-custom-form select').length >= 2", 4000)
+        : false
+      const subtypeSet = subtypeReady
+        ? await setSelectIndex('.rv-custom-form select', 1, 'strength')
+        : false
+      const textSet = subtypeSet
+        ? await setTextarea('.rv-custom-form textarea', customText)
+        : false
+      const tagsSet = textSet
+        ? await setInput('.rv-custom-form input', customTags.join('、'))
+        : false
+      const saveClicked = tagsSet
+        ? await clickTextButton('.rv-custom-form-actions', '儲存')
+        : false
+      const formClosed = saveClicked
+        ? await waitFor("!document.querySelector('.rv-custom-form')", 6000)
+        : false
+
+      let createdCustom: {
+        id: string
+        text: string
+        tags: string[]
+        source: string
+        category: string
+        subtype: string
+      } | null = null
+      for (let i = 0; i < 25; i++) {
+        createdCustom = (await win.webContents.executeJavaScript(
+          `(async () => {
+            const payload = await window.electronAPI.library.get(${JSON.stringify(classId)})
+            const entry = payload.library.entries.find(
+              (item) => item.text === ${JSON.stringify(customText)}
+            )
+            return entry
+              ? {
+                  id: entry.id,
+                  text: entry.text,
+                  tags: entry.tags,
+                  source: entry.source,
+                  category: entry.category,
+                  subtype: entry.subtype
+                }
+              : null
+          })()`
+        )) as {
+          id: string
+          text: string
+          tags: string[]
+          source: string
+          category: string
+          subtype: string
+        } | null
+        if (createdCustom) break
+        await delay(150)
+      }
+      const customItemReady = createdCustom
+        ? await waitFor(`Boolean(${libraryItemExpr(createdCustom.id)})`, 6000)
+        : false
+      const customTagText = customItemReady
+        ? ((await win.webContents.executeJavaScript(
+            `(() => {
+              const item = ${libraryItemExpr(createdCustom?.id ?? '')}
+              return (item?.querySelector('.rv-lib-tag-custom')?.textContent ?? '').trim()
+            })()`
+          )) as string)
+        : ''
+      const createOk =
+        addButtonReady &&
+        formFieldsOk &&
+        subtypeSet &&
+        formClosed &&
+        createdCustom !== null &&
+        createdCustom.source === 'custom' &&
+        createdCustom.id.startsWith('CUSTOM-') &&
+        createdCustom.category === 'comment' &&
+        createdCustom.subtype === 'strength' &&
+        createdCustom.tags.join(',') === customTags.join(',') &&
+        customItemReady &&
+        customTagText === '自訂'
+      customLibrary.createOk = createOk
+      customLibrary.createDetail = createOk
+        ? `管理模式有「新增評語」；表單可填類別／子類／文字／標籤，儲存後 library:get 出現 ${
+            createdCustom?.id ?? '—'
+          }（source custom、tags ${createdCustom?.tags.join('、') ?? '—'}）與「自訂」標籤`
+        : `新增流程未完成（按鈕 ${addButtonReady ? '有' : '無'}、表單 ${formReady ? '有' : '無'}、欄位 ${
+            formFieldsOk ? '完整' : '不足'
+          }、建立 ${createdCustom ? createdCustom.id : '無'}、標籤「${customTagText || '無'}」）`
+
+      // 編輯文字與標籤
+      const editClicked = createdCustom
+        ? ((await win.webContents.executeJavaScript(
+            `(() => {
+              const item = ${libraryItemExpr(createdCustom?.id ?? '')}
+              const button = [...(item?.querySelectorAll('.rv-lib-edit') ?? [])]
+                .find((candidate) => (candidate.textContent ?? '').trim() === '編輯')
+              button?.click()
+              return Boolean(button)
+            })()`
+          )) as boolean)
+        : false
+      const editFormReady = editClicked
+        ? await waitFor("document.querySelector('.rv-custom-form')", 5000)
+        : false
+      const editTextSet = editFormReady
+        ? await setTextarea('.rv-custom-form textarea', customTextEdited)
+        : false
+      const editTagsSet = editTextSet
+        ? await setInput('.rv-custom-form input', customTagsEdited.join('、'))
+        : false
+      const editSaveClicked = editTagsSet
+        ? await clickTextButton('.rv-custom-form-actions', '儲存')
+        : false
+      const editFormClosed = editSaveClicked
+        ? await waitFor("!document.querySelector('.rv-custom-form')", 6000)
+        : false
+      let editedCustom: { text: string; tags: string[] } | null = null
+      for (let i = 0; i < 25; i++) {
+        editedCustom = (await win.webContents.executeJavaScript(
+          `(async () => {
+            const payload = await window.electronAPI.library.get(${JSON.stringify(classId)})
+            const entry = payload.library.entries.find(
+              (item) => item.id === ${JSON.stringify(createdCustom?.id ?? '')}
+            )
+            return entry ? { text: entry.text, tags: entry.tags } : null
+          })()`
+        )) as { text: string; tags: string[] } | null
+        if (editedCustom?.text === customTextEdited) break
+        await delay(150)
+      }
+      const editedItemReady = createdCustom
+        ? await waitFor(
+            `(${libraryItemExpr(createdCustom.id)}?.querySelector('.rv-lib-text')?.textContent ?? '')
+              .includes(${JSON.stringify(customTextEdited)})`,
+            6000
+          )
+        : false
+      const editOk =
+        editFormReady &&
+        editFormClosed &&
+        editedCustom?.text === customTextEdited &&
+        editedCustom.tags.join(',') === customTagsEdited.join(',') &&
+        editedItemReady
+      customLibrary.editOk = editOk
+      customLibrary.editDetail = editOk
+        ? `編輯 ${createdCustom?.id ?? '—'} 後文字更新，tags ${editedCustom?.tags.join('、') ?? '—'}；重新讀取一致`
+        : `編輯未生效（表單 ${editFormReady ? '有' : '無'}、文字 ${
+            editedCustom?.text === customTextEdited ? '已更新' : '未更新'
+          }、tags ${editedCustom?.tags.join('、') ?? '無'}）`
+
+      // 錯誤訊息：comment 少於 30 字
+      const errorAddClicked = await (async (): Promise<boolean> =>
+        (await win.webContents.executeJavaScript(
+          `(() => {
+            const button = [...document.querySelectorAll('.rv-card-head-actions button')]
+              .find((item) => (item.textContent ?? '').trim() === '新增評語')
+            button?.click()
+            return Boolean(button)
+          })()`
+        )) as boolean)()
+      const errorFormReady = errorAddClicked
+        ? await waitFor("document.querySelector('.rv-custom-form')", 5000)
+        : false
+      if (errorFormReady) {
+        await setSelectIndex('.rv-custom-form select', 0, 'comment')
+        await waitFor("document.querySelectorAll('.rv-custom-form select').length >= 2", 4000)
+        await setTextarea('.rv-custom-form textarea', '太短了。')
+        await clickTextButton('.rv-custom-form-actions', '儲存')
+      }
+      const errorShown = errorFormReady
+        ? await waitFor(
+            `(document.querySelector('.rv-custom-form .rv-warn')?.textContent ?? '').includes('30')`,
+            6000
+          )
+        : false
+      if (errorFormReady) await clickTextButton('.rv-custom-form-actions', '取消')
+      const errorClosed = errorShown
+        ? await waitFor("!document.querySelector('.rv-custom-form')", 4000)
+        : false
+      customLibrary.errorOk = errorShown && errorClosed
+      customLibrary.errorDetail = customLibrary.errorOk
+        ? 'comment 少於 30 字時表單顯示「至少需要 30 字」錯誤且不關閉，取消後可返回清單'
+        : `錯誤訊息未正確顯示（表單 ${errorFormReady ? '有' : '無'}、訊息 ${
+            errorShown ? '有' : '無'
+          }、取消後 ${errorClosed ? '已關閉' : '未關閉'}）`
+
+      // 重新載入後仍在
+      await win.webContents.reload()
+      const reloadedD11 = await enterReviewView()
+      if (reloadedD11) {
+        await setSelect('.rv-lib-category', 'comment')
+        await setSelect('.rv-lib-sort', 'default')
+      }
+      const reloadedManage = await readLibraryManage()
+      if (reloadedD11 && reloadedManage.pressed !== 'true') await clickLibraryManage()
+      const persistedCustomItem = createdCustom && reloadedD11
+        ? await waitFor(`Boolean(${libraryItemExpr(createdCustom.id)})`, 8000)
+        : false
+      const persistedCustomText = persistedCustomItem
+        ? ((await win.webContents.executeJavaScript(
+            `(${libraryItemExpr(createdCustom?.id ?? '')}?.querySelector('.rv-lib-text')?.textContent ?? '')`
+          )) as string)
+        : ''
+      const persistOk =
+        reloadedD11 &&
+        persistedCustomItem &&
+        persistedCustomText.includes(customTextEdited)
+      customLibrary.persistOk = persistOk
+      customLibrary.persistDetail = persistOk
+        ? `重新載入並重進批閱後，${createdCustom?.id ?? '—'} 仍在清單且顯示編輯後文字`
+        : `重新載入後自訂評語${persistedCustomItem ? '仍在' : '消失'}（文字 ${
+            persistedCustomText ? '有' : '無'
+          }）`
+
+      // 停用／啟用自訂評語
+      const customDisableClicked = createdCustom
+        ? await clickLibraryItemButton(createdCustom.id, '停用')
+        : false
+      const customDisabled = customDisableClicked
+        ? await waitFor(
+            `(() => {
+              const item = ${libraryItemExpr(createdCustom?.id ?? '')}
+              return Boolean(item) &&
+                item.classList.contains('rv-lib-disabled') &&
+                (item.querySelector('.rv-lib-tag')?.textContent ?? '').trim() === '已停用' &&
+                item.querySelector('.rv-lib-insert')?.disabled === true
+            })()`,
+            6000
+          )
+        : false
+      const customDisabledApi = (await win.webContents.executeJavaScript(
+        `(async () => {
+          const payload = await window.electronAPI.library.get(${JSON.stringify(classId)})
+          const entry = payload.library.entries.find(
+            (item) => item.id === ${JSON.stringify(createdCustom?.id ?? '')}
+          )
+          return Boolean(entry?.disabled)
+        })()`
+      )) as boolean
+      const customEnableClicked = customDisabled
+        ? await clickLibraryItemButton(createdCustom?.id ?? '', '啟用')
+        : false
+      const customEnabled = customEnableClicked
+        ? await waitFor(
+            `(() => {
+              const item = ${libraryItemExpr(createdCustom?.id ?? '')}
+              return Boolean(item) &&
+                !item.classList.contains('rv-lib-disabled') &&
+                item.querySelector('.rv-lib-insert')?.disabled === false
+            })()`,
+            6000
+          )
+        : false
+      customLibrary.toggleOk = customDisabled && customDisabledApi && customEnabled
+      customLibrary.toggleDetail = customLibrary.toggleOk
+        ? `自訂評語 ${createdCustom?.id ?? '—'} 可停用（payload disabled=true、插入停用）並重新啟用`
+        : `自訂停用／啟用未生效（停用 ${customDisabled ? '成功' : '失敗'}、API ${
+            customDisabledApi ? 'true' : 'false'
+          }、啟用 ${customEnabled ? '成功' : '失敗'}）`
+
+      // 插入：文字快照與 library_id、使用次數
+      const originalWork = await win.webContents.executeJavaScript(
+        `window.electronAPI.work.get(${JSON.stringify(classId)}, ${JSON.stringify(
+          assignmentId
+        )}, '07')`
+      )
+      await win.webContents.executeJavaScript(
+        "document.querySelector('.rv-final')?.focus()"
+      )
+      const insertClicked = createdCustom
+        ? ((await win.webContents.executeJavaScript(
+            `(() => {
+              const item = ${libraryItemExpr(createdCustom?.id ?? '')}
+              const button = item?.querySelector('.rv-lib-insert')
+              button?.click()
+              return Boolean(button)
+            })()`
+          )) as boolean)
+        : false
+      let insertedWork: {
+        final_comment?: { text: string; library_id?: string }
+      } | null = null
+      if (insertClicked) {
+        for (let i = 0; i < 30; i++) {
+          insertedWork = (await win.webContents.executeJavaScript(
+            `window.electronAPI.work.get(${JSON.stringify(classId)}, ${JSON.stringify(
+              assignmentId
+            )}, '07')`
+          )) as {
+            final_comment?: { text: string; library_id?: string }
+          } | null
+          if (insertedWork?.final_comment?.library_id === createdCustom?.id) break
+          await delay(200)
+        }
+      }
+      const customUsage = (await win.webContents.executeJavaScript(
+        `window.electronAPI.library.usage(${JSON.stringify(classId)}, ${JSON.stringify(
+          assignmentId
+        )})`
+      )) as { current: Record<string, number>; overall: Record<string, number> }
+      const insertOk =
+        insertClicked &&
+        insertedWork?.final_comment?.library_id === createdCustom?.id &&
+        (insertedWork?.final_comment?.text ?? '').includes(customTextEdited) &&
+        (customUsage.current[createdCustom?.id ?? ''] ?? 0) >= 1
+      customLibrary.insertOk = insertOk
+      customLibrary.insertDetail = insertOk
+        ? `插入後 work 總評文字含自訂內容、library_id=${
+            insertedWork?.final_comment?.library_id ?? '—'
+          }；本批使用次數 ${customUsage.current[createdCustom?.id ?? ''] ?? 0}`
+        : `插入或統計未生效（插入 ${insertClicked ? '已點' : '未點'}、library_id ${
+            insertedWork?.final_comment?.library_id ?? '—'
+          }、次數 ${customUsage.current[createdCustom?.id ?? ''] ?? 0}）`
+
+      // IPC 驗證：空文字、短評語、非法類別／子類、重複文字、重複 id、非自訂 id
+      const validation = (await win.webContents.executeJavaScript(
+        `(async () => {
+          const payload = await window.electronAPI.library.get(${JSON.stringify(classId)})
+          const builtinId = ${JSON.stringify(usedCommentId)}
+          const builtin = payload.library.entries.find((item) => item.id === builtinId)
+          const idProbeText =
+            '這是另一段全新的文字，用於確認 id 驗證不會因為重複文字而誤判，長度也超過三十字。'
+          const attempts = [
+            ['空文字', { category: 'comment', subtype: 'strength', text: '   ' }],
+            ['comment <30', { category: 'comment', subtype: 'strength', text: '太短' }],
+            ['非法類別', { category: 'bogus', text: '測試文字' }],
+            ['非法子類', { category: 'sentence', subtype: 'bogus', text: '測試文字' }],
+            ['與內建重複', { category: 'comment', subtype: 'strength', text: builtin?.text ?? '' }],
+            [
+              '與自訂重複',
+              { category: 'comment', subtype: 'strength', text: ${JSON.stringify(customTextEdited)} }
+            ],
+            [
+              '重複內建 id',
+              {
+                id: builtinId,
+                category: 'comment',
+                subtype: 'strength',
+                text: idProbeText
+              }
+            ],
+            [
+              '非自訂 id 編輯',
+              {
+                id: 'CUSTOM-not-exist',
+                category: 'comment',
+                subtype: 'strength',
+                text: idProbeText
+              }
+            ]
+          ]
+          const results = []
+          for (const [label, input] of attempts) {
+            try {
+              await window.electronAPI.library.saveCustom({
+                libraryId: 'senior',
+                ...input
+              })
+              results.push(label + ':accepted')
+            } catch (error) {
+              results.push(label + ':rejected:' + (error?.message ?? String(error)))
+            }
+          }
+          return results
+        })()`
+      )) as string[]
+      const allRejected = validation.length === 8 && validation.every((item) => item.includes(':rejected'))
+      customLibrary.validateOk = allRejected
+      customLibrary.validateDetail = allRejected
+        ? `8 種非法輸入皆被拒：${validation
+            .map((item) => item.split(':')[0])
+            .join('、')}`
+        : `驗證未全數擋下：${validation.join('；')}`
+
+      // 刪除前後的舊 work 快照
+      const workBeforeDelete = await win.webContents.executeJavaScript(
+        `window.electronAPI.work.get(${JSON.stringify(classId)}, ${JSON.stringify(
+          assignmentId
+        )}, '07')`
+      )
+      await win.webContents.executeJavaScript(
+        '(() => { window.confirm = () => true; return true })()'
+      )
+      const deleteClicked = createdCustom
+        ? ((await win.webContents.executeJavaScript(
+            `(() => {
+              const item = ${libraryItemExpr(createdCustom?.id ?? '')}
+              const button = [...(item?.querySelectorAll('.rv-lib-delete') ?? [])][0]
+              button?.click()
+              return Boolean(button)
+            })()`
+          )) as boolean)
+        : false
+      const deletedFromUi = createdCustom
+        ? await waitFor(`!(${libraryItemExpr(createdCustom.id)})`, 6000)
+        : false
+      const deletedFromApi = (await win.webContents.executeJavaScript(
+        `(async () => {
+          const payload = await window.electronAPI.library.get(${JSON.stringify(classId)})
+          return !payload.library.entries.some(
+            (item) => item.id === ${JSON.stringify(createdCustom?.id ?? '')}
+          )
+        })()`
+      )) as boolean
+      const workAfterDelete = await win.webContents.executeJavaScript(
+        `window.electronAPI.work.get(${JSON.stringify(classId)}, ${JSON.stringify(
+          assignmentId
+        )}, '07')`
+      )
+      const snapshotAfterDeleteOk =
+        workBeforeDelete?.final_comment?.text === workAfterDelete?.final_comment?.text &&
+        workBeforeDelete?.final_comment?.library_id ===
+          workAfterDelete?.final_comment?.library_id &&
+        workAfterDelete?.final_comment?.library_id === createdCustom?.id
+      const builtinDeleteMessage = (await win.webContents.executeJavaScript(
+        `(async () => {
+          try {
+            await window.electronAPI.library.deleteCustom({
+              libraryId: 'senior',
+              id: ${JSON.stringify(usedCommentId)}
+            })
+            return 'accepted'
+          } catch (error) {
+            return error?.message ?? String(error)
+          }
+        })()`
+      )) as string
+      const builtinDeleteRejected =
+        builtinDeleteMessage !== 'accepted' && builtinDeleteMessage.includes('停用')
+      const deleteOk =
+        deleteClicked &&
+        deletedFromUi &&
+        deletedFromApi &&
+        snapshotAfterDeleteOk &&
+        builtinDeleteRejected
+      customLibrary.deleteOk = deleteOk
+      customLibrary.deleteDetail = deleteOk
+        ? `刪除後清單與 library:get 皆消失；內建 ${usedCommentId} 刪除被拒並提示改用停用；刪除前後舊 work 總評文字與 library_id 不變`
+        : `刪除流程未完成（UI ${deletedFromUi ? '已消失' : '未消失'}、API ${
+            deletedFromApi ? '已消失' : '仍存在'
+          }、快照 ${snapshotAfterDeleteOk ? '不變' : '改變'}、內建刪除 ${
+            builtinDeleteRejected ? '已拒' : builtinDeleteMessage
+          }）`
+      if (originalWork) {
+        await win.webContents.executeJavaScript(
+          `window.electronAPI.work.save(
+            ${JSON.stringify(classId)},
+            ${JSON.stringify(assignmentId)},
+            '07',
+            ${JSON.stringify(originalWork)}
+          )`
+        )
+      }
+
+      const manageCloseD11 = await readLibraryManage()
+      if (manageCloseD11.pressed === 'true') await clickLibraryManage()
     }
 
     let rubricEditorOk = false
@@ -1337,9 +1922,17 @@ async function runUiSmoke(
       disabledLibrary.hideOk &&
       disabledLibrary.persistOk &&
       disabledLibrary.enableOk &&
-      disabledLibrary.splitOk
+      disabledLibrary.splitOk &&
+      customLibrary.createOk &&
+      customLibrary.editOk &&
+      customLibrary.errorOk &&
+      customLibrary.persistOk &&
+      customLibrary.validateOk &&
+      customLibrary.toggleOk &&
+      customLibrary.insertOk &&
+      customLibrary.deleteOk
     const detail = ok
-      ? `主畫面、preload API、批閱介面（S07）、評語庫切換／排序／釘選／冷卻輪替／停用與量規編輯器正常`
+      ? `主畫面、preload API、批閱介面（S07）、評語庫切換／排序／釘選／冷卻輪替／停用／自訂增刪改與量規編輯器正常`
       : !reviewMounted
         ? '按鈕已點擊，但批閱介面未掛載'
         : !canvasReady
@@ -1378,7 +1971,23 @@ async function runUiSmoke(
                                           ? `停用狀態未保留（${disabledLibrary.persistDetail}）`
                                           : !disabledLibrary.enableOk
                                             ? `啟用後未恢復（${disabledLibrary.enableDetail}）`
-                                            : `版本停用清單未分開（${disabledLibrary.splitDetail}）`
+                                            : !disabledLibrary.splitOk
+                                              ? `版本停用清單未分開（${disabledLibrary.splitDetail}）`
+                                              : !customLibrary.createOk
+                                                ? `自訂評語新增未完成（${customLibrary.createDetail}）`
+                                                : !customLibrary.editOk
+                                                  ? `自訂評語編輯未完成（${customLibrary.editDetail}）`
+                                                  : !customLibrary.errorOk
+                                                    ? `自訂評語錯誤訊息未顯示（${customLibrary.errorDetail}）`
+                                                    : !customLibrary.persistOk
+                                                      ? `自訂評語重載後未保留（${customLibrary.persistDetail}）`
+                                                      : !customLibrary.validateOk
+                                                        ? `自訂評語驗證未生效（${customLibrary.validateDetail}）`
+                                                        : !customLibrary.toggleOk
+                                                          ? `自訂評語停用／啟用未生效（${customLibrary.toggleDetail}）`
+                                                          : !customLibrary.insertOk
+                                                            ? `自訂評語插入未生效（${customLibrary.insertDetail}）`
+                                                            : `自訂評語刪除未完成（${customLibrary.deleteDetail}）`
 
     return {
       ok,
@@ -1388,7 +1997,8 @@ async function runUiSmoke(
       libraryDetail: `${libraryIpc.ids.join('→')}；${libraryUiDetail}`,
       workStableOk,
       libraryTools,
-      disabledLibrary
+      disabledLibrary,
+      customLibrary
     }
   } finally {
     win.destroy()
@@ -2337,6 +2947,220 @@ export async function runM3Check(): Promise<number> {
 
     await writeLibraryPrefs({ sort: 'default', pins: [] })
 
+    // ---- D11 自訂評語：檔案、驗證、持久化、使用次數與舊快照 --------------
+    const customEntry: LibraryEntry = {
+      id: 'CUSTOM-D11-1',
+      category: 'typo',
+      subtype: 'general',
+      text: 'D11 自訂錯字測試，文字獨一無二。',
+      tags: ['測試', '自訂'],
+      disabled: false,
+      source: 'custom'
+    }
+    const customFile = join(root, '_library', 'senior.json')
+
+    let customFileOk = false
+    let customFileDetail = ''
+    try {
+      await writeCustomEntries('senior', [customEntry])
+      const fileStat = await stat(customFile)
+      const rawFile = JSON.parse(await readFile(customFile, 'utf8')) as {
+        schema_version?: number
+        library_id?: string
+        entries?: LibraryEntry[]
+      }
+      const readBack = await readCustomEntries('senior')
+      const merged = mergeLibraryEntries(SENIOR_LIBRARY.entries, readBack)
+      customFileOk =
+        fileStat.isFile() &&
+        rawFile.schema_version === 1 &&
+        rawFile.library_id === 'senior' &&
+        rawFile.entries?.length === 1 &&
+        readBack.length === 1 &&
+        readBack[0].id === customEntry.id &&
+        readBack[0].source === 'custom' &&
+        readBack[0].tags.join(',') === '測試,自訂' &&
+        merged.length === SENIOR_LIBRARY.entries.length + 1 &&
+        merged[merged.length - 1].id === customEntry.id
+      customFileDetail = customFileOk
+        ? `寫入 ${customFile}（schema 1、library_id senior、1 條）；讀回 source custom，合併後 ${
+            merged.length
+          } 條`
+        : `自訂檔案內容不符（存在 ${fileStat.isFile() ? '是' : '否'}、讀回 ${
+            readBack.length
+          } 條、合併 ${merged.length} 條）`
+    } catch (error) {
+      customFileDetail = `自訂檔案測試失敗：${message(error)}`
+    }
+    add('自訂評語寫入 _library 並可合併內建庫', customFileOk, customFileDetail)
+
+    const invalidCustomCases: [string, string[]][] = [
+      [
+        '空文字',
+        validateCustomLibraryEntry(
+          { category: 'typo', subtype: 'general', text: '   ' },
+          [customEntry]
+        )
+      ],
+      [
+        'comment <30',
+        validateCustomLibraryEntry(
+          { category: 'comment', subtype: 'strength', text: '太短了。' },
+          [customEntry]
+        )
+      ],
+      [
+        '非法類別',
+        validateCustomLibraryEntry(
+          { category: 'bogus', text: '測試文字' },
+          [customEntry]
+        )
+      ],
+      [
+        '非法子類',
+        validateCustomLibraryEntry(
+          { category: 'sentence', subtype: 'bogus', text: '測試文字' },
+          [customEntry]
+        )
+      ],
+      [
+        '與內建重複',
+        validateCustomLibraryEntry(
+          {
+            category: 'typo',
+            subtype: 'general',
+            text: SENIOR_LIBRARY.entries[0]?.text ?? ''
+          },
+          [...SENIOR_LIBRARY.entries, customEntry]
+        )
+      ],
+      [
+        '與自訂重複',
+        validateCustomLibraryEntry(
+          { category: 'typo', subtype: 'general', text: customEntry.text },
+          [...SENIOR_LIBRARY.entries, customEntry]
+        )
+      ]
+    ]
+    const invalidAllRejected = invalidCustomCases.every(([, errors]) => errors.length > 0)
+    const validCustomPassed =
+      validateCustomLibraryEntry(
+        { category: 'typo', subtype: 'general', text: '全新且不重複的自訂文字。' },
+        [customEntry]
+      ).length === 0
+    const tagsNormalized =
+      normalizeCustomTags([' 測試 ', '測試', '', '自訂', 7 as unknown as string]).join(',') ===
+      '測試,自訂'
+    const customValidateOk = invalidAllRejected && validCustomPassed && tagsNormalized
+    add(
+      'validateCustomLibraryEntry 擋空文字、短評語、非法類別／子類與重複文字',
+      customValidateOk,
+      customValidateOk
+        ? `6 種非法輸入皆被拒（${invalidCustomCases
+            .map(([label]) => label)
+            .join('、')}）；合法輸入通過；tags 去重去空白`
+        : `驗證不符（非法 ${invalidCustomCases
+            .filter(([, errors]) => errors.length === 0)
+            .map(([label]) => label)
+            .join('、') || '全拒'}、合法 ${validCustomPassed ? '通過' : '被拒'}、tags ${
+            tagsNormalized ? '正常' : '異常'
+          }）`
+    )
+
+    let duplicateIdRejected = false
+    let duplicateIdDetail = ''
+    try {
+      const rawBeforeDuplicate = await readFile(customFile, 'utf8')
+      try {
+        await writeCustomEntries('senior', [customEntry, { ...customEntry }])
+      } catch {
+        duplicateIdRejected = true
+      }
+      const rawAfterDuplicate = await readFile(customFile, 'utf8')
+      duplicateIdDetail = duplicateIdRejected
+        ? rawBeforeDuplicate === rawAfterDuplicate
+          ? '重複 id 寫入被拒，既有檔案未被改寫'
+          : '重複 id 被拒但檔案被改寫'
+        : '重複 id 未被拒絕'
+    } catch (error) {
+      duplicateIdDetail = `重複 id 測試失敗：${message(error)}`
+    }
+    add(
+      '自訂評語重複 id 寫入被拒',
+      duplicateIdRejected && duplicateIdDetail.includes('未被改寫'),
+      duplicateIdDetail
+    )
+
+    let customPersistOk = false
+    let customPersistDetail = ''
+    try {
+      await closeDatabase()
+      await openDatabase(root, { remember: false })
+      const persisted = await readCustomEntries('senior')
+      const fileStat = await stat(customFile)
+      customPersistOk =
+        fileStat.isFile() &&
+        persisted.length === 1 &&
+        persisted[0]?.id === customEntry.id &&
+        persisted[0]?.source === 'custom'
+      customPersistDetail = customPersistOk
+        ? `關閉再重開資料庫後，${customFile} 仍存在且讀回 ${customEntry.id}`
+        : `重開後未保留（檔案 ${fileStat.isFile() ? '在' : '不在'}、讀回 ${
+            persisted.length
+          } 條）`
+    } catch (error) {
+      customPersistDetail = `重開資料庫測試失敗：${message(error)}`
+    }
+    add('自訂評語關閉重開資料庫後仍存在', customPersistOk, customPersistDetail)
+
+    let customUsageSnapshotOk = false
+    let customUsageSnapshotDetail = ''
+    try {
+      await writeCustomEntries('senior', [customEntry])
+      const customWork: WorkFile = {
+        ...baseWork,
+        seat: '11',
+        name: '自訂測試',
+        annotations: [],
+        final_comment: {
+          text: customEntry.text,
+          library_id: customEntry.id,
+          library_version: SENIOR_LIBRARY.library_version
+        },
+        updated_at: now()
+      }
+      await saveWork(created.id, assignment.id, '11', customWork)
+      const customUsage = await getLibraryUsage(created.id, assignment.id)
+      const customSeatDir = join(root, created.id, assignment.id, 'S11')
+      const customWorkPath = join(customSeatDir, 'work.json')
+      const rawBeforeDelete = await readFile(customWorkPath, 'utf8')
+      await writeCustomEntries('senior', [])
+      const afterDelete = await readCustomEntries('senior')
+      const rawAfterDelete = await readFile(customWorkPath, 'utf8')
+      const loadedCustomWork = await loadWork(created.id, assignment.id, '11')
+      customUsageSnapshotOk =
+        (customUsage.current[customEntry.id] ?? 0) === 1 &&
+        afterDelete.length === 0 &&
+        rawBeforeDelete === rawAfterDelete &&
+        loadedCustomWork.final_comment?.text === customEntry.text &&
+        loadedCustomWork.final_comment?.library_id === customEntry.id
+      customUsageSnapshotDetail = customUsageSnapshotOk
+        ? `本批使用次數 1；刪除自訂後 work.json 位元組不變，總評文字與 library_id ${customEntry.id} 保留`
+        : `使用次數或快照不符（次數 ${
+            customUsage.current[customEntry.id] ?? 0
+          }、剩餘 ${afterDelete.length} 條、位元組${
+            rawBeforeDelete === rawAfterDelete ? '相同' : '不同'
+          }、id ${loadedCustomWork.final_comment?.library_id ?? '—'}）`
+      await rm(customSeatDir, { recursive: true, force: true })
+    } catch (error) {
+      customUsageSnapshotDetail = `使用次數與快照測試失敗：${message(error)}`
+    }
+    add(
+      '自訂評語可計入使用次數且刪除後舊 work 快照不變',
+      customUsageSnapshotOk,
+      customUsageSnapshotDetail
+    )
+
     // ---- UI 煙霧測試（資料庫保持開啟，讓主畫面能列出班級與作業） ----------
     const settingsBefore = await readSettings()
     let ui: Awaited<ReturnType<typeof runUiSmoke>>
@@ -2415,6 +3239,14 @@ export async function runM3Check(): Promise<number> {
       ui.disabledLibrary.splitOk,
       ui.disabledLibrary.splitDetail
     )
+    add('自訂評語新增表單與自訂標籤', ui.customLibrary.createOk, ui.customLibrary.createDetail)
+    add('自訂評語編輯文字與標籤', ui.customLibrary.editOk, ui.customLibrary.editDetail)
+    add('自訂評語錯誤訊息顯示', ui.customLibrary.errorOk, ui.customLibrary.errorDetail)
+    add('自訂評語重新載入後保留', ui.customLibrary.persistOk, ui.customLibrary.persistDetail)
+    add('自訂評語 IPC 驗證與內建刪除拒絕', ui.customLibrary.validateOk, ui.customLibrary.validateDetail)
+    add('自訂評語停用／啟用', ui.customLibrary.toggleOk, ui.customLibrary.toggleDetail)
+    add('自訂評語插入與使用次數', ui.customLibrary.insertOk, ui.customLibrary.insertDetail)
+    add('自訂評語刪除與舊 work 快照', ui.customLibrary.deleteOk, ui.customLibrary.deleteDetail)
 
     const workAfterLibrary = await loadWork(created.id, assignment.id, '07')
     add(

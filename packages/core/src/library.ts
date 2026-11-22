@@ -1,5 +1,13 @@
 import senior from './library/senior.json'
 import junior from './library/junior.draft.json'
+import {
+  ANNOTATION_CATEGORIES,
+  COMMENT_SUBTYPES,
+  SENTENCE_SUBTYPES,
+  STRUCTURE_SUBTYPES,
+  type AnnotationCategory
+} from './constants'
+import { countFinalChars, normalizeComment } from './review'
 import { LibrarySchema, type LibraryEntry, type LibraryFile } from './schema'
 
 /** 內建高中職評語庫；由 tools/convert_comment_library.mjs 產生。 */
@@ -294,4 +302,113 @@ export function sortLibraryEntries(
   }
 
   return [...pinned, ...rest].map((item) => item.entry)
+}
+
+// ---------------------------------------------------------------------------
+// 自訂評語（D11）
+// ---------------------------------------------------------------------------
+
+/** 自訂評語的表單輸入；欄位型別放寬為 unknown，由驗證函式統一檢查。 */
+export interface CustomLibraryEntryInput {
+  category?: unknown
+  subtype?: unknown
+  text?: unknown
+  tags?: unknown
+}
+
+/** 只留非空字串、去空白、去重，並保留第一次出現的順序。 */
+export function normalizeCustomTags(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const tags: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string') continue
+    const tag = item.trim()
+    if (!tag || seen.has(tag)) continue
+    seen.add(tag)
+    tags.push(tag)
+  }
+  return tags
+}
+
+/** typo／praise／other 無子類，一律 general。 */
+const isGeneralCategory = (category: string): boolean =>
+  category === 'typo' || category === 'praise' || category === 'other'
+
+/**
+ * 驗證自訂評語，回傳錯誤訊息（空陣列代表通過）。
+ * - category 必須合法。
+ * - subtype 依類別：typo／praise／other 為 general；sentence／structure／comment 必須是對應子類 id。
+ * - text 去空白後不可空；comment 類用 countFinalChars 至少 30 字。
+ * - 正規化後不可與 existingEntries（內建＋其他自訂，排除 selfId）重複。
+ * - tags 只留非空字串並去重。
+ */
+export function validateCustomLibraryEntry(
+  input: CustomLibraryEntryInput,
+  existingEntries: readonly LibraryEntry[],
+  selfId?: string
+): string[] {
+  const errors: string[] = []
+
+  const category = input?.category
+  const categoryOk =
+    typeof category === 'string' &&
+    (ANNOTATION_CATEGORIES as readonly string[]).includes(category)
+  if (!categoryOk) {
+    errors.push('評語類別不合法。')
+  }
+
+  const rawText = input?.text
+  const text = typeof rawText === 'string' ? rawText.trim() : ''
+  if (!text) {
+    errors.push('評語文字不可空白。')
+  }
+
+  if (categoryOk) {
+    const cat = category as AnnotationCategory
+    if (!isGeneralCategory(cat)) {
+      const options =
+        cat === 'sentence'
+          ? SENTENCE_SUBTYPES
+          : cat === 'structure'
+            ? STRUCTURE_SUBTYPES
+            : COMMENT_SUBTYPES
+      const value = typeof input?.subtype === 'string' ? input.subtype.trim() : ''
+      if (!options.some((item) => item.id === value)) {
+        errors.push('請選擇合法的子類別。')
+      }
+    }
+  }
+
+  if (categoryOk && category === 'comment' && text) {
+    const chars = countFinalChars(text)
+    if (chars < 30) {
+      errors.push(`評語至少需要 30 字（目前 ${chars} 字）。`)
+    }
+  }
+
+  if (text) {
+    const normalized = normalizeComment(text)
+    const duplicate = existingEntries.some(
+      (entry) => entry.id !== selfId && normalizeComment(entry.text) === normalized
+    )
+    if (duplicate) {
+      errors.push('與現有評語重複。')
+    }
+  }
+
+  return errors
+}
+
+/**
+ * 合併內建與自訂條目，回傳新陣列；不改動任一來源。
+ * id 若撞到內建，自訂條目會被略過，保證自訂不覆蓋內建（main 驗證會先擋）。
+ */
+export function mergeLibraryEntries(
+  baseEntries: readonly LibraryEntry[],
+  customEntries: readonly LibraryEntry[]
+): LibraryEntry[] {
+  const baseIds = new Set(baseEntries.map((entry) => entry.id))
+  const extra = customEntries.filter((entry) => !baseIds.has(entry.id))
+  return [...baseEntries, ...extra]
 }

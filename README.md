@@ -258,6 +258,11 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 冷卻天數預設 30 天、可調 1–365 天；時間同樣由 `work.json` 推導，釘選優先且只影響顯示順序。
 評語庫也支援停用與啟用（D23）：面板「管理」可暫時隱藏不常用的評語，停用不會刪除條目，
 舊批注仍保留當時的文字與來源；國中／高中職停用清單分開保存，重開程式仍保留。
+評語庫另支援自訂評語增刪改（D11）：「管理」模式下可新增、編輯、刪除自訂評語，
+可填類別、子類、文字與標籤；comment 類至少 30 字，空文字、非法類別／子類與重複文字會被拒絕。
+自訂評語依版本存在資料庫的 `_library/junior.json`、`_library/senior.json`，
+切換資料庫各自獨立，不寫入 `settings.json`；內建評語只能停用、不能刪除。
+自訂評語可停用／啟用、插入、計入使用次數；刪除後舊 `work.json` 的文字與 `library_id` 不受影響。
 兩套評語庫已完成用語清洗：總評、佳句、結構不再以引號假設特定詞句，改用通用指稱；
 `npm run library:wording` 與 `junior:check` 會檢查此規則，違規即失敗。
 兩套 144 條總評已改為五面向平衡：結構、立意取材、語言表達、情感體驗、格式應用；
@@ -270,7 +275,7 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 移除特定詞句、段落編號、事件與人物假設，改為條件式與通用描述；
 `npm run library:short` 會檢查引號、段落編號、禁用題材與重複，違規即失敗；
 其中 sentence 的 word_choice（用詞辨析）可用引號標示具體詞語，其他短評仍禁用。
-驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 59/59、`m4:check` 17/17、
+驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
 `praise:check` 15/15、`junior:check`、`library:wording/structure/coverage/short` 與 `spike` 通過。

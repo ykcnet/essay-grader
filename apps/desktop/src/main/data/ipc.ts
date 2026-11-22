@@ -6,15 +6,21 @@ import {
   isLibraryId,
   isLibraryMode,
   libraryForGrade,
+  mergeLibraryEntries,
+  normalizeCustomTags,
   normalizeLibraryMode,
+  validateCustomLibraryEntry,
+  type AnnotationCategory,
   type ClassFile,
   type CreateAssignmentInput,
   type CreateClassInput,
+  type LibraryEntry,
   type LibraryId,
   type LibraryMode,
   type Rubric,
   type WorkFile
 } from '@essay-grader/core'
+import { randomUUID } from 'node:crypto'
 import {
   ensureInbox,
   getImportStatus,
@@ -68,6 +74,7 @@ import {
   updateAssignmentRubric
 } from './repository'
 import { backupFileName, createBackupZip, restoreBackupZip } from './backup'
+import { readCustomEntries, writeCustomEntries } from './library-custom'
 import {
   chooseGradebook,
   inspectGradebook,
@@ -77,7 +84,7 @@ import {
   writeGradebook,
   writeGradebookCsv
 } from './gradebook'
-import { log, logDirectory, logError, logInfo, openLogsFolder } from '../logger'
+import { log, logDirectory, logError, logInfo, logWarn, openLogsFolder } from '../logger'
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -241,7 +248,22 @@ export function registerDataIpc(): void {
     }
 
     const payload = libraryForGrade(grade, mode)
-    return applyLibraryDisabled(payload, settings.libraryDisabled?.[payload.id] ?? [])
+
+    // 合併自訂條目；讀取失敗只警告，不讓整個評語庫載入失敗。
+    let customEntries: LibraryEntry[] = []
+    try {
+      customEntries = await readCustomEntries(payload.id)
+    } catch (error) {
+      logWarn(`[library] 自訂評語讀取失敗（${payload.id}）：${message(error)}`)
+    }
+    const merged: typeof payload = {
+      ...payload,
+      library: {
+        ...payload.library,
+        entries: mergeLibraryEntries(payload.library.entries, customEntries)
+      }
+    }
+    return applyLibraryDisabled(merged, settings.libraryDisabled?.[merged.id] ?? [])
   })
 
   ipcMain.handle('library:set-mode', async (_event, mode: LibraryMode) => {
@@ -260,7 +282,11 @@ export function registerDataIpc(): void {
       if (typeof disabled !== 'boolean') throw new Error('停用狀態不合法。')
 
       const base = libraryForGrade(undefined, libraryId).library
-      if (!base.entries.some((entry) => entry.id === entryId)) {
+      const custom = await readCustomEntries(libraryId)
+      if (
+        !base.entries.some((entry) => entry.id === entryId) &&
+        !custom.some((entry) => entry.id === entryId)
+      ) {
         throw new Error('找不到該評語，可能已更新版本。')
       }
 
@@ -270,6 +296,106 @@ export function registerDataIpc(): void {
         : current.filter((id) => id !== entryId)
       const disabledIds = await writeLibraryDisabled(libraryId, next)
       return { libraryId, disabledIds }
+    }
+  )
+
+  ipcMain.handle(
+    'library:save-custom',
+    async (
+      _event,
+      input: {
+        libraryId: unknown
+        id?: unknown
+        category: unknown
+        subtype?: unknown
+        text: unknown
+        tags?: unknown
+      }
+    ) => {
+      if (!isLibraryId(input?.libraryId)) {
+        throw new Error('評語庫版本不合法，請選擇國中版或高中職版。')
+      }
+      const libraryId = input.libraryId
+
+      const base = libraryForGrade(undefined, libraryId).library
+      const existing = await readCustomEntries(libraryId)
+
+      const selfId = typeof input.id === 'string' && input.id.length > 0 ? input.id : undefined
+      if (selfId && base.entries.some((entry) => entry.id === selfId)) {
+        throw new Error('內建評語不可修改，請改用停用。')
+      }
+      const errors = validateCustomLibraryEntry(input, [...base.entries, ...existing], selfId)
+      if (errors.length > 0) {
+        throw new Error(errors.join('；'))
+      }
+
+      const category = input.category as AnnotationCategory
+      const subtype =
+        category === 'typo' || category === 'praise' || category === 'other'
+          ? 'general'
+          : String(input.subtype ?? '').trim()
+      const text = String(input.text ?? '').trim()
+      const tags = normalizeCustomTags(input.tags)
+
+      let next: LibraryEntry[]
+      let entry: LibraryEntry
+
+      if (selfId) {
+        const index = existing.findIndex((item) => item.id === selfId)
+        if (index < 0 || existing[index].source !== 'custom') {
+          throw new Error('找不到該自訂評語。')
+        }
+        entry = {
+          ...existing[index],
+          category,
+          subtype,
+          text,
+          tags
+        }
+        next = existing.map((item, i) => (i === index ? entry : item))
+      } else {
+        entry = {
+          id: `CUSTOM-${randomUUID()}`,
+          category,
+          subtype,
+          text,
+          tags,
+          disabled: false,
+          source: 'custom'
+        }
+        next = [...existing, entry]
+      }
+
+      await writeCustomEntries(libraryId, next)
+      return { entry }
+    }
+  )
+
+  ipcMain.handle(
+    'library:delete-custom',
+    async (_event, input: { libraryId: unknown; id: unknown }) => {
+      if (!isLibraryId(input?.libraryId)) {
+        throw new Error('評語庫版本不合法，請選擇國中版或高中職版。')
+      }
+      const libraryId = input.libraryId
+      const id = typeof input.id === 'string' ? input.id : ''
+      if (!id) throw new Error('評語 id 不合法。')
+
+      const existing = await readCustomEntries(libraryId)
+      const index = existing.findIndex((item) => item.id === id)
+      if (index >= 0) {
+        if (existing[index].source !== 'custom') {
+          throw new Error('內建評語不可刪除，請改用停用。')
+        }
+        await writeCustomEntries(libraryId, existing.filter((item) => item.id !== id))
+        return { deleted: true }
+      }
+
+      const base = libraryForGrade(undefined, libraryId).library
+      if (base.entries.some((item) => item.id === id)) {
+        throw new Error('內建評語不可刪除，請改用停用。')
+      }
+      throw new Error('找不到該評語。')
     }
   )
 
