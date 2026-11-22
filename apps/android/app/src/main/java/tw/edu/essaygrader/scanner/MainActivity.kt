@@ -5,9 +5,12 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.view.View
+import android.view.ViewTreeObserver
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.result.IntentSenderRequest
@@ -16,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.snackbar.Snackbar
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
@@ -34,11 +38,20 @@ class MainActivity : AppCompatActivity() {
     private lateinit var prefs: SharedPreferences
 
     private lateinit var driveStatusText: TextView
+    private lateinit var manifestStatusText: TextView
     private lateinit var pendingStatusText: TextView
     private lateinit var messageText: TextView
+    private lateinit var mainScroll: ScrollView
+    private lateinit var classLabel: TextView
     private lateinit var classSpinner: Spinner
     private lateinit var assignmentSpinner: Spinner
     private lateinit var studentSpinner: Spinner
+
+    private lateinit var setupPanel: View
+    private lateinit var setupSummaryText: TextView
+    private lateinit var toggleSetupButton: MaterialButton
+
+    private var snackbar: Snackbar? = null
 
     private lateinit var classAdapter: ArrayAdapter<String>
     private lateinit var assignmentAdapter: ArrayAdapter<String>
@@ -52,6 +65,11 @@ class MainActivity : AppCompatActivity() {
     private val driveTreeLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
             onDriveFolderChosen(uri)
+        }
+
+    private val manifestFileLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            onManifestFileChosen(uri)
         }
 
     private val scannerLauncher =
@@ -74,22 +92,31 @@ class MainActivity : AppCompatActivity() {
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
 
         driveStatusText = findViewById(R.id.driveStatusText)
+        manifestStatusText = findViewById(R.id.manifestStatusText)
         pendingStatusText = findViewById(R.id.pendingStatusText)
         messageText = findViewById(R.id.messageText)
+        mainScroll = findViewById(R.id.mainScroll)
+        classLabel = findViewById(R.id.classLabel)
         classSpinner = findViewById(R.id.classSpinner)
         assignmentSpinner = findViewById(R.id.assignmentSpinner)
         studentSpinner = findViewById(R.id.studentSpinner)
+        setupPanel = findViewById(R.id.setupPanel)
+        setupSummaryText = findViewById(R.id.setupSummaryText)
+        toggleSetupButton = findViewById(R.id.toggleSetupButton)
 
         setupSpinners()
 
         findViewById<MaterialButton>(R.id.chooseDriveButton).setOnClickListener { chooseDriveFolder() }
         findViewById<MaterialButton>(R.id.reloadManifestButton).setOnClickListener { reloadManifest() }
+        findViewById<MaterialButton>(R.id.chooseManifestButton).setOnClickListener { chooseManifestFile() }
         findViewById<MaterialButton>(R.id.scanButton).setOnClickListener { startScan() }
         findViewById<MaterialButton>(R.id.retryUploadButton).setOnClickListener { retryPendingUploads() }
+        toggleSetupButton.setOnClickListener { expandSetupFromSummary() }
 
         updateDriveStatus()
+        updateManifestStatus()
         updatePendingStatus()
-        if (prefs.contains(KEY_DRIVE_URI)) {
+        if (prefs.contains(KEY_MANIFEST_URI) || prefs.contains(KEY_DRIVE_URI)) {
             reloadManifest()
         }
     }
@@ -132,6 +159,7 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun chooseDriveFolder() {
+        expandSetup()
         driveTreeLauncher.launch(null)
     }
 
@@ -156,12 +184,117 @@ class MainActivity : AppCompatActivity() {
             driveStatusText.text = getString(R.string.drive_not_set)
             return
         }
-        val name = try {
+        driveStatusText.text = currentDriveName() ?: getString(R.string.drive_folder_placeholder)
+    }
+
+    private fun currentDriveName(): String? {
+        val uriStr = prefs.getString(KEY_DRIVE_URI, null) ?: return null
+        return try {
             DocumentFile.fromTreeUri(this, Uri.parse(uriStr))?.name
         } catch (_: Exception) {
             null
         }
-        driveStatusText.text = name ?: getString(R.string.drive_folder_placeholder)
+    }
+
+    // -------------------------------------------------------------------------
+    // manifest.json 直接選檔
+    // -------------------------------------------------------------------------
+
+    private fun chooseManifestFile() {
+        expandSetup()
+        manifestFileLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
+    }
+
+    private fun onManifestFileChosen(uri: Uri?) {
+        if (uri == null) return
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (_: SecurityException) {
+            // 部分 provider 不支援 persistent grant，本次執行期間仍可讀取
+        }
+        val fallbackName = uri.lastPathSegment?.substringAfterLast('/')
+            ?.takeIf { it.isNotBlank() }
+            ?: getString(R.string.manifest_file_placeholder)
+        prefs.edit()
+            .putString(KEY_MANIFEST_URI, uri.toString())
+            .putString(KEY_MANIFEST_NAME, fallbackName)
+            .apply()
+        updateManifestStatus()
+
+        // 檔名查詢可能涉及 Drive 網路，放到背景再更新狀態
+        lifecycleScope.launch {
+            val resolved = withContext(Dispatchers.IO) { resolveDisplayName(uri) }
+            if (prefs.getString(KEY_MANIFEST_URI, null) == uri.toString()) {
+                prefs.edit().putString(KEY_MANIFEST_NAME, resolved).apply()
+                updateManifestStatus()
+                refreshSetupSummaryIfCollapsed()
+            }
+        }
+        reloadManifest()
+    }
+
+    private fun updateManifestStatus() {
+        manifestStatusText.text = if (prefs.getString(KEY_MANIFEST_URI, null).isNullOrEmpty()) {
+            getString(R.string.manifest_not_set)
+        } else {
+            getString(R.string.manifest_selected_fmt, currentManifestName())
+        }
+    }
+
+    private fun currentManifestName(): String {
+        val uriStr = prefs.getString(KEY_MANIFEST_URI, null)
+        val stored = prefs.getString(KEY_MANIFEST_NAME, null)?.takeIf { it.isNotBlank() }
+        if (!stored.isNullOrEmpty()) return stored
+        if (!uriStr.isNullOrEmpty()) {
+            Uri.parse(uriStr).lastPathSegment?.substringAfterLast('/')
+                ?.takeIf { it.isNotBlank() }
+                ?.let { return it }
+        }
+        return getString(R.string.manifest_file_placeholder)
+    }
+
+    private fun resolveDisplayName(uri: Uri): String {
+        val queried = runCatching {
+            contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index < 0) null else cursor.getString(index)?.trim()?.takeIf { it.isNotEmpty() }
+            }
+        }.getOrNull()
+        if (queried != null) return queried
+
+        return runCatching { DocumentFile.fromSingleUri(this, uri)?.name }.getOrNull()
+            ?.takeIf { it.isNotBlank() }
+            ?: uri.lastPathSegment?.substringAfterLast('/')?.takeIf { it.isNotBlank() }
+            ?: getString(R.string.manifest_file_placeholder)
+    }
+
+    private fun clearSelectedManifest() {
+        val uriStr = prefs.getString(KEY_MANIFEST_URI, null)
+        prefs.edit()
+            .remove(KEY_MANIFEST_URI)
+            .remove(KEY_MANIFEST_NAME)
+            .apply()
+        if (uriStr != null) {
+            try {
+                contentResolver.releasePersistableUriPermission(
+                    Uri.parse(uriStr),
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: SecurityException) {
+                // 權限已失效時無需再釋放
+            }
+        }
+        updateManifestStatus()
     }
 
     // -------------------------------------------------------------------------
@@ -169,42 +302,221 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun reloadManifest() {
-        val uriStr = prefs.getString(KEY_DRIVE_URI, null)
-        if (uriStr == null) {
-            showMessage(getString(R.string.msg_select_drive_first))
-            return
-        }
-        val treeUri = Uri.parse(uriStr)
+        expandSetup()
         lifecycleScope.launch {
-            val result = loadManifestFromDrive(treeUri)
-            if (result.manifest != null) {
-                classes = result.manifest.classes
-                populateClassSpinner()
-                showMessage(getString(R.string.msg_manifest_loaded, classes.size))
-            } else {
-                showMessage(result.error ?: getString(R.string.msg_manifest_bad_format))
+            val manifestUriStr = prefs.getString(KEY_MANIFEST_URI, null)
+            var directError: String? = null
+            var permissionLost = false
+
+            if (manifestUriStr != null) {
+                val direct = loadManifestFromUri(Uri.parse(manifestUriStr))
+                if (direct.manifest != null) {
+                    applyManifest(direct.manifest)
+                    showMessage(getString(R.string.msg_manifest_loaded, direct.manifest.classes.size))
+                    return@launch
+                }
+                directError = direct.error ?: getString(R.string.msg_manifest_unreadable)
+                permissionLost = direct.permissionLost
+                if (permissionLost) clearSelectedManifest()
             }
+
+            val treeUriStr = prefs.getString(KEY_DRIVE_URI, null)
+            if (treeUriStr == null) {
+                val message = when {
+                    manifestUriStr == null -> getString(R.string.msg_manifest_no_source)
+                    permissionLost -> getString(R.string.msg_manifest_permission_lost_no_folder)
+                    else -> getString(
+                        R.string.msg_manifest_direct_failed_no_folder,
+                        directError ?: getString(R.string.msg_manifest_unreadable)
+                    )
+                }
+                showMessage(message)
+                return@launch
+            }
+
+            val folder = loadManifestFromDriveFolder(Uri.parse(treeUriStr))
+            if (folder.manifest != null) {
+                applyManifest(folder.manifest)
+                val message = when {
+                    permissionLost -> getString(
+                        R.string.msg_manifest_loaded_permission_lost,
+                        folder.manifest.classes.size
+                    )
+                    directError != null -> getString(
+                        R.string.msg_manifest_loaded_folder_fallback,
+                        folder.manifest.classes.size,
+                        directError
+                    )
+                    else -> getString(R.string.msg_manifest_loaded, folder.manifest.classes.size)
+                }
+                showMessage(message)
+                return@launch
+            }
+
+            val folderError = folder.error ?: getString(R.string.msg_manifest_unreadable)
+            val message = when {
+                manifestUriStr == null -> getString(
+                    R.string.msg_manifest_folder_failed_hint,
+                    folderError
+                )
+                permissionLost -> getString(
+                    R.string.msg_manifest_permission_lost_fallback_failed,
+                    folderError
+                )
+                else -> getString(
+                    R.string.msg_manifest_both_failed,
+                    directError ?: getString(R.string.msg_manifest_unreadable),
+                    folderError
+                )
+            }
+            showMessage(message)
         }
     }
 
-    private suspend fun loadManifestFromDrive(treeUri: Uri): LoadResult = withContext(Dispatchers.IO) {
-        try {
-            val root = DocumentFile.fromTreeUri(this@MainActivity, treeUri)
-                ?: return@withContext LoadResult(error = getString(R.string.msg_manifest_missing))
-            val file = root.findFile("manifest.json")
-                ?: return@withContext LoadResult(error = getString(R.string.msg_manifest_missing))
-            val input = contentResolver.openInputStream(file.uri)
-                ?: return@withContext LoadResult(error = getString(R.string.msg_manifest_unreadable))
-            val text = input.bufferedReader().use { it.readText() }
-            val manifest = ManifestParser.parse(text)
-                ?: return@withContext LoadResult(error = getString(R.string.msg_manifest_bad_format))
-            if (manifest.classes.isEmpty()) {
-                return@withContext LoadResult(error = getString(R.string.msg_manifest_empty))
-            }
-            LoadResult(manifest = manifest)
-        } catch (_: Exception) {
-            LoadResult(error = getString(R.string.msg_manifest_unreadable))
+    private fun applyManifest(manifest: Manifest) {
+        classes = manifest.classes
+        populateClassSpinner()
+        collapseSetup()
+        scrollToClassSection()
+    }
+
+    // -------------------------------------------------------------------------
+    // 設定區收合／展開
+    // -------------------------------------------------------------------------
+
+    private fun collapseSetup() {
+        setupSummaryText.text = buildSetupSummary()
+        setupPanel.visibility = View.GONE
+        setupSummaryText.visibility = View.VISIBLE
+        toggleSetupButton.visibility = View.VISIBLE
+    }
+
+    private fun expandSetup() {
+        setupPanel.visibility = View.VISIBLE
+        setupSummaryText.visibility = View.GONE
+        toggleSetupButton.visibility = View.GONE
+    }
+
+    private fun expandSetupFromSummary() {
+        expandSetup()
+        mainScroll.smoothScrollTo(0, 0)
+    }
+
+    private fun buildSetupSummary(): String {
+        val manifestName = currentManifestName()
+        return if (prefs.getString(KEY_DRIVE_URI, null) == null) {
+            getString(R.string.setup_summary_no_drive_fmt, manifestName, classes.size)
+        } else {
+            getString(
+                R.string.setup_summary_fmt,
+                driveStatusText.text.toString(),
+                manifestName,
+                classes.size
+            )
         }
+    }
+
+    private fun refreshSetupSummaryIfCollapsed() {
+        if (setupPanel.visibility != View.VISIBLE) {
+            setupSummaryText.text = buildSetupSummary()
+        }
+    }
+
+    private fun scrollToClassSection() {
+        mainScroll.viewTreeObserver.addOnGlobalLayoutListener(
+            object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() {
+                    mainScroll.viewTreeObserver.removeOnGlobalLayoutListener(this)
+                    val offset = (8 * resources.displayMetrics.density).toInt()
+                    val target = (classLabel.top - offset).coerceAtLeast(0)
+                    mainScroll.smoothScrollTo(0, target)
+                }
+            }
+        )
+    }
+
+    private suspend fun loadManifestFromUri(uri: Uri): ManifestLoadResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val input = contentResolver.openInputStream(uri)
+                    ?: return@withContext ManifestLoadResult(
+                        error = getString(R.string.msg_manifest_unreadable)
+                    )
+                val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                parseManifestText(text)
+            } catch (e: Exception) {
+                ManifestLoadResult(
+                    error = getString(R.string.msg_manifest_unreadable),
+                    permissionLost = isPermissionError(e)
+                )
+            }
+        }
+
+    private suspend fun loadManifestFromDriveFolder(treeUri: Uri): ManifestLoadResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val root = DocumentFile.fromTreeUri(this@MainActivity, treeUri)
+                    ?: return@withContext ManifestLoadResult(
+                        error = getString(R.string.msg_drive_folder_unreadable)
+                    )
+                val children = try {
+                    root.listFiles().toList()
+                } catch (_: Exception) {
+                    return@withContext ManifestLoadResult(
+                        error = getString(R.string.msg_drive_folder_unreadable)
+                    )
+                }
+                val file = children.firstOrNull {
+                    it.name?.equals(MANIFEST_FILE_NAME, ignoreCase = true) == true
+                } ?: return@withContext ManifestLoadResult(
+                    error = describeFolderWithoutManifest(children)
+                )
+
+                val input = contentResolver.openInputStream(file.uri)
+                    ?: return@withContext ManifestLoadResult(
+                        error = getString(R.string.msg_manifest_unreadable)
+                    )
+                val text = input.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                parseManifestText(text)
+            } catch (_: Exception) {
+                ManifestLoadResult(error = getString(R.string.msg_manifest_unreadable))
+            }
+        }
+
+    private fun parseManifestText(text: String): ManifestLoadResult {
+        val manifest = ManifestParser.parse(text)
+            ?: return ManifestLoadResult(error = getString(R.string.msg_manifest_bad_format))
+        if (manifest.classes.isEmpty()) {
+            return ManifestLoadResult(error = getString(R.string.msg_manifest_empty))
+        }
+        return ManifestLoadResult(manifest = manifest)
+    }
+
+    private fun describeFolderWithoutManifest(children: List<DocumentFile>): String {
+        if (children.isEmpty()) {
+            return getString(R.string.msg_manifest_folder_empty)
+        }
+        val names = children
+            .mapNotNull { it.name?.trim()?.takeIf(String::isNotEmpty) }
+            .sorted()
+            .take(10)
+        return if (names.isEmpty()) {
+            getString(R.string.msg_manifest_folder_missing_count_fmt, children.size)
+        } else {
+            getString(
+                R.string.msg_manifest_folder_missing_fmt,
+                children.size,
+                names.joinToString("、")
+            )
+        }
+    }
+
+    private fun isPermissionError(e: Exception): Boolean {
+        if (e is SecurityException) return true
+        val message = e.message ?: return false
+        return message.contains("permission", ignoreCase = true) ||
+            message.contains("denied", ignoreCase = true) ||
+            message.contains("權限")
     }
 
     private fun populateClassSpinner() {
@@ -496,9 +808,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun showMessage(text: String) {
         messageText.text = text
+        snackbar?.dismiss()
+        snackbar = Snackbar.make(mainScroll, text, Snackbar.LENGTH_LONG).also { it.show() }
     }
 
-    private data class LoadResult(val manifest: Manifest? = null, val error: String? = null)
+    private data class ManifestLoadResult(
+        val manifest: Manifest? = null,
+        val error: String? = null,
+        val permissionLost: Boolean = false
+    )
 
     private data class UploadResult(
         val successCount: Int,
@@ -516,6 +834,9 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val PREFS_NAME = "scanner_prefs"
         private const val KEY_DRIVE_URI = "drive_tree_uri"
+        private const val KEY_MANIFEST_URI = "manifest_uri"
+        private const val KEY_MANIFEST_NAME = "manifest_name"
+        private const val MANIFEST_FILE_NAME = "manifest.json"
     }
 }
 

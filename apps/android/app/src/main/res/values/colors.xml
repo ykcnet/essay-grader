@@ -4,4 +4,8 @@
     <color name="primary_dark">#303F9F</color>
     <color name="on_primary">#FFFFFF</color>
     <color name="background">#FAFAFA</color>
+    <!-- 淺色背景上的前景色：需維持足夠對比 -->
+    <color name="on_background">#1F2933</color>
+    <color name="on_surface">#1F2933</color>
+    <color name="on_surface_variant">#52606D</color>
 </resources>

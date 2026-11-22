@@ -9,6 +9,17 @@
     <string name="choose_drive">選擇 Drive 資料夾</string>
     <string name="reload_manifest">重新讀取 manifest</string>
 
+    <string name="manifest_status_label">manifest.json</string>
+    <string name="manifest_not_set">尚未選擇 manifest.json</string>
+    <string name="manifest_selected_fmt">已選擇：%1$s</string>
+    <string name="manifest_file_placeholder">manifest.json</string>
+    <string name="choose_manifest">選擇 manifest.json</string>
+    <string name="manifest_pick_hint">選 manifest 後請按右下角「選取」或「開啟」</string>
+
+    <string name="toggle_setup">變更設定</string>
+    <string name="setup_summary_fmt">Drive：%1$s ・ %2$s ・ %3$d 個班級</string>
+    <string name="setup_summary_no_drive_fmt">尚未設定 Drive ・ %1$s ・ %2$d 個班級</string>
+
     <string name="label_class">班級</string>
     <string name="label_assignment">作業</string>
     <string name="label_student">學生</string>
@@ -29,7 +40,19 @@
     <string name="msg_manifest_unreadable">無法讀取 manifest.json</string>
     <string name="msg_manifest_bad_format">manifest.json 格式錯誤，請由桌面端重新產生</string>
     <string name="msg_manifest_empty">manifest.json 沒有班級資料</string>
-    <string name="msg_manifest_loaded">已載入 manifest：%1$d 個班級</string>
+    <string name="msg_manifest_loaded">manifest 已載入（%1$d 個班級），請選班級、作業、學生</string>
+    <string name="msg_manifest_no_source">尚未選擇 manifest.json，也未設定 Drive 資料夾；請按「選擇 manifest.json」或先選擇 Drive 資料夾</string>
+    <string name="msg_manifest_direct_failed_no_folder">無法讀取已選的 manifest.json（%1$s），且尚未設定 Drive 資料夾；請重新按「選擇 manifest.json」</string>
+    <string name="msg_manifest_permission_lost_no_folder">manifest.json 的存取權限已失效，已清除設定，且尚未設定 Drive 資料夾；請重新按「選擇 manifest.json」</string>
+    <string name="msg_manifest_both_failed">無法讀取已選的 manifest.json（%1$s）；Drive 資料夾也失敗：%2$s 請按「選擇 manifest.json」重新選擇</string>
+    <string name="msg_manifest_permission_lost_fallback_failed">manifest.json 的存取權限已失效，已清除設定並改讀 Drive 資料夾，但仍失敗：%1$s 請按「選擇 manifest.json」重新選擇</string>
+    <string name="msg_manifest_folder_failed_hint">%1$s 請按「選擇 manifest.json」直接選擇檔案</string>
+    <string name="msg_manifest_loaded_folder_fallback">已改從 Drive 資料夾載入 manifest：%1$d 個班級（已選的 manifest.json 無法使用：%2$s）</string>
+    <string name="msg_manifest_loaded_permission_lost">已從 Drive 資料夾載入 manifest：%1$d 個班級（原先選擇的 manifest.json 權限已失效，請重新選擇）</string>
+    <string name="msg_manifest_folder_empty">Drive 資料夾找不到 manifest.json（資料夾是空的）</string>
+    <string name="msg_manifest_folder_missing_fmt">Drive 資料夾找不到 manifest.json（共 %1$d 個項目：%2$s）</string>
+    <string name="msg_manifest_folder_missing_count_fmt">Drive 資料夾找不到 manifest.json（共 %1$d 個項目）</string>
+    <string name="msg_drive_folder_unreadable">無法列出 Drive 資料夾內容（可能權限已失效）</string>
 
     <string name="msg_scanner_unsupported">此裝置不支援文件掃描（需要 Google Play 服務）</string>
     <string name="msg_scan_empty">掃描結果沒有頁面</string>
