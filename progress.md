@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-22
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D11 自訂評語增刪改＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D21 評語庫版本更新＋D22 跨批冷卻輪替＋D23 停用取代刪除＋M8 Android 掃描器完成（App 建置完成、桌面 manifest 完成，待實機驗證）；下一步 M9／真機測試**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D11 自訂評語增刪改＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D21 評語庫版本更新＋D22 跨批冷卻輪替＋D23 停用取代刪除＋E1 快速給分＋M8 Android 掃描器（含掃描方向確認；App 建置完成、桌面 manifest 完成，待實機驗證）；下一步 M9／真機測試**
 
 ---
 
@@ -178,7 +178,7 @@
 | 97 | 手機 manifest 位置 | 寫在 `settings.externalInboxRoot/manifest.json`；未設定外部 root 或資料夾不存在時回繁中錯誤；用 `.tmp`→fsync→rename 原子覆蓋 |
 | 98 | 手機 manifest 入口 | IPC `import:write-manifest(classId)`、preload `imports.writeManifest(classId)`；ImportPanel 的 Google Drive inbox 區塊加「產生手機 manifest」，成功顯示路徑與班級／作業／學生數 |
 | 99 | Android 建置工具鏈 | `tools/android.ps1` 預設 `:app:assembleDebug`；優先 `JAVA_HOME`／`ANDROID_HOME`，否則 `M:\dev\tools\jdk`、`M:\dev\tools\android-sdk`；缺工具鏈回繁中錯誤；npm 腳本不硬編碼路徑 |
-| 100 | M8 驗收邊界 | 桌面 manifest 以 `manifest:check` 11/11 驗收；Android 以 13 個 JVM 測試與 debug APK 建置驗收；ML Kit、SAF、Drive 上傳與端到端仍待實機 |
+| 100 | M8 驗收邊界 | 桌面 manifest 以 `manifest:check` 11/11 驗收；Android 以 16 個 JVM 測試與 debug APK 建置驗收；ML Kit、SAF、Drive 上傳與端到端仍待實機 |
 
 ---
 
@@ -265,7 +265,7 @@ essay-grader-data/
 - [x] **G4 與上次比較：座號對齊、進步／退步、只計 compared 平均、弱項類別 Δ、UI 與 `compare:check` 15/15**（2026-11-20）
 - [x] 決定跨裝置搬檔方式：**Google Drive 本機同步資料夾（僅 inbox，資料庫不進雲端）**（2026-11-19）
 - [x] 國中版評語庫草稿 138 條完成（原 126 條，後增 12 條體裁補充）；D12 已接入並可依學制自動選用（2026-11-21）；仍待國中國文老師校閱
-- [x] **M8 Android 掃描器 App 建置完成**（2026-11-22）：Kotlin＋ML Kit、manifest 選單、SAF、多頁掃描、pending 佇列、Drive inbox 上傳；13 個 JVM 測試通過
+- [x] **M8 Android 掃描器 App 建置完成**（2026-11-22）：Kotlin＋ML Kit、manifest 選單、SAF、多頁掃描、pending 佇列、Drive inbox 上傳；16 個 JVM 測試通過
 - [x] **M8 桌面 manifest 產生完成**（2026-11-22）：IPC／preload／UI、原子覆蓋、只在學學生、`manifest:check` 11/11
 - [ ] M8 實機驗證：ML Kit 掃描與裁切、SAF 權限保存、Drive 上傳、離線補傳、桌機端到端 3 頁流程
 - [ ] M8 後續：多頁拖拉排序（B2）、送出後自動回相機（B6）、已拍清單與重拍刪除（B7）
@@ -610,6 +610,16 @@ essay-grader-data/
 - m4 驗收：`m4:check` 17/17；在學 45、已匯入 44、待批 0、批閱中 11、已批 33、未匯入 1；問題 14、提醒 11、合計 25 不變；重複組 S40／S41 合法，只標 S42。
 - 已知限制：只比對 `final_comment.text`，其他批註的近似重複不在本輪；字元 bigram 無法判斷語意改寫，換句話說或語序大幅改變時相似度會下降；短總評（約 20 字以下）的 bigram 數量少，兩三字差異就可能明顯改變相似度；僅限同一作業；批閱畫面計數的是同批所有其他作品，批次檢查則只看座號在前的作品（兩者同門檻，但第 N 份的計數基準不同）；門檻 0.85 為固定值，未開放設定。
 
+### E1 快速給分與 Android 掃描方向確認（2026-11-22）
+
+- 核心：`packages/core/src/review.ts` 新增 `distributeScore(total, rubric)`，依 `rubric.items` 的 `max` 比例分配，前 n−1 項以 `floor(ideal×2)/2` 取到 0.5，最後一項補差額；目標先四捨五入到 0.5 且不超過滿分合計；最後一項超過滿分時，每 0.5 分往回分給還有空間的項目（由後往前）。空量規回傳空物件；`total` 非法、≤0 或滿分合計 ≤0 回傳全 0。
+- 批閱 UI：評分卡片新增「分項合計」輸入、「分配到三項」與「複製上一份」。「分配到三項」把結果寫入三個分項字串並 `markDirty`；「複製上一份」依座號排序，先找目前座號之前的已評分作品，找不到再往後，只複製 `scores.items` 與 `scores.deduction.override`，不動 `final_comment`、批注、狀態或等第；兩者都走原 autosave，提示列顯示目前分項合計與扣分後總分。
+- 實測 `distributeScore`（均衡 40/30/30）：81 → 32/24/25（合計 81）；100 → 40/30/30；0 → 0/0/0；50 → 20/15/15；78.5 → 31/23.5/24；150 → 40/30/30（clamp）；空量規 0 項；max 0 與 −10／NaN 全 0。溢位回推以 8/8/2 配 17.5 → 7.5/8/2（最後一項補滿 2，0.5 回推到第二項）。
+- UI 實測（m3 隱藏視窗）：內容導向 45/25/30 下輸入 81 → 36/20/25（合計 81、0.5 步進），autosave 後 `work.json` 分項一致；按「複製上一份」由 S07 找到 S08 → 30/20/25、手動覆寫 2、總分 73，總評與批注維持不變；測試後已把 S07 還原，既有「更新量規不改寫分數」檢查仍通過。
+- Android：`ImageRotation` 純函式（`normalizeDegrees`、`rotatedSize`、`sampleSizeFor`）與 JVM 測試涵蓋 0/90/180/270、90／270 寬高交換、縮圖取樣（1000×800 → 1、2000×1500 → 2、4000×3000 → 4、0×0 → 1）。掃描完成跳出「確認掃描方向」，預覽第一頁縮圖，選定角度整批套用；取消不寫 pending、不上傳，按上傳才 `savePending` 後上傳。0° 直接串流複製，其餘逐頁解碼旋轉後以 JPEG 92 寫入；解碼／壓縮／OOM 失敗會刪除已建立的暫存與頁面，整批不留半套。`AndroidManifest` 固定直向，主畫面新增拍攝提示。
+- 驗收：`m3:check` 77/77（新增 3 項 `distributeScore`、2 項快速給分 UI）；Android JVM 16/16（Filenames 5、ImageRotation 3、ManifestParser 4、PendingMeta 2、Sidecar 2）；`typecheck`、`build`、android:test、android:build 通過。
+- 已知限制：快速分配只依比例拆分，不判斷內容優劣；「複製上一份」只找同作業且已有分數的作品，跨作業不支援；只複製分項與手動覆寫，總評／批注仍需自行處理；分配後仍可逐項手改。Android 一次僅能選一個角度套用整批，不能逐頁不同角度；非 90 倍數一律視為 0；旋轉頁會重新編碼 JPEG 92，可能與原始壓縮略有差異；大圖旋轉仍可能因記憶體不足整批失敗；方向確認只預覽第一頁，其餘頁面需上傳後在桌機確認。
+
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4＋G6＋M8）
 
 - soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。
@@ -657,7 +667,9 @@ essay-grader-data/
 - manifest 是手動產生的快照，名單或作業變更後不會自動更新；需回桌機重新按「產生手機 manifest」，再到手機重新讀取。
 - manifest 含學生姓名與座號，必須放在受控的 Google Drive 資料夾；成功匯入後桌機會刪除來源圖片與 sidecar，但雲端版本紀錄與垃圾桶仍可能保留。
 - Android 目前只有 debug APK，未提供正式簽署的發行檔或 Google Play 上架設定。
-- 連續執行多個 Electron 驗收時，`m3:check` 與 `library-import:check` 的隱藏視窗 UI 步驟曾出現時序性失敗（分別 70/72、18/19），單獨重跑皆回到 72/72、19/19；功能資料檢查無誤，測試穩定性仍可改善。
+- 快速給分依量規比例分配，不判斷內容優劣；「複製上一份」只找同作業已評分作品，且只複製分項與手動覆寫，不含總評、批注、狀態與等第。
+- Android 掃描方向確認一次只套用一個角度到整批，不能逐頁不同角度；只預覽第一頁；非 90 倍數視為 0；旋轉頁重新編碼 JPEG 92，且大圖仍可能記憶體不足而整批失敗。
+- 連續執行多個 Electron 驗收時，`m3:check` 與 `library-import:check` 的隱藏視窗 UI 步驟曾出現時序性失敗（分別 75/77、18/19），單獨重跑皆回到 77/77、19/19；功能資料檢查無誤，測試穩定性仍可改善。
 
 ### 0.2.0 版號、頂部按鈕對比與重新打包（2026-11-22）
 - 版本：root／`apps/desktop`／`packages/core` 三份 `package.json` 與 `package-lock.json` 統一為 `0.2.0`；Android `versionName` `0.2.0`、`versionCode` 2；README 與 `docs/使用說明.md` 的版本與產物名稱同步更新。

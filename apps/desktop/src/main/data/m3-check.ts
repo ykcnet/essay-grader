@@ -12,6 +12,7 @@ import {
   SENIOR_LIBRARY,
   applyLibraryDisabled,
   computeScore,
+  distributeScore,
   isCooldownDays,
   libraryForGrade,
   mergeLibraryEntries,
@@ -206,6 +207,10 @@ async function runUiSmoke(
   libraryTools: LibraryToolsUiResult
   disabledLibrary: LibraryDisabledUiResult
   customLibrary: LibraryCustomUiResult
+  quickScoreOk: boolean
+  quickScoreDetail: string
+  quickCopyOk: boolean
+  quickCopyDetail: string
 }> {
   const { classId, assignmentId, usedCommentId, usedSentenceId } = expectation
   const win = new BrowserWindow({
@@ -416,6 +421,10 @@ async function runUiSmoke(
     libraryTools: LibraryToolsUiResult
     disabledLibrary: LibraryDisabledUiResult
     customLibrary: LibraryCustomUiResult
+    quickScoreOk: boolean
+    quickScoreDetail: string
+    quickCopyOk: boolean
+    quickCopyDetail: string
   } => ({
     ok: false,
     detail,
@@ -425,7 +434,11 @@ async function runUiSmoke(
     workStableOk: false,
     libraryTools: emptyLibraryTools(),
     disabledLibrary: emptyLibraryDisabled(),
-    customLibrary: emptyLibraryCustom()
+    customLibrary: emptyLibraryCustom(),
+    quickScoreOk: false,
+    quickScoreDetail: '未執行',
+    quickCopyOk: false,
+    quickCopyDetail: '未執行'
   })
 
   try {
@@ -1904,6 +1917,238 @@ async function runUiSmoke(
           : '找不到「調整量規」按鈕'
     }
 
+    // ---- 快速給分：分項合計分配與複製上一份 ------------------------------
+    let quickScoreOk = false
+    let quickScoreDetail = '未執行'
+    let quickCopyOk = false
+    let quickCopyDetail = '未執行'
+    if (reviewOk) {
+      const quickReady = await waitFor("document.querySelector('.rv-quick-score')", 6000)
+      const quickUi = quickReady
+        ? ((await win.webContents.executeJavaScript(
+            `(() => {
+              const box = document.querySelector('.rv-quick-score')
+              return {
+                buttons: [...(box?.querySelectorAll('button') ?? [])].map(
+                  (item) => (item.textContent ?? '').trim()
+                ),
+                hasTotal: Boolean(box?.querySelector('input[type="number"]')),
+                rows: [...document.querySelectorAll('.rv-score-row')].slice(0, 4).map((row) => ({
+                  name: (row.querySelector('.rv-score-name')?.textContent ?? '').trim(),
+                  value: row.querySelector('input')?.value ?? ''
+                })),
+                hint: (box?.querySelector('.rv-quick-score-hint')?.textContent ?? '').trim()
+              }
+            })()`
+          )) as {
+            buttons: string[]
+            hasTotal: boolean
+            rows: { name: string; value: string }[]
+            hint: string
+          })
+        : { buttons: [], hasTotal: false, rows: [] as { name: string; value: string }[], hint: '' }
+
+      const readQuickRows = async (): Promise<{ items: number[]; override: string }> =>
+        (await win.webContents.executeJavaScript(
+          `(() => {
+            const inputs = [...document.querySelectorAll('.rv-score-row input')]
+            return {
+              items: inputs.slice(0, 3).map((item) => Number(item.value || 0)),
+              override: inputs[3]?.value ?? ''
+            }
+          })()`
+        )) as { items: number[]; override: string }
+
+      const quickOriginal = (await win.webContents.executeJavaScript(
+        `window.electronAPI.work.get(${JSON.stringify(classId)}, ${JSON.stringify(
+          assignmentId
+        )}, '07')`
+      )) as WorkFile | null
+
+      const quickFormOk =
+        quickReady &&
+        quickUi.hasTotal &&
+        quickUi.buttons.includes('分配到三項') &&
+        quickUi.buttons.includes('複製上一份') &&
+        quickUi.rows.length === 4 &&
+        quickUi.rows.slice(0, 3).every((row) => row.name.length > 0) &&
+        quickUi.rows[3]?.name === '手動覆寫' &&
+        quickUi.hint.includes('目前分項合計')
+
+      const quickInputSet = quickFormOk
+        ? await setInput('.rv-quick-score input', '81')
+        : false
+      const distributeClicked = quickInputSet
+        ? await clickTextButton('.rv-quick-score-row', '分配到三項')
+        : false
+      const distributedUi = distributeClicked
+        ? await waitFor(
+            `(() => {
+              const inputs = [...document.querySelectorAll('.rv-score-row input')].slice(0, 3)
+              if (inputs.length < 3) return false
+              const values = inputs.map((item) => Number(item.value || 0))
+              return Math.abs(values.reduce((sum, value) => sum + value, 0) - 81) < 1e-9 &&
+                values.every((value) => value >= 0 && Number.isInteger(value * 2))
+            })()`,
+            6000
+          )
+        : false
+      const distributedRows = distributedUi
+        ? await readQuickRows()
+        : { items: [] as number[], override: '' }
+
+      let persistedDistribute: WorkFile | null = null
+      for (let i = 0; i < 30; i++) {
+        persistedDistribute = (await win.webContents.executeJavaScript(
+          `window.electronAPI.work.get(${JSON.stringify(classId)}, ${JSON.stringify(
+            assignmentId
+          )}, '07')`
+        )) as WorkFile | null
+        const items = persistedDistribute?.scores?.items ?? {}
+        const values = [items.content, items.structure, items.language]
+        const saved =
+          Object.keys(items).length === 3 &&
+          values.every(
+            (value, index) =>
+              typeof value === 'number' &&
+              Math.abs(value - (distributedRows.items[index] ?? Number.NaN)) < 1e-9
+          )
+        if (saved) break
+        await delay(200)
+      }
+      const persistedItems = persistedDistribute?.scores?.items ?? {}
+      const persistedValues = [
+        persistedItems.content ?? Number.NaN,
+        persistedItems.structure ?? Number.NaN,
+        persistedItems.language ?? Number.NaN
+      ]
+      const distributedPersisted =
+        persistedValues.every((value) => Number.isFinite(value)) &&
+        Math.abs(persistedValues.reduce((sum, value) => sum + value, 0) - 81) < 1e-9 &&
+        distributedRows.items.every(
+          (value, index) => Math.abs(value - (persistedValues[index] ?? Number.NaN)) < 1e-9
+        )
+      quickScoreOk = quickFormOk && distributedUi && distributedPersisted
+      quickScoreDetail = quickScoreOk
+        ? `有「分項合計」輸入、分配到三項與複製上一份；輸入 81 → ${distributedRows.items.join(
+            '/'
+          )}（合計 81、0.5 步進），autosave 後 work.json 分項 ${persistedValues.join('/')}`
+        : !quickReady
+          ? '找不到快速給分區塊'
+          : !quickFormOk
+            ? `快速給分欄位不完整（按鈕 ${quickUi.buttons.join('／') || '無'}、列 ${
+                quickUi.rows.length
+              }）`
+            : !quickInputSet
+              ? '無法輸入分項合計'
+              : !distributeClicked
+                ? '找不到「分配到三項」按鈕'
+                : !distributedUi
+                  ? `分配後三項合計不是 81（${distributedRows.items.join('/') || '—'}）`
+                  : `分配結果未寫入 work.json（${persistedValues.join('/')}）`
+
+      // 複製上一份：S07 之前沒有作品，會往後找到已評分的 S08。
+      const copyClicked = quickScoreOk
+        ? await clickTextButton('.rv-quick-score-row', '複製上一份')
+        : false
+      const copyNotice = copyClicked
+        ? await waitForText('已複製 S08 的分數', 6000)
+        : false
+      const copiedRows = copyClicked ? await readQuickRows() : { items: [] as number[], override: '' }
+
+      let persistedCopy: WorkFile | null = null
+      for (let i = 0; i < 30; i++) {
+        persistedCopy = (await win.webContents.executeJavaScript(
+          `window.electronAPI.work.get(${JSON.stringify(classId)}, ${JSON.stringify(
+            assignmentId
+          )}, '07')`
+        )) as WorkFile | null
+        const items = persistedCopy?.scores?.items ?? {}
+        if (
+          items.content === 30 &&
+          items.structure === 20 &&
+          items.language === 25 &&
+          persistedCopy?.scores?.deduction.override === 2
+        ) {
+          break
+        }
+        await delay(200)
+      }
+      const copiedItems = persistedCopy?.scores?.items ?? {}
+      const copyPersistedOk =
+        copiedItems.content === 30 &&
+        copiedItems.structure === 20 &&
+        copiedItems.language === 25 &&
+        persistedCopy?.scores?.deduction.override === 2 &&
+        persistedCopy?.scores?.total === 73
+      const finalUnchanged =
+        (persistedCopy?.final_comment?.text ?? '') ===
+          (persistedDistribute?.final_comment?.text ?? '') &&
+        (persistedCopy?.final_comment?.text ?? '').length > 0
+      const annotationsUnchanged =
+        (persistedCopy?.annotations ?? []).length ===
+          (persistedDistribute?.annotations ?? []).length &&
+        JSON.stringify(persistedCopy?.annotations ?? []) ===
+          JSON.stringify(persistedDistribute?.annotations ?? [])
+      quickCopyOk =
+        copyClicked &&
+        copyNotice &&
+        copiedRows.items.join('/') === '30/20/25' &&
+        copiedRows.override === '2' &&
+        copyPersistedOk &&
+        finalUnchanged &&
+        annotationsUnchanged
+      quickCopyDetail = quickCopyOk
+        ? `複製 S08 → 分項 ${copiedRows.items.join('/')}、覆寫 ${
+            copiedRows.override
+          }（總分 ${persistedCopy?.scores?.total ?? '—'}）；總評與批注維持不變，autosave 已寫入`
+        : !copyClicked
+          ? '找不到「複製上一份」按鈕'
+          : !copyNotice
+            ? '未顯示已複製提示'
+            : copiedRows.items.join('/') !== '30/20/25' || copiedRows.override !== '2'
+              ? `畫面分數或覆寫不符（${copiedRows.items.join('/') || '—'}／${
+                  copiedRows.override || '空'
+                }）`
+              : !copyPersistedOk
+                ? `複製結果未寫入 work.json（${JSON.stringify(copiedItems)}、override ${
+                    persistedCopy?.scores?.deduction.override ?? '—'
+                  }）`
+                : '複製後總評或批注被改寫'
+
+      // 還原 S07，避免影響後續「既有分數不變」檢查。
+      if (quickOriginal) {
+        await delay(900)
+        await win.webContents.executeJavaScript(
+          `window.electronAPI.work.save(
+            ${JSON.stringify(classId)},
+            ${JSON.stringify(assignmentId)},
+            '07',
+            ${JSON.stringify(quickOriginal)}
+          )`
+        )
+        await delay(700)
+        const restored = (await win.webContents.executeJavaScript(
+          `window.electronAPI.work.get(${JSON.stringify(classId)}, ${JSON.stringify(
+            assignmentId
+          )}, '07')`
+        )) as WorkFile | null
+        if (
+          JSON.stringify(restored?.scores) !== JSON.stringify(quickOriginal.scores) ||
+          JSON.stringify(restored?.annotations) !== JSON.stringify(quickOriginal.annotations)
+        ) {
+          await win.webContents.executeJavaScript(
+            `window.electronAPI.work.save(
+              ${JSON.stringify(classId)},
+              ${JSON.stringify(assignmentId)},
+              '07',
+              ${JSON.stringify(quickOriginal)}
+            )`
+          )
+        }
+      }
+    }
+
     const ok =
       reviewOk &&
       libraryIpcOk &&
@@ -1930,9 +2175,11 @@ async function runUiSmoke(
       customLibrary.validateOk &&
       customLibrary.toggleOk &&
       customLibrary.insertOk &&
-      customLibrary.deleteOk
+      customLibrary.deleteOk &&
+      quickScoreOk &&
+      quickCopyOk
     const detail = ok
-      ? `主畫面、preload API、批閱介面（S07）、評語庫切換／排序／釘選／冷卻輪替／停用／自訂增刪改與量規編輯器正常`
+      ? `主畫面、preload API、批閱介面（S07）、評語庫切換／排序／釘選／冷卻輪替／停用／自訂增刪改、快速給分與量規編輯器正常`
       : !reviewMounted
         ? '按鈕已點擊，但批閱介面未掛載'
         : !canvasReady
@@ -1987,7 +2234,11 @@ async function runUiSmoke(
                                                           ? `自訂評語停用／啟用未生效（${customLibrary.toggleDetail}）`
                                                           : !customLibrary.insertOk
                                                             ? `自訂評語插入未生效（${customLibrary.insertDetail}）`
-                                                            : `自訂評語刪除未完成（${customLibrary.deleteDetail}）`
+                                                            : !customLibrary.deleteOk
+                                                              ? `自訂評語刪除未完成（${customLibrary.deleteDetail}）`
+                                                              : !quickScoreOk
+                                                                ? `快速給分未生效（${quickScoreDetail}）`
+                                                                : `複製上一份未生效（${quickCopyDetail}）`
 
     return {
       ok,
@@ -1998,7 +2249,11 @@ async function runUiSmoke(
       workStableOk,
       libraryTools,
       disabledLibrary,
-      customLibrary
+      customLibrary,
+      quickScoreOk,
+      quickScoreDetail,
+      quickCopyOk,
+      quickCopyDetail
     }
   } finally {
     win.destroy()
@@ -2415,6 +2670,86 @@ export async function runM3Check(): Promise<number> {
       }`
     )
 
+    // ---- distributeScore（快速給分） -------------------------------------
+    const balanced = RUBRIC_PRESETS.balanced
+    const balancedMaxes = balanced.items.map((item) => item.max)
+    const balancedIds = balanced.items.map((item) => item.id)
+    const valuesOf = (total: number, rubric = balanced): number[] => {
+      const distributed = distributeScore(total, rubric)
+      return balancedIds.map((id) => distributed[id] ?? Number.NaN)
+    }
+    const sumOf = (values: number[]): number => values.reduce((sum, value) => sum + value, 0)
+    const withinMaxes = (values: number[], maxes = balancedMaxes): boolean =>
+      values.every(
+        (value, index) =>
+          Number.isFinite(value) &&
+          value >= 0 &&
+          value <= (maxes[index] ?? 0) &&
+          Number.isInteger(value * 2)
+      )
+
+    const at81 = valuesOf(81)
+    const at100 = valuesOf(100)
+    const at0 = valuesOf(0)
+    add(
+      'distributeScore 40/30/30、81 與 100／0 邊界',
+      sumOf(at81) === 81 &&
+        withinMaxes(at81) &&
+        at81.join('/') === '32/24/25' &&
+        at100.join('/') === '40/30/30' &&
+        at0.join('/') === '0/0/0',
+      `81 → ${at81.join('/')}（合計 ${sumOf(at81)}）；100 → ${at100.join('/')}；0 → ${at0.join(
+        '/'
+      )}`
+    )
+
+    const at50 = valuesOf(50)
+    const at785 = valuesOf(78.5)
+    const atOver = valuesOf(150)
+    const emptyRubric = { ...balanced, items: [] }
+    const zeroMaxRubric = {
+      ...balanced,
+      items: balanced.items.map((item) => ({ ...item, max: 0 }))
+    }
+    const empty = distributeScore(80, emptyRubric)
+    const zeroMax = distributeScore(80, zeroMaxRubric)
+    const negative = valuesOf(-10)
+    const invalid = valuesOf(Number.NaN)
+    const zeroMaxAllZero = balancedIds.every((id) => zeroMax[id] === 0)
+    add(
+      'distributeScore 50／78.5／超過 100／空量規／max<=0／負數',
+      sumOf(at50) === 50 &&
+        withinMaxes(at50) &&
+        sumOf(at785) === 78.5 &&
+        withinMaxes(at785) &&
+        atOver.join('/') === '40/30/30' &&
+        Object.keys(empty).length === 0 &&
+        zeroMaxAllZero &&
+        negative.join('/') === '0/0/0' &&
+        invalid.join('/') === '0/0/0',
+      `50 → ${at50.join('/')}；78.5 → ${at785.join('/')}；150 → ${atOver.join(
+        '/'
+      )}；空量規 ${Object.keys(empty).length} 項；max 0 全 0；−10／NaN 全 0`
+    )
+
+    const overflowRubric = {
+      ...balanced,
+      items: [
+        { id: 'a', name: 'A', max: 8 },
+        { id: 'b', name: 'B', max: 8 },
+        { id: 'c', name: 'C', max: 2 }
+      ]
+    }
+    const overflow = distributeScore(17.5, overflowRubric)
+    add(
+      'distributeScore 最後一項滿分時多餘分回推',
+      overflow.c === 2 &&
+        overflow.a === 7.5 &&
+        overflow.b === 8 &&
+        overflow.a + overflow.b + overflow.c === 17.5,
+      `8/8/2 配 17.5 → ${overflow.a}/${overflow.b}/${overflow.c}（最後一項補滿 2，0.5 分回推到 B）`
+    )
+
     // ---- 資料庫與 validateWork --------------------------------------------
     await openDatabase(root, { remember: false })
     add('開啟暫存資料庫', true, root)
@@ -2591,6 +2926,13 @@ export async function runM3Check(): Promise<number> {
         text: s08Final,
         library_id: usedCommentId,
         library_version: SENIOR_LIBRARY.library_version
+      },
+      // 與 S07 不同的分數與手動覆寫，供「複製上一份」UI 測試辨識。
+      scores: {
+        items: { content: 30, structure: 20, language: 25 },
+        deduction: { typo: 0, punct: 0, override: 2 },
+        total: 73,
+        grade: 'B'
       },
       updated_at: now()
     }
@@ -3247,6 +3589,8 @@ export async function runM3Check(): Promise<number> {
     add('自訂評語停用／啟用', ui.customLibrary.toggleOk, ui.customLibrary.toggleDetail)
     add('自訂評語插入與使用次數', ui.customLibrary.insertOk, ui.customLibrary.insertDetail)
     add('自訂評語刪除與舊 work 快照', ui.customLibrary.deleteOk, ui.customLibrary.deleteDetail)
+    add('快速給分：分項合計分配與 autosave', ui.quickScoreOk, ui.quickScoreDetail)
+    add('快速給分：複製上一份分數與覆寫', ui.quickCopyOk, ui.quickCopyDetail)
 
     const workAfterLibrary = await loadWork(created.id, assignment.id, '07')
     add(

@@ -176,6 +176,59 @@ export function computeScore(
   return { itemsTotal, deduction, total, grade: resolveGrade(total, rubric) }
 }
 
+/**
+ * 依 rubric.items 的 max 比例把 total 分配到各分項，以 0.5 為最小單位。
+ * 總和等於四捨五入到 0.5 的目標（不超過各分項滿分總和）。
+ *
+ * 演算法：前 n-1 項取 floor(ideal*2)/2，最後一項補差額；若最後一項超過
+ * 其 max，把多餘往回分給還有空間的項目（每步 0.5，優先給最靠近最後一項的）。
+ * 空量規回傳空物件；total 非法、total <= 0 或滿分總和 <= 0 時回傳全 0。
+ */
+export function distributeScore(total: number, rubric: Rubric): Record<string, number> {
+  const items = rubric?.items ?? []
+  const result: Record<string, number> = {}
+
+  if (items.length === 0) return result
+
+  const maxes = items.map((item) => Math.max(0, item.max))
+  const maxSum = maxes.reduce((sum, value) => sum + value, 0)
+  if (!Number.isFinite(total) || total <= 0 || maxSum <= 0) {
+    for (const item of items) result[item.id] = 0
+    return result
+  }
+
+  const target = Math.min(maxSum, Math.round(total * 2) / 2)
+  const lastIndex = items.length - 1
+
+  // 前 n-1 項取 floor(ideal*2)/2，最後一項補差額。
+  const values: number[] = []
+  let sum = 0
+  for (let index = 0; index < lastIndex; index += 1) {
+    const max = maxes[index] ?? 0
+    const ideal = max === 0 ? 0 : (target * max) / maxSum
+    values[index] = Math.min(max, Math.floor(ideal * 2) / 2)
+    sum += values[index] ?? 0
+  }
+
+  let lastValue = target - sum
+  let overflow = lastValue - (maxes[lastIndex] ?? 0)
+  if (overflow > 0) {
+    lastValue = maxes[lastIndex] ?? 0
+    for (let index = lastIndex - 1; index >= 0 && overflow >= 0.5 - 1e-9; index -= 1) {
+      const spare = (maxes[index] ?? 0) - (values[index] ?? 0)
+      if (spare < 0.5 - 1e-9) continue
+      values[index] = Math.round(((values[index] ?? 0) + 0.5) * 2) / 2
+      overflow -= 0.5
+    }
+  }
+  values[lastIndex] = Math.round(lastValue * 2) / 2
+
+  items.forEach((item, index) => {
+    result[item.id] = values[index] ?? 0
+  })
+  return result
+}
+
 export interface WorkValidation {
   ok: boolean
   issues: string[]

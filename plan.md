@@ -532,7 +532,7 @@ essay-grader/
 
 **粗估**：桌機 MVP 6–8 週；桌機 P0 約 9–11 週；加 Android 與 QA 約 14–17 週。需求不再變動的估算，誤差約 ±30%。
 
-> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）、M7（打磨＋交付）、Drive 外部 inbox、E6（成績寫回 Excel）、未匹配照片手動分配、F2（整班批次回饋單）、10 分鐘 soak、G4（與上次比較）、G6（佳句庫）與 M8（Android 掃描器 App）已完成建置；M1 11/11、M2 13/13、M3 72/72、M4 17/17、M5 19/19、M6 17/17、M7 25/25、drive 23/23、manifest 11/11、excel 25/25、match 21/21、batch 17/17、compare 15/15、praise 15/15、Android JVM 13/13、soak 通過。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出；M7 補上備份／還原、日誌與錯誤處理、ErrorBoundary、使用者說明、electron-builder 設定與 NSIS／portable 打包；Drive 外部 inbox 補上 Google Drive 本機同步資料夾監看、兩種上傳擺法、sidecar／檔名座號、去重、PDF 擋下、來源清理、狀態與 UI；E6 補上成績表設定與自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV 與 UI 面板；G4 補上座號對齊、進步／退步／持平／新作品／缺資料、只計 compared 的班級平均、弱項四類每份平均、進步／退步前 5 與比較 UI。
+> 進度：M0（骨架）、M1（資料層）、M2（匯入佇列）、M3（批閱核心）、M4（批次檢查）、M5（回饋單）、M6（統計）、M7（打磨＋交付）、Drive 外部 inbox、E6（成績寫回 Excel）、未匹配照片手動分配、F2（整班批次回饋單）、10 分鐘 soak、G4（與上次比較）、G6（佳句庫）與 M8（Android 掃描器 App）已完成建置；M1 11/11、M2 13/13、M3 77/77、M4 17/17、M5 19/19、M6 17/17、M7 25/25、drive 23/23、manifest 11/11、excel 25/25、match 21/21、batch 17/17、compare 15/15、praise 15/15、Android JVM 16/16、soak 通過。M3 已含基本分項評分、自動扣分、總評字數、同批重複阻擋、建立作業可選量規、評分前調整配分與等第門檻；M4 補上作業層級批次檢查與 45 份流程驗收；M5 補上一頁 A4 回饋單、單份 PDF、列印與溢頁阻擋；M6 補上 G1 弱項排行、G2 常錯字、G3 個人弱項、分數摘要與 CSV 四檔匯出；M7 補上備份／還原、日誌與錯誤處理、ErrorBoundary、使用者說明、electron-builder 設定與 NSIS／portable 打包；Drive 外部 inbox 補上 Google Drive 本機同步資料夾監看、兩種上傳擺法、sidecar／檔名座號、去重、PDF 擋下、來源清理、狀態與 UI；E6 補上成績表設定與自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV 與 UI 面板；G4 補上座號對齊、進步／退步／持平／新作品／缺資料、只計 compared 的班級平均、弱項四類每份平均、進步／退步前 5 與比較 UI。
 
 **M3 驗收備註**
 
@@ -706,6 +706,8 @@ essay-grader/
 - [x] D11 自訂評語增刪改：管理模式下新增／編輯／刪除自訂評語，表單填類別／子類／文字／標籤；存 `<db>/_library/{junior|senior}.json`，切換資料庫各自獨立；空文字、comment <30、非法類別／子類、重複文字、重複／非自訂 id 皆拒絕；內建只能停用；自訂可停用／啟用、插入、計入次數，刪除後舊 work 快照不變；`m3:check` 擴充至 72/72（2026-11-22）
 - [x] D21 評語庫版本更新：管理模式「匯入新版」選 JSON，只新增缺少 id 與正規化後不重複的文字；不覆蓋 base／自訂／停用，`source=custom` 匯入後改 `builtin`、`disabled=false`；版本改用 `imported_version`，沒有新增不寫檔；國中／高中職各自獨立；`library-import:check` 19/19，涵蓋重複匯入、舊檔相容、`.bak` 還原、8 類錯誤與 UI 重新載入（2026-11-22）
 - [x] 國中用詞辨析重寫：JS-08～JS-11 改為直接說明詞語用法；`library:short` 允許 word_choice 用引號標示詞語，其餘短評仍禁用（2026-11-21）
+- [x] E1 快速給分：`distributeScore` 依量規比例分配 0–100 到各分項（0.5 步進、最後一項補差額、溢位回推），批閱評分卡片新增「分項合計／分配到三項／複製上一份」；複製只帶分項與手動覆寫，不動總評、批注、狀態；`m3:check` 擴充至 77/77（2026-11-22）
+- [x] Android 掃描方向確認：掃描完成先預覽第一頁並選 0／90／180／270 度，整批套用；取消不留 pending、不上傳，上傳才先存 pending；0° 原檔複製、其餘逐頁旋轉重編碼 JPEG 92；`ImageRotation` 純函式與 JVM 測試（0/90/180/270、尺寸交換、取樣），Android JVM 16/16（2026-11-22）
 - [ ] 目標電腦螢幕解析度（1366×768 是否為最低）
 
 ---
@@ -716,13 +718,14 @@ essay-grader/
 2. M1、M2、M3、M4、M5、M6、M7 已完成。M3 交付三欄式批閱介面、縮放／平移／翻頁、五類批注、評語庫、復原、快捷鍵、autosave、基本評分與總評重複提示；M4 交付作業層級批次檢查（未匯入、總評不足、重複超限、未評分、缺頁檔案、尚未完成）與 45 份流程驗收；M5 交付一頁 A4 回饋單、單份 PDF、列印、另存中文檔名與溢頁阻擋；M6 交付統計面板（分數摘要、G1／G2／G3）與 CSV 四檔匯出；M7 交付備份／還原、zip slip 防護、日誌輪替、錯誤處理、ErrorBoundary、使用說明與 NSIS／portable 打包設定。
 3. 圖片前處理（EXIF 轉正、移除 GPS／中繼資料、長邊 2600、縮圖）已隨 M3 完成。
 4. 量規預設採用均衡版，建立作業可改選其他 preset、評分前可調整配分與等第門檻；變更只影響之後的計算，已有分數不自動改寫。
-5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。未匹配照片手動分配已完成：`.meta.json` 結構化資訊、內外清單、320px 縮圖、realpath 路徑防護、選取學生後複製到 `_inbox` 並產生 sidecar、依 mtime／檔名排序、來源與附屬檔刪除、重複去重、`match:check` 21/21。F2 整班批次回饋單已完成：逐份輸出、跳過未完成、溢頁不中斷、`_feedback/` 中文檔名與 JSON／CSV 報告、進度與取消、`batch:check` 17/17。10 分鐘 soak 已完成：45 人、每圈 45 份回饋單，15 圈、720 份 PDF，private 291→291 MB、peak 426 MB、視窗回 0，作品與 PDF 驗證全數通過。M8 Android 掃描器已完成建置：Kotlin＋ML Kit、選班級／作業／學生、多頁掃描、離線 pending、只寫 inbox；桌面端可產生 manifest.json，Android JVM 13/13、debug APK 建置通過，待實機驗證。
+5. Google Drive 外部 inbox 已完成：設定持久化、子資料夾／扁平兩種擺法、sidecar 優先、檔名座號、SHA-256 去重、PDF 擋下、成功刪除來源、`_unmatched`／`_duplicates`、UI 四個按鈕與 `drive:check` 23/23。E6 成績寫回 Excel 已完成：`gradebook.json` 設定、自動偵測、座號索引、graded 副本、重新開啟驗證、重複座號中止、圖表／巨集匯出模式、失敗 CSV、`excel:check` 25/25。未匹配照片手動分配已完成：`.meta.json` 結構化資訊、內外清單、320px 縮圖、realpath 路徑防護、選取學生後複製到 `_inbox` 並產生 sidecar、依 mtime／檔名排序、來源與附屬檔刪除、重複去重、`match:check` 21/21。F2 整班批次回饋單已完成：逐份輸出、跳過未完成、溢頁不中斷、`_feedback/` 中文檔名與 JSON／CSV 報告、進度與取消、`batch:check` 17/17。10 分鐘 soak 已完成：45 人、每圈 45 份回饋單，15 圈、720 份 PDF，private 291→291 MB、peak 426 MB、視窗回 0，作品與 PDF 驗證全數通過。M8 Android 掃描器已完成建置：Kotlin＋ML Kit、選班級／作業／學生、多頁掃描、離線 pending、只寫 inbox；桌面端可產生 manifest.json，Android JVM 16/16、debug APK 建置通過，待實機驗證。
 6. M7 打包已完成；若換電腦或離線打包，electron-builder 需要重新下載 Electron／NSIS，失敗時不影響 `npm run dev`、`m1:check`–`m7:check` 與既有資料。
 7. D12 國中／高中職雙評語庫已接入（2026-11-21）：`JUNIOR_LIBRARY`／`SENIOR_LIBRARY` 並存，`libraryForGrade` 依學制自動選用，批閱面板可手動切換並顯示草稿提示；`settings.json` 的 `libraryMode` 保留偏好。國中版仍為草稿（`2026.2-draft`），待國中國文老師校閱。結構依據與 19 類覆蓋表見 `docs/評語庫結構依據.md`，覆蓋率由 `npm run library:coverage` 把關；體裁補充的來源與採用對照見 `docs/評語參考_使用者提供.md`。高中職混合型子類與情意題條數列為校閱待決事項。
 8. D13 常用排序與釘選已完成（2026-11-21）：`sortLibraryEntries` 支援預設／常用（累計）／本批未用優先，釘選在三種排序都最先，釘選內依累計次數由高到低；使用次數由 `work.json` 的 `library_id` 即時推導，不維護計數器。`settings.json` 新增 `librarySort`／`libraryPins`，釘選為跨作業的全域 UI 偏好；`m3:check` 38/38 涵蓋排序、計數、偏好與 UI 重載。
 9. G6 佳句庫累積已完成（2026-11-21）：`buildPraiseBank` 跨作業收集 `done` 作品的佳句、`normalizeComment` 去重、統計次數與來源作業，輸出不含座號姓名；Repository `getPraiseBank(classId?)` 支援本班／全部班級並跳過壞作業；主畫面「佳句庫」面板可搜尋、複製與關閉；`praise:check` 15/15。
 10. D21 評語庫版本更新已完成（2026-11-22）：管理模式「匯入新版」只新增缺少 id 與正規化後不重複的文字，不覆蓋自訂、停用或既有條目；匯入條目存 `_library/*.json` 的 `imported` 並記錄 `imported_version`，沒有新增時不改版本、不寫檔；國中／高中職各自獨立，舊檔缺少新欄位仍可讀；`library-import:check` 19/19。
 11. D19 近似重複偵測已完成（2026-11-22）：總評去除變數、標點與空白後以字元 bigram Jaccard 計算相似度，門檻 0.85（`FINAL_SIMILARITY_THRESHOLD`）；相同與近似一起計入 `final_max_reuse`；批閱畫面顯示「相同」或「相近＋百分比」並在達上限時紅字阻擋；批次檢查（`audit.ts`）同步採用，依座號逐一比對前面作品；`similarity:check` 13/13。只比對 `final_comment.text`，其他批注的近似重複不在本輪。
-11. M8 桌面 manifest 已完成（2026-11-22）：外部 inbox 根目錄的 `manifest.json` 只含目前班級、全部作業與在學學生座號／姓名，不含分數、批注、總評或作品內容；原子寫入、覆蓋舊檔與無 root 錯誤皆納入 `manifest:check` 11/11。Android App 已建置（AGP 8.7.3、Kotlin 2.0.21、Gradle 8.9、compileSdk 35），13 個 JVM 測試通過，APK 位於 `apps/android/app/build/outputs/apk/debug/app-debug.apk`。待辦：實機驗證 ML Kit、SAF、Drive 上傳與桌機端到端流程，之後進入 M9。
+11. M8 桌面 manifest 已完成（2026-11-22）：外部 inbox 根目錄的 `manifest.json` 只含目前班級、全部作業與在學學生座號／姓名，不含分數、批注、總評或作品內容；原子寫入、覆蓋舊檔與無 root 錯誤皆納入 `manifest:check` 11/11。Android App 已建置（AGP 8.7.3、Kotlin 2.0.21、Gradle 8.9、compileSdk 35），16 個 JVM 測試通過，APK 位於 `apps/android/app/build/outputs/apk/debug/app-debug.apk`。待辦：實機驗證 ML Kit、SAF、Drive 上傳與桌機端到端流程，之後進入 M9。
+12. E1 快速給分與 Android 掃描方向確認已完成（2026-11-22）：桌面評分卡片可用「分項合計」依量規比例分配到三項，或以「複製上一份」帶入同作業最近一份的分項與手動覆寫，兩者都走原 autosave；Android 掃描完成先確認整批旋轉角度，取消不留 pending、按上傳才存 pending 並傳 Drive；Android JVM 16/16、`m3:check` 77/77。
 
 > 技術棧已定案；M0 骨架（`apps/desktop`、`packages/core`、`fixtures`）已建立，Git 已初始化（main），M0–M7＋F2＋10 分鐘 soak＋M8 桌面 manifest 與 Android App 建置已完成並建立對應 commit。

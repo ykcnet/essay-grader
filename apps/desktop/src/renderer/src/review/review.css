@@ -715,6 +715,48 @@
 
 /* 評分與量規 */
 
+/* 快速給分：分項合計分配與複製上一份 */
+
+.rv-quick-score {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px dashed #c9bfa9;
+  border-radius: 8px;
+  background: #fbf7ee;
+}
+
+.rv-quick-score-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.rv-quick-score-row label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.rv-quick-score-row input {
+  width: 72px;
+  padding: 4px 7px;
+  text-align: right;
+}
+
+.rv-quick-score-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
 .rv-rubric {
   display: flex;
   align-items: flex-start;

@@ -24,6 +24,7 @@ import {
   calcDeduction,
   computeScore,
   countFinalChars,
+  distributeScore,
   resolveGrade,
   sortGradeBands,
   validateGradeBands,
@@ -276,6 +277,7 @@ export default function ReviewView({
 
   const [scoreItems, setScoreItems] = useState<Record<string, string>>({})
   const [override, setOverride] = useState('')
+  const [quickTotal, setQuickTotal] = useState('')
   const [reuse, setReuse] = useState<FinalReuseResult>({ count: 0, seats: [], matches: [] })
   const [issues, setIssues] = useState<string[]>([])
 
@@ -848,6 +850,24 @@ export default function ReviewView({
     return computeScore(annotations, items, rubric, overrideValue)
   }, [annotations, override, rubric, scoreItems])
 
+  // 快速給分目前畫面上的分項合計（raw 加總，非扣分後總分）。
+  const scoreItemsSum = useMemo(() => {
+    let sum = 0
+    for (const raw of Object.values(scoreItems)) {
+      if (raw.trim() === '') continue
+      const value = Number(raw)
+      if (Number.isFinite(value)) sum += value
+    }
+    return Math.round(sum * 100) / 100
+  }, [scoreItems])
+
+  const quickTotalValue = Number(quickTotal)
+  const quickTotalOk =
+    quickTotal.trim() !== '' &&
+    Number.isFinite(quickTotalValue) &&
+    quickTotalValue > 0 &&
+    quickTotalValue <= 100
+
   // ---- 量規調整 ----------------------------------------------------------
 
   const rubricItems = {
@@ -1102,6 +1122,66 @@ export default function ReviewView({
   const handleScoreChange = (id: string, value: string): void => {
     setScoreItems((previous) => ({ ...previous, [id]: value }))
     markDirty()
+  }
+
+  /** 快速給分：把「分項合計」依量規比例分配到各分項。 */
+  const handleQuickDistribute = (): void => {
+    if (!rubric) return
+    const total = Number(quickTotal)
+    if (!Number.isFinite(total) || total <= 0 || total > 100) {
+      setNotice({ kind: 'error', text: '請輸入 0–100 的分項合計' })
+      return
+    }
+    const distributed = distributeScore(total, rubric)
+    const next: Record<string, string> = {}
+    for (const item of rubric.items) {
+      next[item.id] = String(distributed[item.id] ?? 0)
+    }
+    setScoreItems(next)
+    markDirty()
+  }
+
+  /** 複製同作業佇列中最近一份已評分作品的分數與手動覆寫，不含總評、批注、狀態。 */
+  const handleCopyPrevious = async (): Promise<void> => {
+    if (!work) return
+    const sorted = [...works].sort((a, b) => a.seat.localeCompare(b.seat))
+    const currentIndex = sorted.findIndex((item) => item.seat === work.seat)
+    const before = currentIndex > 0 ? sorted.slice(0, currentIndex).reverse() : []
+    const after = sorted.slice(Math.max(0, currentIndex + 1))
+    const candidates = [...before, ...after]
+
+    for (const candidate of candidates) {
+      if (!candidate.hasScores) continue
+      let source: WorkFile
+      try {
+        source = (await window.electronAPI.work.get(
+          classId,
+          assignmentId,
+          candidate.seat
+        )) as WorkFile
+      } catch {
+        continue
+      }
+      const sourceItems = source.scores?.items ?? {}
+      if (Object.keys(sourceItems).length === 0) continue
+
+      const next: Record<string, string> = {}
+      for (const [key, value] of Object.entries(sourceItems)) {
+        next[key] = String(value)
+      }
+      setScoreItems(next)
+      setOverride(
+        source.scores?.deduction.override === null ||
+          source.scores?.deduction.override === undefined
+          ? ''
+          : String(source.scores.deduction.override)
+      )
+      markDirty()
+      setNotice({ kind: 'ok', text: `已複製 S${candidate.seat} 的分數` })
+      return
+    }
+
+    setNotice({ kind: 'info', text: '沒有其他已評分作品可複製' })
   }
 
   const currentCategory = selected?.category ?? draftCategory
@@ -2366,6 +2446,42 @@ export default function ReviewView({
                     </button>
                   </div>
                 )}
+              </div>
+            )}
+
+            {rubric && (
+              <div className="rv-quick-score">
+                <div className="rv-quick-score-row">
+                  <label>
+                    分項合計
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.5}
+                      value={quickTotal}
+                      placeholder="0–100"
+                      onChange={(event) => setQuickTotal(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    className="small"
+                    disabled={!quickTotalOk || rubric.items.length === 0}
+                    onClick={handleQuickDistribute}
+                  >
+                    分配到三項
+                  </button>
+                  <button
+                    className="small"
+                    disabled={!work}
+                    onClick={() => void handleCopyPrevious()}
+                  >
+                    複製上一份
+                  </button>
+                </div>
+                <p className="rv-quick-score-hint">
+                  目前分項合計 {scoreItemsSum}，扣分後總分 {computed?.total ?? '—'}
+                </p>
               </div>
             )}
 

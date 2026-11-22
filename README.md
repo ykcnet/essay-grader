@@ -33,7 +33,7 @@ npm run typecheck    # 兩份 tsconfig 都檢查
 npm run spike        # 自動驗證 Canvas／PDF／監看／記憶體
 npm run m1:check     # 資料層驗收（建檔、名單、壞檔還原、鎖、主畫面）
 npm run m2:check     # 匯入驗收（10 檔配對、去重、unmatched、Excel 名單）
-npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫與排序釘選停用、量規與等第、計分、驗證、work 存取、UI 煙霧）
+npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫與排序釘選停用、量規與等第、計分與快速給分、驗證、work 存取、UI 煙霧）
 npm run m4:check     # 批次檢查驗收（45 人、44 份作品、重複／缺頁／未匯入、UI 煙霧）
 npm run similarity:check # D19 近似重複驗收（相似度與門檻、countFinalReuse、批次一致、批閱 UI 相近與阻擋）
 npm run m5:check     # 回饋單驗收（資料推導、檔名、單頁 PDF、溢頁阻擋、UI 煙霧）
@@ -96,7 +96,9 @@ Google Drive 外部 inbox：在匯入佇列表按「設定／變更」選擇 Goo
 
 `apps/android/` 是 Kotlin + ML Kit Document Scanner 手機 App：從 Drive 根目錄讀 `manifest.json`，
 選班級／作業／學生後掃描，寫入 `<root>/<classId>/<assignmentId>/S07__session__001.jpg` 與 sidecar；
-沒有網路或上傳失敗時先存本機 pending 佇列，之後可重新上傳。ML Kit 需要 Google Play services，
+沒有網路或上傳失敗時先存本機 pending 佇列，之後可重新上傳。掃描完成會先跳出「確認掃描方向」，
+預覽第一頁並選擇 0／90／180／270 度，整批頁面套用同一角度；按「取消」不寫 pending、不上傳，
+按「上傳」才先存 pending 再傳到 Drive inbox。ML Kit 需要 Google Play services，
 不支援的裝置會顯示繁中提示。
 
 桌機端在「Google Drive inbox」區塊按「產生手機 manifest」，會在外部 inbox 根目錄
@@ -122,6 +124,18 @@ local.properties、APK）不進版控；wrapper jar 會提交。
 等第至少一筆、名稱不可空白或重複、最低分須為 0–100 且不可重複，儲存時由高到低排序；
 表單會即時顯示目前總分落在哪一級。若該作業已有評分，變更前會先確認；只影響之後的計算，
 已儲存的分數與等第不會自動改寫，目前這份的預覽會用新量規重算，完成批閱時才寫入。
+
+### 快速給分
+
+評分卡片上方新增「分項合計」與兩個動作，讓老師先決定總分再回填分項：
+
+- **分配到三項**：輸入 1–100（可到 0.5）後，依目前量規的配分比例分到內容、結構、語言，
+  每項以 0.5 分為單位，三項總和等於輸入值；超過量規滿分合計時以滿分為上限。演算法在
+  `packages/core/src/review.ts` 的 `distributeScore`，前幾項取比例後向下取到 0.5，最後一項補差額；
+  最後一項若超過滿分，多出的 0.5 分會往回分給還有空間的項目。
+- **複製上一份**：依座號找同一作業中最近一份已有分數的作品（先往前找、再往後找），只複製
+  三個分項與「手動覆寫」，**不複製總評、批注、狀態或等第**。複製後照常標記已修改並 autosave。
+- 分項合計與分配結果都會即時顯示「目前分項合計」與「扣分後總分」；沒有可複製來源時會提示。
 
 ### 國中版評語庫（草稿，依學制自動選用）
 
@@ -334,11 +348,11 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 移除特定詞句、段落編號、事件與人物假設，改為條件式與通用描述；
 `npm run library:short` 會檢查引號、段落編號、禁用題材與重複，違規即失敗；
 其中 sentence 的 word_choice（用詞辨析）可用引號標示具體詞語，其他短評仍禁用。
-驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、
+驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 77/77、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
 `praise:check` 15/15、`library-import:check` 19/19、`manifest:check` 11/11、`similarity:check` 13/13、`junior:check`、
-`library:wording/structure/coverage/short` 與 `spike` 通過；Android JVM 測試 13/13、debug APK 建置通過。
+`library:wording/structure/coverage/short` 與 `spike` 通過；Android JVM 測試 16/16、debug APK 建置通過。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），
@@ -365,5 +379,5 @@ soak 以 45 人、每圈 45 份回饋單跑滿 10 分鐘：15 圈、16 次批次
 peak 426 MB、growth 0 MB，視窗批次後回到 0，45 份作品與最後一輪 PDF 驗證皆通過。
 M8 以 1 班（2 位在學、1 位不在學）、2 份作業驗證 manifest：classes 1、assignments 2、
 students 只含在學 2 人，欄位只有 10 個必要 key；覆蓋舊檔、無外部 root 錯誤與 UI 提示皆通過。
-Android 13 個 JVM 測試通過，`app-debug.apk` 6,629,853 bytes；實機掃描、ML Kit、SAF 與 Drive 上傳仍待驗證。
+Android JVM 16/16 測試通過，`app-debug.apk` 6,629,853 bytes；實機掃描、ML Kit、SAF 與 Drive 上傳仍待驗證。
 已知限制見 `progress.md`；下一步為 M9 與真機測試。
