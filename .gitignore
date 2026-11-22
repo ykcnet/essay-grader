@@ -9,6 +9,7 @@ Thumbs.db
 *.tsbuildinfo
 spike-out/
 spike-assets/
+data/
 __pycache__/
 *.pyc
 *.tmp
