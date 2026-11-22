@@ -43,6 +43,7 @@ npm run match:check  # 未匹配照片驗收（內外清單、meta、縮圖、�
 npm run batch:check  # 整班批次回饋單驗收（輸出、跳過、溢頁失敗、報告、取消、重複啟動、UI）
 npm run compare:check # G4 與上次比較驗收（狀態、平均、弱項、排行、拒絕情境、UI）
 npm run praise:check # G6 佳句庫驗收（核心、去重、排序、去識別、Repository、IPC／preload、UI）
+npm run library-import:check # D21 評語庫版本更新驗收（只新增、略過重複、版本、舊檔相容、錯誤、UI）
 npm run junior:render  # 由 junior.draft.json 產生國中版評語庫 Markdown（草稿）
 npm run junior:validate # 國中版草稿檢查（條數、id、字數、標籤、與高中職版重複）
 npm run junior:check   # 國中版草稿完整檢查，含 Markdown 與 JSON 一致與用語引號檢查
@@ -154,6 +155,26 @@ runtime 已同時載入國中版與高中職版：預設 `auto` 會依班級學�
 - 停用清單寫在 `settings.json` 的 `libraryDisabled`（`junior`／`senior` 各一組 id），
   寫入時只留字串並去重，重開程式仍保留；IPC 會驗證版本、評語 id 與 boolean。
 
+### 匯入新版評語庫（D21）
+
+評語庫面板右上角在「管理」模式下新增「匯入新版」，可選擇一份新版內建評語庫 JSON，
+把目前缺少的條目補進來。適合老師拿到校閱後的新版評語庫、或同事整理的新條目時使用。
+
+- 只新增目前缺少的 id 與文字：既有 id 一律略過，既有條目的文字不會被覆蓋；
+  正規化後（去變數、標點、空白）與現有評語相同的文字也會略過，避免重複條目。
+- 不覆蓋自訂評語、D23 停用清單與既有 `work.json`；匯入的條目一律視為內建、
+  預設啟用。若來源檔的條目標成 `custom` 或 `disabled`，匯入時會改回
+  `builtin`／`false`，避免混淆。
+- 只有實際新增條目時才會寫入 `_library/{junior|senior}.json` 並更新版本；
+  若沒有新增，版本維持原值，檔案位元組不變。
+- 版本規則：目前版本有匯入條目且來源檔帶 `library_version` 時，面板顯示來源檔版本；
+  否則顯示內建版本。沒有新增時不會更新版本。
+- 只影響目前版本：在國中版匯入只改國中版，高中職版不受影響；反之亦然。
+- 匯入結果會顯示新增數、略過既有 id 數、略過重複文字數與版本，並立即重新載入清單；
+  管理模式與搜尋條件會保留。
+- 檔案不存在、JSON 損壞、schema 不合、沒有條目、檔案內 id 重複、空白 id、
+  非法版本或尚未開啟資料庫，都會被拒絕並顯示繁體中文訊息，不會寫入任何檔案。
+
 國中版用語以平鋪直敘為主，避免抽象術語；`npm run junior:readability` 只掃評語文字，
 列出脈絡、層次、張力等難詞的 ID 並以 exit 1 阻擋，單條超過 90 字只警告。
 2026-11-21 已全面白話化 95 條，並更換 JE-10、JS-13、JG-01、JG-02 為通用說法。
@@ -263,6 +284,10 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 自訂評語依版本存在資料庫的 `_library/junior.json`、`_library/senior.json`，
 切換資料庫各自獨立，不寫入 `settings.json`；內建評語只能停用、不能刪除。
 自訂評語可停用／啟用、插入、計入使用次數；刪除後舊 `work.json` 的文字與 `library_id` 不受影響。
+評語庫也支援匯入新版（D21）：管理模式的「匯入新版」只新增缺少的 id 與文字，
+不覆蓋自訂、停用或既有條目；重複文字會略過，沒有新增時不改版本、不寫檔，
+國中／高中職版本各自獨立。匯入條目存於同一份 `_library/*.json` 的 `imported`
+並記錄 `imported_version`，舊檔沒有這兩個欄位仍可正常讀取。
 兩套評語庫已完成用語清洗：總評、佳句、結構不再以引號假設特定詞句，改用通用指稱；
 `npm run library:wording` 與 `junior:check` 會檢查此規則，違規即失敗。
 兩套 144 條總評已改為五面向平衡：結構、立意取材、語言表達、情感體驗、格式應用；
@@ -278,7 +303,8 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
-`praise:check` 15/15、`junior:check`、`library:wording/structure/coverage/short` 與 `spike` 通過。
+`praise:check` 15/15、`library-import:check` 19/19、`junior:check`、
+`library:wording/structure/coverage/short` 與 `spike` 通過。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），

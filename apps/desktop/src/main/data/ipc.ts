@@ -6,7 +6,7 @@ import {
   isLibraryId,
   isLibraryMode,
   libraryForGrade,
-  mergeLibraryEntries,
+  mergeLibraryLayers,
   normalizeCustomTags,
   normalizeLibraryMode,
   validateCustomLibraryEntry,
@@ -74,7 +74,13 @@ import {
   updateAssignmentRubric
 } from './repository'
 import { backupFileName, createBackupZip, restoreBackupZip } from './backup'
-import { readCustomEntries, writeCustomEntries } from './library-custom'
+import {
+  readCustomEntries,
+  readLibraryAdditions,
+  writeCustomEntries,
+  type LibraryAdditions
+} from './library-custom'
+import { importLibraryFile } from './library-import'
 import {
   chooseGradebook,
   inspectGradebook,
@@ -249,21 +255,36 @@ export function registerDataIpc(): void {
 
     const payload = libraryForGrade(grade, mode)
 
-    // 合併自訂條目；讀取失敗只警告，不讓整個評語庫載入失敗。
-    let customEntries: LibraryEntry[] = []
+    // 合併自訂與匯入條目；讀取失敗只警告，不讓整個評語庫載入失敗。
+    let additions: LibraryAdditions = { custom: [], imported: [] }
     try {
-      customEntries = await readCustomEntries(payload.id)
+      additions = await readLibraryAdditions(payload.id)
     } catch (error) {
-      logWarn(`[library] 自訂評語讀取失敗（${payload.id}）：${message(error)}`)
+      logWarn(`[library] 評語庫擴充條目讀取失敗（${payload.id}）：${message(error)}`)
     }
-    const merged: typeof payload = {
+    const merged = mergeLibraryLayers(
+      payload.library.entries,
+      additions.imported,
+      additions.custom
+    )
+    if (merged.duplicateIds.length > 0) {
+      logWarn(
+        `[library] 評語庫 id 重複略過（${payload.id}）：${merged.duplicateIds.join('、')}`
+      )
+    }
+    const libraryVersion =
+      additions.imported.length > 0 && additions.importedVersion
+        ? additions.importedVersion
+        : payload.library.library_version
+    const mergedPayload: typeof payload = {
       ...payload,
       library: {
         ...payload.library,
-        entries: mergeLibraryEntries(payload.library.entries, customEntries)
+        entries: merged.entries,
+        library_version: libraryVersion
       }
     }
-    return applyLibraryDisabled(merged, settings.libraryDisabled?.[merged.id] ?? [])
+    return applyLibraryDisabled(mergedPayload, settings.libraryDisabled?.[mergedPayload.id] ?? [])
   })
 
   ipcMain.handle('library:set-mode', async (_event, mode: LibraryMode) => {
@@ -282,10 +303,11 @@ export function registerDataIpc(): void {
       if (typeof disabled !== 'boolean') throw new Error('停用狀態不合法。')
 
       const base = libraryForGrade(undefined, libraryId).library
-      const custom = await readCustomEntries(libraryId)
+      const additions = await readLibraryAdditions(libraryId)
       if (
         !base.entries.some((entry) => entry.id === entryId) &&
-        !custom.some((entry) => entry.id === entryId)
+        !additions.imported.some((entry) => entry.id === entryId) &&
+        !additions.custom.some((entry) => entry.id === entryId)
       ) {
         throw new Error('找不到該評語，可能已更新版本。')
       }
@@ -398,6 +420,21 @@ export function registerDataIpc(): void {
       throw new Error('找不到該評語。')
     }
   )
+
+  ipcMain.handle('library:import', async (_event, libraryId: LibraryId) => {
+    if (!isLibraryId(libraryId)) {
+      throw new Error('評語庫版本不合法，請選擇國中版或高中職版。')
+    }
+    const result = await dialog.showOpenDialog({
+      title: '匯入新版評語庫',
+      buttonLabel: '匯入',
+      properties: ['openFile'],
+      filters: [{ name: '評語庫 JSON', extensions: ['json'] }]
+    })
+    if (result.canceled || !result.filePaths[0]) return { canceled: true }
+    const report = await importLibraryFile(libraryId, result.filePaths[0])
+    return { canceled: false, ...report }
+  })
 
   ipcMain.handle('library:usage', (_event, classId: string, assignmentId: string) =>
     getLibraryUsage(classId, assignmentId)

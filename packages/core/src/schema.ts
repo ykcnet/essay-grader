@@ -242,12 +242,16 @@ export type LibraryFile = z.infer<typeof LibrarySchema>
 
 /**
  * 自訂評語檔案，存在資料庫根目錄的 `_library/{junior|senior}.json`。
- * 只存自訂條目（source 一律 custom），不與內建庫混寫。
+ * `entries` 只存自訂條目（source 一律 custom）；`imported` 存匯入的新版內建
+ * （source 一律 builtin、disabled=false）；`imported_version` 記錄匯入版本。
+ * 舊檔沒有 imported／imported_version 時，imported 為空、版本未設定。
  */
 export const CustomLibrarySchema = z.object({
   schema_version: z.literal(1),
   library_id: z.enum(['junior', 'senior']),
   entries: z.array(LibraryEntrySchema),
+  imported: z.array(LibraryEntrySchema).default([]),
+  imported_version: z.string().optional(),
   updated_at: TimestampSchema
 })
 export type CustomLibraryFile = z.infer<typeof CustomLibrarySchema>

@@ -126,6 +126,7 @@ const api = {
     }) => ipcRenderer.invoke('library:save-custom', input),
     deleteCustom: (input: { libraryId: string; id: string }) =>
       ipcRenderer.invoke('library:delete-custom', input),
+    importFile: (libraryId: string) => ipcRenderer.invoke('library:import', libraryId),
     usage: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('library:usage', classId, assignmentId),
     getPrefs: () => ipcRenderer.invoke('library:get-prefs'),

@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-22
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D11 自訂評語增刪改＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D22 跨批冷卻輪替＋D23 停用取代刪除完成；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D11 自訂評語增刪改＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D21 評語庫版本更新＋D22 跨批冷卻輪替＋D23 停用取代刪除完成；下一步 M8 手機**
 
 ---
 
@@ -549,6 +549,25 @@ essay-grader-data/
 - 文件：README／`docs/使用說明.md`／features／plan／progress 同步記錄。
 - 回歸：`npm run typecheck -w @essay-grader/core`、`npm run typecheck`、`npm run build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`junior:check` 17/17、`library:wording／structure／coverage／short`、`spike` 通過。
 - 已知限制：自訂評語存在各資料庫內，換資料庫或搬移資料庫時需連同 `_library/` 一起備份；目前沒有匯入／匯出或跨資料庫複製。刪除自訂後，`settings.json` 可能保留已不存在的停用 id，但不影響清單。重複文字只做正規化比對，不判斷語意相近的改寫。既有作品的 `library_id` 不會因自訂評語刪除而清除，仍可在統計中看到歷史次數。
+
+### D21 評語庫版本更新驗收（2026-11-22）
+
+- Core：`CustomLibrarySchema` 新增 `imported`（預設空陣列）與 `imported_version`（選填），舊檔缺少時可正常讀取；新增 `mergeLibraryLayers(base, imported, custom)`，依序合併並略過撞 id 的後層條目，回傳 `duplicateIds` 供記錄。
+- 儲存：`main/data/library-custom.ts` 改以 `readLibraryAdditions`／`writeLibraryAdditions` 讀寫同一份 `_library/{junior|senior}.json` 的 `entries`（自訂）與 `imported`（匯入）；寫入時自訂一律 `source=custom`、匯入一律 `source=builtin`、`disabled=false`，並保留 `imported_version`。
+- 匯入：`main/data/library-import.ts` 的 `importLibraryFile(libraryId, path)` 先驗證版本、讀檔與 `LibrarySchema`，再檢查空白 id、檔案內重複 id、空條目；比對 base＋imported＋custom 的 id 與 `normalizeComment` 文字，只把缺少的條目寫入。沒有新增時直接回報，不寫檔、不改版本。
+- IPC／preload：`library:get` 以 base→imported→custom 合併，版本在有匯入條目時改用 `imported_version`，最後套用 D23 停用；`library:set-disabled` 也接受 imported id。新增 `library:import`（JSON 檔案選擇器，取消回 `canceled`）與 preload `library.importFile`。
+- ReviewView：管理模式新增「匯入新版」按鈕，匯入中顯示「匯入中…」；成功後顯示「匯入完成：新增 N 條、略過既有 N 條、略過重複文字 N 條、版本 …」，並立即重新載入清單；管理模式與搜尋條件保留。
+- 驗收：新增 `library-import:check` 19/19。匯入檔 5 條（2 條全新文字、1 條既有內建 id、1 條新 id 但文字正規化後重複、1 條 `source=custom` 的新 id）→ 新增 3、`skippedExistingId` 1、`skippedDuplicateText` 1、版本 `2099.1-test`、總數 142（base 138＋imported 3＋custom 1）。
+- 合併與版本實測：順序為 base→imported→custom（前三筆 imported 依檔案順序、自訂最後）、`duplicateIds` 空、版本 `2099.1-test`；內建 `E-01` 文字不變、3 條新評語可見；`source=custom` 的匯入條目變成 `builtin`、`disabled=false`。
+- 保留實測：匯入前後自訂 1 條（`CUSTOM-D21-1`）與 D23 停用清單（`E-03`、自訂 id）完全一致；把 `D21-NEW-1` 加入停用清單後 payload `disabled=true`，自訂也停用，未列入的 `D21-NEW-2` 仍為 `false`。
+- 重複與版本實測：再次匯入同檔 → 新增 0、略過既有 4、略過重複文字 1、版本與總數不變、檔案位元組完全不變；只含略過項目的 `2099.2-no-new` → 新增 0、版本維持 `2099.1-test`、位元組不變。
+- 版本隔離實測：國中版匯入 1 條 → 139 條／版本 `2099.1-junior`，高中職仍 3 條／`2099.1-test`。
+- 相容與還原實測：移除 `imported`／`imported_version` 的舊檔可讀（自訂 1 條、imported 0、版本回到內建 `2026.1`）；主檔損壞後由 `.bak` 還原，自訂 1 條、imported 4 條、版本 `2099.3-ui`。
+- 錯誤實測：檔案不存在、JSON 損壞、schema 不合（皆「評語庫檔案格式不正確」）、沒有條目、檔案內 id 重複、空白 id、無資料庫（「尚未開啟資料庫」）、非法 libraryId（「評語庫版本不合法」）皆被拒且訊息繁中；錯誤匯入不改寫 `_library`。
+- UI 實測：管理模式有「匯入新版」、preload `library.importFile` 存在；以替換回傳值的系統選擇器模擬匯入 `2099.3-ui` 1 條 → 搜尋「介面匯入」由 0→1 條、版本文字更新為 `高中職版 · 2099.3-ui`、`library:get` 143 條、管理模式與搜尋字串保留、匯入條目 `source=builtin`、`disabled=false`。
+- 文件：README／`docs/使用說明.md`／features／plan／progress 同步記錄。
+- 回歸：`typecheck`、`build`、`library-import:check` 19/19、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`junior:check` 17/17、`library:wording／structure／coverage／short`、`spike` 通過。
+- 已知限制：只支援 JSON 評語庫檔，沒有 CSV 交換（D15 另計）；匯入採整檔驗證，檔案內任一空白／重複 id 會整份拒絕，不做部分匯入；只記錄一份 `imported_version`，沒有逐條來源版本或衝突比對介面；匯入條目在清單中不另標「匯入」，與內建條目外觀相同，只能由 `_library` 檔的 `imported` 陣列辨識；系統檔案選擇器無法自動化，驗收以替換回傳值模擬。
 
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4＋G6）
 

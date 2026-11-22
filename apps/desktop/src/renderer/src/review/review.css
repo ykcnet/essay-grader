@@ -901,6 +901,17 @@
   color: var(--amber);
 }
 
+.rv-import-result {
+  margin: 8px 0 0;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: rgba(46, 125, 91, 0.1);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--green);
+  overflow-wrap: anywhere;
+}
+
 .rv-warn {
   margin: 8px 0 0;
   padding: 7px 9px;

@@ -412,3 +412,32 @@ export function mergeLibraryEntries(
   const extra = customEntries.filter((entry) => !baseIds.has(entry.id))
   return [...baseEntries, ...extra]
 }
+
+export interface MergeLibraryResult {
+  entries: LibraryEntry[]
+  /** 與前面層級撞 id 而被略過的 id（正常情況不應發生）。 */
+  duplicateIds: string[]
+}
+
+/**
+ * 依序合併 base → imported → custom，回傳新陣列；不改動任一來源。
+ * 後面層級的條目若 id 與前面重複會被略過並記錄，保證後面的不覆蓋前面。
+ */
+export function mergeLibraryLayers(
+  baseEntries: readonly LibraryEntry[],
+  importedEntries: readonly LibraryEntry[],
+  customEntries: readonly LibraryEntry[]
+): MergeLibraryResult {
+  const seen = new Set<string>()
+  const duplicateIds: string[] = []
+  const out: LibraryEntry[] = []
+  for (const entry of [...baseEntries, ...importedEntries, ...customEntries]) {
+    if (seen.has(entry.id)) {
+      duplicateIds.push(entry.id)
+      continue
+    }
+    seen.add(entry.id)
+    out.push(entry)
+  }
+  return { entries: out, duplicateIds }
+}

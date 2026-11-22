@@ -316,6 +316,9 @@ export default function ReviewView({
   const [customError, setCustomError] = useState('')
   const [customSaving, setCustomSaving] = useState(false)
 
+  const [libraryImporting, setLibraryImporting] = useState(false)
+  const [libraryImportResult, setLibraryImportResult] = useState<string | null>(null)
+
   const stageRef = useRef<Konva.Stage | null>(null)
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const annotationTextRef = useRef<HTMLTextAreaElement | null>(null)
@@ -1297,6 +1300,35 @@ export default function ReviewView({
     }
   }
 
+  /** 匯入新版內建評語庫；只新增目前缺少的 id 與文字，不覆蓋既有條目。 */
+  const importLibrary = async (): Promise<void> => {
+    setLibraryError('')
+    setLibraryImportResult(null)
+    setLibraryImporting(true)
+    try {
+      const result = (await window.electronAPI.library.importFile(libraryId)) as {
+        canceled?: boolean
+        imported?: number
+        skippedExistingId?: number
+        skippedDuplicateText?: number
+        version?: string
+      }
+      if (result?.canceled) return
+      setLibraryImportResult(
+        `匯入完成：新增 ${result.imported ?? 0} 條、略過既有 ${
+          result.skippedExistingId ?? 0
+        } 條、略過重複文字 ${result.skippedDuplicateText ?? 0} 條、版本 ${
+          result.version ?? '未知'
+        }`
+      )
+      setLibraryRequest((value) => value + 1)
+    } catch (importError) {
+      setLibraryError(`匯入失敗：${errorText(importError)}`)
+    } finally {
+      setLibraryImporting(false)
+    }
+  }
+
   const filteredEntries = useMemo(() => {
     if (!library) return []
     const query = libraryQuery.trim()
@@ -1843,9 +1875,18 @@ export default function ReviewView({
               <h3>評語庫</h3>
               <div className="rv-card-head-actions">
                 {libraryManage && (
-                  <button className="small" onClick={() => openCustomForm()}>
-                    新增評語
-                  </button>
+                  <>
+                    <button className="small" onClick={() => openCustomForm()}>
+                      新增評語
+                    </button>
+                    <button
+                      className="small"
+                      disabled={libraryImporting}
+                      onClick={() => void importLibrary()}
+                    >
+                      {libraryImporting ? '匯入中…' : '匯入新版'}
+                    </button>
+                  </>
                 )}
                 <button
                   className={`small${libraryManage ? ' active' : ''}`}
@@ -1895,6 +1936,9 @@ export default function ReviewView({
                   <p className="rv-note">停用不會刪除評語，舊批注仍保留文字。</p>
                 )}
                 {libraryError && <p className="rv-warn">{libraryError}</p>}
+                {libraryImportResult && (
+                  <p className="rv-import-result">{libraryImportResult}</p>
+                )}
                 {customForm && (
                   <div className="rv-custom-form">
                     <p className="rv-custom-form-title">

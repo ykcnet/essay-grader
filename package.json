@@ -30,6 +30,7 @@
     "batch:check": "electron apps/desktop --batch-check",
     "compare:check": "electron apps/desktop --compare-check",
     "praise:check": "electron apps/desktop --praise-check",
+    "library-import:check": "electron apps/desktop --library-import-check",
     "junior:render": "node tools/render_junior_library.mjs",
     "junior:validate": "node tools/validate_junior_library.mjs",
     "junior:check": "node tools/validate_junior_library.mjs && node tools/validate_library_wording.mjs",
