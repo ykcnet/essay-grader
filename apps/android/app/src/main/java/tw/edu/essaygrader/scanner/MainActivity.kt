@@ -3,18 +3,25 @@ package tw.edu.essaygrader.scanner
 import android.app.Activity
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.ImageView
+import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
@@ -609,15 +616,118 @@ class MainActivity : AppCompatActivity() {
         val classInfo = currentClass() ?: return
         val assignment = currentAssignment() ?: return
         val student = currentStudent() ?: return
+        showRotationDialog(pages, classInfo.id, assignment.id, student.seat)
+    }
+
+    /**
+     * 掃描完成後先確認方向：預覽第一頁縮圖，選擇的角度會套用到整批頁面。
+     * 取消時不寫 pending、不上傳。
+     */
+    private fun showRotationDialog(
+        pages: List<GmsDocumentScanningResult.Page>,
+        classId: String,
+        assignmentId: String,
+        seat: String
+    ) {
+        val content = LayoutInflater.from(this).inflate(R.layout.dialog_scan_rotation, null)
+        val previewImage = content.findViewById<ImageView>(R.id.rotationPreviewImage)
+        val previewHint = content.findViewById<TextView>(R.id.rotationPreviewHint)
+        val rotationGroup = content.findViewById<RadioGroup>(R.id.rotationGroup)
+
+        var previewBitmap: Bitmap? = null
+        val dialog = AlertDialog.Builder(this)
+            .setView(content)
+            .setPositiveButton(R.string.scan_rotation_upload, null)
+            .setNegativeButton(R.string.scan_rotation_cancel, null)
+            .create()
+
+        rotationGroup.setOnCheckedChangeListener { _, _ ->
+            previewImage.rotation = selectedRotation(rotationGroup).toFloat()
+        }
+
+        dialog.setOnDismissListener {
+            rotationGroup.setOnCheckedChangeListener(null)
+            previewImage.setImageDrawable(null)
+            previewBitmap?.takeIf { !it.isRecycled }?.recycle()
+            previewBitmap = null
+        }
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.show()
+
+        // 覆寫「上傳」按鈕，先取角度再關閉，避免預設監聽直接 dismiss。
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+            val rotation = selectedRotation(rotationGroup)
+            dialog.dismiss()
+            saveAndUpload(pages, classId, assignmentId, seat, rotation)
+        }
+
+        lifecycleScope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                runCatching { decodePreviewBitmap(pages.first().imageUri, PREVIEW_MAX_LONG_SIDE) }
+                    .getOrNull()
+            }
+            if (!dialog.isShowing) {
+                bitmap?.takeIf { !it.isRecycled }?.recycle()
+                return@launch
+            }
+            if (bitmap == null) {
+                previewHint.text = getString(R.string.scan_rotation_preview_failed)
+                return@launch
+            }
+            previewBitmap = bitmap
+            previewHint.visibility = View.GONE
+            previewImage.setImageBitmap(bitmap)
+            previewImage.rotation = selectedRotation(rotationGroup).toFloat()
+        }
+    }
+
+    private fun selectedRotation(group: RadioGroup): Int = when (group.checkedRadioButtonId) {
+        R.id.rotation90 -> 90
+        R.id.rotation180 -> 180
+        R.id.rotation270 -> 270
+        else -> 0
+    }
+
+    /** 背景解碼第一頁縮圖；長邊限制在 maxLongSide 內，避免 OOM。 */
+    private fun decodePreviewBitmap(uri: Uri, maxLongSide: Int): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = ImageRotation.sampleSizeFor(bounds.outWidth, bounds.outHeight, maxLongSide)
+        }
+        return contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, options)
+        }
+    }
+
+    private fun saveAndUpload(
+        pages: List<GmsDocumentScanningResult.Page>,
+        classId: String,
+        assignmentId: String,
+        seat: String,
+        rotationDegrees: Int
+    ) {
         val sessionId = Filenames.sessionId()
         val capturedAt = Filenames.capturedAt()
 
         lifecycleScope.launch {
-            val saved = withContext(Dispatchers.IO) {
-                savePending(classInfo.id, assignment.id, student.seat, sessionId, capturedAt, pages)
+            val result = withContext(Dispatchers.IO) {
+                savePending(
+                    classId,
+                    assignmentId,
+                    seat,
+                    sessionId,
+                    capturedAt,
+                    pages,
+                    rotationDegrees
+                )
             }
-            if (!saved) {
-                showMessage(getString(R.string.msg_scan_save_failed))
+            if (!result.success) {
+                showMessage(
+                    getString(result.errorRes ?: R.string.msg_scan_save_failed)
+                )
+                updatePendingStatus()
                 return@launch
             }
             showMessage(getString(R.string.msg_scan_saved, pages.size))
@@ -632,24 +742,93 @@ class MainActivity : AppCompatActivity() {
         seat: String,
         sessionId: String,
         capturedAt: String,
-        pages: List<GmsDocumentScanningResult.Page>
-    ): Boolean {
-        return try {
+        pages: List<GmsDocumentScanningResult.Page>,
+        rotationDegrees: Int
+    ): PendingSaveResult {
+        val rotation = ImageRotation.normalizeDegrees(rotationDegrees)
         val dir = File(filesDir, "pending/$sessionId")
-        if (!dir.exists() && !dir.mkdirs()) return false
-        for (i in pages.indices) {
-            val seq = i + 1
-            val input = contentResolver.openInputStream(pages[i].imageUri) ?: return false
-            val target = File(dir, Filenames.pendingPageFileName(seq))
-            input.use { ins ->
-                FileOutputStream(target).use { outs -> copyStream(ins, outs) }
+        val createdFiles = mutableListOf<File>()
+
+        fun discardCreatedFiles() {
+            createdFiles.forEach { runCatching { it.delete() } }
+            if (dir.isDirectory && dir.listFiles()?.isEmpty() != false) {
+                runCatching { dir.delete() }
             }
         }
-        val meta = PendingMeta(classId, assignmentId, seat, sessionId, capturedAt, pages.size)
-        File(dir, "meta.json").writeText(meta.toJson(), Charsets.UTF_8)
-        true
+
+        return try {
+            if (!dir.exists() && !dir.mkdirs()) return PendingSaveResult(false)
+            for (i in pages.indices) {
+                val seq = i + 1
+                val target = File(dir, Filenames.pendingPageFileName(seq))
+                val temp = File(dir, "${target.name}.tmp")
+                createdFiles += temp
+
+                val input = contentResolver.openInputStream(pages[i].imageUri)
+                    ?: throw IOException("無法讀取第 $seq 頁")
+                input.use { ins ->
+                    if (rotation == 0) {
+                        // 0 度維持原檔串流複製，不重新編碼。
+                        FileOutputStream(temp).use { outs -> copyStream(ins, outs) }
+                    } else {
+                        rotatePageToFile(ins, temp, rotation)
+                    }
+                }
+
+                if (!temp.renameTo(target)) {
+                    // 少數檔案系統不支援直接 rename，退回複製後刪除暫存檔。
+                    FileInputStream(temp).use { ins ->
+                        FileOutputStream(target).use { outs -> copyStream(ins, outs) }
+                    }
+                    temp.delete()
+                }
+                createdFiles += target
+            }
+            val metaFile = File(dir, "meta.json")
+            createdFiles += metaFile
+            val meta = PendingMeta(classId, assignmentId, seat, sessionId, capturedAt, pages.size)
+            metaFile.writeText(meta.toJson(), Charsets.UTF_8)
+            PendingSaveResult(true)
+        } catch (_: OutOfMemoryError) {
+            discardCreatedFiles()
+            PendingSaveResult(false, R.string.msg_scan_rotate_failed)
+        } catch (_: PageRotationException) {
+            discardCreatedFiles()
+            PendingSaveResult(false, R.string.msg_scan_rotate_failed)
         } catch (_: Exception) {
-            false
+            discardCreatedFiles()
+            PendingSaveResult(
+                false,
+                if (rotation == 0) null else R.string.msg_scan_rotate_failed
+            )
+        }
+    }
+
+    /** 解碼單頁、旋轉後以 JPEG 寫入指定檔案；只保留一份 Bitmap，處理完立即 recycle。 */
+    private fun rotatePageToFile(input: InputStream, outputFile: File, degrees: Int) {
+        val original = BitmapFactory.decodeStream(input)
+            ?: throw PageRotationException("無法解碼頁面")
+        var rotated: Bitmap? = null
+        try {
+            val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
+            val rotatedBitmap = Bitmap.createBitmap(
+                original,
+                0,
+                0,
+                original.width,
+                original.height,
+                matrix,
+                true
+            )
+            rotated = rotatedBitmap
+            FileOutputStream(outputFile).use { outs ->
+                if (!rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, PAGE_JPEG_QUALITY, outs)) {
+                    throw PageRotationException("無法壓縮頁面")
+                }
+            }
+        } finally {
+            rotated?.takeIf { it !== original && !it.isRecycled }?.recycle()
+            if (!original.isRecycled) original.recycle()
         }
     }
 
@@ -831,14 +1010,24 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private data class PendingSaveResult(
+        val success: Boolean,
+        val errorRes: Int? = null
+    )
+
     companion object {
         private const val PREFS_NAME = "scanner_prefs"
         private const val KEY_DRIVE_URI = "drive_tree_uri"
         private const val KEY_MANIFEST_URI = "manifest_uri"
         private const val KEY_MANIFEST_NAME = "manifest_name"
         private const val MANIFEST_FILE_NAME = "manifest.json"
+        private const val PREVIEW_MAX_LONG_SIDE = 1200
+        private const val PAGE_JPEG_QUALITY = 92
     }
 }
+
+/** 單頁旋轉或重新編碼失敗，用於區分一般存檔錯誤。 */
+private class PageRotationException(message: String) : IOException(message)
 
 private fun copyStream(input: InputStream, output: OutputStream) {
     val buffer = ByteArray(8192)

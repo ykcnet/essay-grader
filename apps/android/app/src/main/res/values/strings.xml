@@ -25,6 +25,7 @@
     <string name="label_student">學生</string>
 
     <string name="start_scan">開始掃描</string>
+    <string name="scan_hint">拍攝時保持手機直立，讓文件四角都在框內；完成後可在預覽頁旋轉、裁切、調整順序。</string>
     <string name="pending_label">待上傳</string>
     <string name="pending_status">待上傳：0 頁</string>
     <string name="pending_status_fmt">待上傳：%1$d 頁</string>
@@ -58,6 +59,19 @@
     <string name="msg_scan_empty">掃描結果沒有頁面</string>
     <string name="msg_scan_saved">已掃描 %1$d 頁，開始上傳…</string>
     <string name="msg_scan_save_failed">儲存掃描結果失敗，請重試</string>
+
+    <string name="scan_rotation_title">確認掃描方向</string>
+    <string name="scan_rotation_desc">若頁面方向不對，請選擇旋轉角度；預覽會同步旋轉。</string>
+    <string name="scan_rotation_preview_desc">第一頁縮圖預覽</string>
+    <string name="scan_rotation_preparing">準備預覽…</string>
+    <string name="scan_rotation_preview_failed">無法載入預覽縮圖</string>
+    <string name="scan_rotation_0">0°</string>
+    <string name="scan_rotation_90">90°</string>
+    <string name="scan_rotation_180">180°</string>
+    <string name="scan_rotation_270">270°</string>
+    <string name="scan_rotation_upload">上傳</string>
+    <string name="scan_rotation_cancel">取消</string>
+    <string name="msg_scan_rotate_failed">頁面旋轉失敗，未儲存任何頁面，請重試</string>
 
     <string name="msg_uploaded_pages">已上傳 %1$d 頁</string>
     <string name="msg_partial_upload">已上傳 %1$d 頁，失敗 %2$d 頁；可稍後重新上傳</string>
