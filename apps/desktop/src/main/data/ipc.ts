@@ -21,6 +21,7 @@ import {
   type WorkFile
 } from '@essay-grader/core'
 import { randomUUID } from 'node:crypto'
+import { writePhoneManifest } from '../import/manifest'
 import {
   ensureInbox,
   getImportStatus,
@@ -564,6 +565,10 @@ export function registerDataIpc(): void {
       }
       return { dir }
     }
+  )
+
+  ipcMain.handle('import:write-manifest', (_event, classId: string) =>
+    writePhoneManifest(classId)
   )
 
   ipcMain.handle('roster:import-excel', (_event, classId: string) =>

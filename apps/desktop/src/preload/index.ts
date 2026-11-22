@@ -151,6 +151,8 @@ const api = {
     openDriveRoot: () => ipcRenderer.invoke('import:drive-open'),
     ensureDriveFolder: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('import:drive-ensure-folder', classId, assignmentId),
+    writeManifest: (classId: string) =>
+      ipcRenderer.invoke('import:write-manifest', classId),
     listUnmatched: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('import:unmatched-list', classId, assignmentId),
     unmatchedThumbnail: (classId: string, assignmentId: string, path: string) =>

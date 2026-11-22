@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">作文掃描</string>
+    <string name="title">作文掃描</string>
+
+    <string name="drive_status_label">Drive 資料夾</string>
+    <string name="drive_not_set">未設定</string>
+    <string name="drive_folder_placeholder">已設定（無法讀取名稱）</string>
+    <string name="choose_drive">選擇 Drive 資料夾</string>
+    <string name="reload_manifest">重新讀取 manifest</string>
+
+    <string name="label_class">班級</string>
+    <string name="label_assignment">作業</string>
+    <string name="label_student">學生</string>
+
+    <string name="start_scan">開始掃描</string>
+    <string name="pending_label">待上傳</string>
+    <string name="pending_status">待上傳：0 頁</string>
+    <string name="pending_status_fmt">待上傳：%1$d 頁</string>
+    <string name="retry_upload">重新上傳待上傳</string>
+
+    <string name="msg_select_drive_first">請先設定 Drive 資料夾</string>
+    <string name="msg_select_class">請先選擇班級</string>
+    <string name="msg_select_assignment">請先選擇作業</string>
+    <string name="msg_select_student">請先選擇學生</string>
+    <string name="msg_no_active_student">本作業沒有在學學生</string>
+
+    <string name="msg_manifest_missing">找不到 manifest.json，請先由桌面端產生並同步到 Drive 資料夾</string>
+    <string name="msg_manifest_unreadable">無法讀取 manifest.json</string>
+    <string name="msg_manifest_bad_format">manifest.json 格式錯誤，請由桌面端重新產生</string>
+    <string name="msg_manifest_empty">manifest.json 沒有班級資料</string>
+    <string name="msg_manifest_loaded">已載入 manifest：%1$d 個班級</string>
+
+    <string name="msg_scanner_unsupported">此裝置不支援文件掃描（需要 Google Play 服務）</string>
+    <string name="msg_scan_empty">掃描結果沒有頁面</string>
+    <string name="msg_scan_saved">已掃描 %1$d 頁，開始上傳…</string>
+    <string name="msg_scan_save_failed">儲存掃描結果失敗，請重試</string>
+
+    <string name="msg_uploaded_pages">已上傳 %1$d 頁</string>
+    <string name="msg_partial_upload">已上傳 %1$d 頁，失敗 %2$d 頁；可稍後重新上傳</string>
+    <string name="msg_upload_failed">上傳失敗：%1$s</string>
+    <string name="msg_retry_done">重新上傳完成：成功 %1$d 頁，剩餘 %2$d 個工作階段待上傳</string>
+    <string name="msg_no_pending">沒有待上傳的掃描</string>
+
+    <string name="class_label_fmt">%1$s（%2$s）</string>
+    <string name="student_label_fmt">%1$s %2$s</string>
+</resources>

@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-22
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D11 自訂評語增刪改＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D21 評語庫版本更新＋D22 跨批冷卻輪替＋D23 停用取代刪除完成；下一步 M8 手機**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D11 自訂評語增刪改＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D21 評語庫版本更新＋D22 跨批冷卻輪替＋D23 停用取代刪除＋M8 Android 掃描器完成（App 建置完成、桌面 manifest 完成，待實機驗證）；下一步 M9／真機測試**
 
 ---
 
@@ -54,6 +54,10 @@
 | `tools/fix-m-drive.ps1` | 把專案所在磁碟區固定為 `M:`；需系統管理員，已在目前主機驗證 |
 | `apps/desktop/src/main/import/` | M2 匯入：inbox watcher、sidecar 配對、去重、Excel 名單、sharp 前處理；Drive 外部 inbox watcher 與驗收 |
 | `apps/desktop/src/main/import/external.ts` | Google Drive 外部 inbox：遞迴監看、子資料夾／扁平路由、grace、PDF 擋下、去重、來源清理與 `_unmatched`／`_duplicates` |
+| `apps/desktop/src/main/import/manifest.ts` | 手機 manifest：目前班級、全部作業、在學學生；外部 root 原子寫入，不含分數／批注／總評 |
+| `apps/desktop/src/main/import/manifest-check.ts` | Manifest 驗收：欄位、在學篩選、覆蓋、無 root 錯誤、UI 與 preload |
+| `tools/android.ps1` | Android 建置：尋找 JDK／SDK、設定環境變數、執行 gradlew |
+| `apps/android/` | Kotlin + ML Kit 手機掃描器：manifest 讀取、SAF、掃描、pending 佇列、inbox 上傳 |
 | `apps/desktop/src/main/import/drive-check.ts` | Drive 驗收：兩種擺法、sidecar 優先、PDF、錯誤路徑、設定持久化與 UI 煙霧 |
 | `apps/desktop/src/main/import/unmatched.ts` | 未匹配照片：內外清單、`.meta.json` 解析、320px 縮圖、路徑 realpath 防護、複製到 `_inbox` 與來源清理 |
 | `apps/desktop/src/main/import/match-check.ts` | 未匹配照片驗收：meta／reason、舊檔、縮圖、指定 3 張頁序、去重、拒絕情境與 UI 煙霧 |
@@ -170,6 +174,11 @@
 | 93 | 評語庫結構覆蓋 | 依官方規準、教學歸納與使用者提供評語表建立 19 類（16 類通用＋3 類體裁補充）；每類至少 2 條、實際 3–5 條；每個 comment 至少被一類覆蓋；`library:coverage` 納入驗收 |
 | 94 | 體裁補充評語 | 由使用者提供的 6 張評語表抽取結構概念，兩套庫各新增 12 條（記敘 4、抒情 4、議論 4）；不直接收錄短標籤、特定題材、修辭標籤或學習態度評語 |
 | 95 | 總評五面向平衡 | 總評改以結構、立意取材、語言表達、情感體驗、格式應用編寫；結構只是其中之一。junior 33／21／12／20／10、senior 33／25／12／18／10，兩套各改寫 23 條，維持 138 條與 comment 72 條；非結構評語不硬塞結構詞 |
+| 96 | 手機 manifest 內容 | `schema_version` 1、`generated_at` ISO；只含目前班級 id／name／grade、該班全部作業 id／title、`active !== false` 學生 seat／name；**不含分數、批注、總評、updated_at 或作品內容** |
+| 97 | 手機 manifest 位置 | 寫在 `settings.externalInboxRoot/manifest.json`；未設定外部 root 或資料夾不存在時回繁中錯誤；用 `.tmp`→fsync→rename 原子覆蓋 |
+| 98 | 手機 manifest 入口 | IPC `import:write-manifest(classId)`、preload `imports.writeManifest(classId)`；ImportPanel 的 Google Drive inbox 區塊加「產生手機 manifest」，成功顯示路徑與班級／作業／學生數 |
+| 99 | Android 建置工具鏈 | `tools/android.ps1` 預設 `:app:assembleDebug`；優先 `JAVA_HOME`／`ANDROID_HOME`，否則 `M:\dev\tools\jdk`、`M:\dev\tools\android-sdk`；缺工具鏈回繁中錯誤；npm 腳本不硬編碼路徑 |
+| 100 | M8 驗收邊界 | 桌面 manifest 以 `manifest:check` 11/11 驗收；Android 以 13 個 JVM 測試與 debug APK 建置驗收；ML Kit、SAF、Drive 上傳與端到端仍待實機 |
 
 ---
 
@@ -256,6 +265,10 @@ essay-grader-data/
 - [x] **G4 與上次比較：座號對齊、進步／退步、只計 compared 平均、弱項類別 Δ、UI 與 `compare:check` 15/15**（2026-11-20）
 - [x] 決定跨裝置搬檔方式：**Google Drive 本機同步資料夾（僅 inbox，資料庫不進雲端）**（2026-11-19）
 - [x] 國中版評語庫草稿 138 條完成（原 126 條，後增 12 條體裁補充）；D12 已接入並可依學制自動選用（2026-11-21）；仍待國中國文老師校閱
+- [x] **M8 Android 掃描器 App 建置完成**（2026-11-22）：Kotlin＋ML Kit、manifest 選單、SAF、多頁掃描、pending 佇列、Drive inbox 上傳；13 個 JVM 測試通過
+- [x] **M8 桌面 manifest 產生完成**（2026-11-22）：IPC／preload／UI、原子覆蓋、只在學學生、`manifest:check` 11/11
+- [ ] M8 實機驗證：ML Kit 掃描與裁切、SAF 權限保存、Drive 上傳、離線補傳、桌機端到端 3 頁流程
+- [ ] M8 後續：多頁拖拉排序（B2）、送出後自動回相機（B6）、已拍清單與重拍刪除（B7）
 - [x] 兩套評語庫用語清洗：移除總評／佳句／結構的特定詞句引號，新增 `library:wording` 檢查（2026-11-20）
 - [x] 兩套 120 條總評改以文章結構為主，新增 `library:structure` 檢查（2026-11-20）
 - [x] 建立 `docs/評語庫結構依據.md` 與 16 類結構覆蓋表（初始版）；junior 修正 18 條、senior 修正 5 條；新增 `library:coverage`（2026-11-20）
@@ -569,7 +582,19 @@ essay-grader-data/
 - 回歸：`typecheck`、`build`、`library-import:check` 19/19、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`junior:check` 17/17、`library:wording／structure／coverage／short`、`spike` 通過。
 - 已知限制：只支援 JSON 評語庫檔，沒有 CSV 交換（D15 另計）；匯入採整檔驗證，檔案內任一空白／重複 id 會整份拒絕，不做部分匯入；只記錄一份 `imported_version`，沒有逐條來源版本或衝突比對介面；匯入條目在清單中不另標「匯入」，與內建條目外觀相同，只能由 `_library` 檔的 `imported` 陣列辨識；系統檔案選擇器無法自動化，驗收以替換回傳值模擬。
 
-### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4＋G6）
+### M8 Android 掃描器與桌面 manifest 驗收（2026-11-22）
+
+- 桌面 manifest：新增 `main/import/manifest.ts`、IPC `import:write-manifest(classId)`、preload `imports.writeManifest(classId)` 與 ImportPanel 的「產生手機 manifest」按鈕。內容為 `schema_version` 1、ISO `generated_at`、目前班級 id／name／grade、該班全部作業 id／title，以及 `active !== false` 學生的 seat／name；不含分數、批注、總評、`updated_at` 或作品內容。
+- 寫入位置與安全：寫在 `settings.externalInboxRoot/manifest.json`，使用 `.tmp`→fsync→rename 原子覆蓋，舊檔先留 `.bak`；沒有外部 root 或資料夾不存在時回繁體中文錯誤。manifest 含學生姓名，文件已提醒放在受控的 Drive 資料夾，不要公開分享。
+- `manifest:check` 11/11：建立 1 班（S07／S08 在學、S12 不在學）與 2 份作業（E20261110、E20261120）；結果 classes 1、assignments 2、students 2（只含 07、08）。JSON 只有 10 個必要 key，無分數／批注／總評／`updated_at`；`generated_at` 是有效 ISO。寫入無效內容後重新產生可覆蓋，無 `.tmp` 殘留且有 `.bak`；清除 root 後回「尚未設定 Google Drive inbox…」。UI 按鈕、preload 與成功提示（路徑、1 班級、2 份作業、2 位在學學生）皆通過。
+- Android 專案：`apps/android/`，AGP 8.7.3、Kotlin 2.0.21、Gradle 8.9、compileSdk 35、minSdk 24、JDK 17。App 從 Drive 根目錄讀 `manifest.json`，缺檔／格式錯／空清單皆有繁中錯誤；只列在學學生；以 SAF 選資料夾並保存權限；ML Kit Document Scanner 多頁掃描（上限 20 頁）；輸出 `S07__session__001.jpg`＋同名 sidecar 到 `<root>/<classId>/<assignmentId>/`；上傳失敗或離線時寫入 App 私有 pending 佇列，可「重新上傳待上傳」。
+- 工具鏈：新增 `tools/android.ps1`，預設 `:app:assembleDebug`，優先使用 `JAVA_HOME`／`ANDROID_HOME`，否則 `M:\dev\tools\jdk` 與 `M:\dev\tools\android-sdk`，同時設定 `ANDROID_SDK_ROOT`；缺少工具鏈或 `gradlew.bat` 時回繁中錯誤。`package.json` 新增 `android:test`、`android:build`、`m8:check`（測試＋建置）與 `manifest:check`。
+- Android 測試：`npm run android:test` 通過，13 個 JVM 測試（Filenames 5、ManifestParser 4、PendingMeta 2、Sidecar 2），XML 顯示 failures 0、errors 0、skipped 0。
+- APK：`npm run android:build` 通過，`apps/android/app/build/outputs/apk/debug/app-debug.apk` 存在，6,629,853 bytes（約 6.3 MB）。`npm run m8:check` 測試與建置皆成功。
+- 回歸：`typecheck`、`build`、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23（未破壞既有 23 項）、`manifest:check` 11/11、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`praise:check` 15/15、`library-import:check` 19/19、`junior:check`、`junior:readability`、`library:wording`、`library:structure`、`library:coverage`、`library:short`、`validate:fixtures`、`spike` 全數通過。
+- 待實機驗證：ML Kit 掃描／裁切與多頁品質、Google Play services 缺失時的提示、SAF 權限保存與撤銷、Google Drive 上傳與離線補傳、桌機端「manifest → 手機掃描 3 頁 → Drive → 自動匯入」端到端流程。B2 拖拉排序、B6 自動回相機、B7 逐頁清單／重拍刪除尚未實作。
+
+### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4＋G6＋M8）
 
 - soak 以「1 班 45 人、每圈 45 份回饋單」為主，未同時模擬批閱 UI、匯入 watcher、Excel 寫回與備份還原的並行負載；批閱 autosave 只做單份讀寫驗證。
 - soak 期間批次吞吐量多數約 37 秒／圈，但曾數次升至約 53–66 秒／圈；前一次 10 分鐘測試在後段回落，本次則在最後兩圈升高。記憶體與視窗數同期沒有累積，研判與主機 I/O／防毒掃描有關，尚未在乾淨機器上重現或排除。
@@ -610,7 +635,13 @@ essay-grader-data/
 - 未匹配照片只處理目前作業的內部 `_unmatched` 與全域 Drive `_unmatched`；其他作業的內部失敗檔需切換到該作業再處理。
 - 手動分配會逐張等待 watcher 消化以維持頁序；一次選取大量照片時，IPC 回應時間會隨張數增加。
 - 沒有 meta 的舊 `.meta.json` 之前檔案仍可列出，但無法還原原本班級／作業／座號，只能指定給目前作業。
-- 手機端 App（M8）尚未實作；目前需用手機 Google Drive App 手動上傳圖片與 sidecar。
+- M8 目前只完成建置與 JVM 測試，尚未在實機驗證 ML Kit 掃描／裁切、Google Play services 缺失提示、SAF 權限保存、Drive 上傳與離線補傳；桌機端 manifest 已用合成資料驗收。
+- Android 輸出檔名為 `S07__session__001.jpg`＋sidecar，與 features 原規劃的 `S07_王小明/原圖_1.jpg` 不同；桌面端靠 sidecar 與資料夾路由，不依賴姓名資料夾。
+- 手機 App 沒有多頁拖拉排序、送出後自動回相機、逐頁已拍清單或重拍刪除；目前依 ML Kit 回傳順序輸出，需重新掃描才能修正。
+- manifest 是手動產生的快照，名單或作業變更後不會自動更新；需回桌機重新按「產生手機 manifest」，再到手機重新讀取。
+- manifest 含學生姓名與座號，必須放在受控的 Google Drive 資料夾；成功匯入後桌機會刪除來源圖片與 sidecar，但雲端版本紀錄與垃圾桶仍可能保留。
+- Android 目前只有 debug APK，未提供正式簽署的發行檔或 Google Play 上架設定。
+- 連續執行多個 Electron 驗收時，`m3:check` 與 `library-import:check` 的隱藏視窗 UI 步驟曾出現時序性失敗（分別 70/72、18/19），單獨重跑皆回到 72/72、19/19；功能資料檢查無誤，測試穩定性仍可改善。
 
 ---
 

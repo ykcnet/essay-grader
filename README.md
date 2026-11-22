@@ -3,8 +3,8 @@
 紙本作文掃描 → 桌機批閱 → 評分 → 一頁回饋單 → 分數寫回 Excel。
 
 - 技術棧：**Electron + React + TypeScript**（2026-11-19 定案）
-- 版本：**0.1.0（M7 打磨＋交付＋Google Drive 外部 inbox＋成績寫回 Excel＋整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積）**
-- 手機端：Kotlin + ML Kit（第二階段，只寫 inbox）；現階段可先用手機 Google Drive App 上傳照片
+- 版本：**0.1.0（M7 打磨＋交付＋Google Drive 外部 inbox＋成績寫回 Excel＋整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋M8 Android 掃描器）**
+- 手機端：Kotlin + ML Kit Document Scanner（M8 App 已建置，待實機驗證；只寫 inbox）
 - 資料庫：本地資料夾，全 ASCII，中文只存在 JSON
 - 外部 inbox：Google Drive 本機同步資料夾，只搬圖片，資料庫不進雲端
 - 隱私：不連網、不埋 telemetry、照片移除 GPS
@@ -15,6 +15,7 @@
 
 ```
 apps/desktop/        Electron 桌機端（main / preload / renderer）
+apps/android/        Kotlin + ML Kit 手機掃描器（M8）
 packages/core/       schema（zod）、資料夾命名、匯入規則
 fixtures/            3 位學生 × 2 頁的測試專案
 docs/                使用說明（安裝、批閱、備份、日誌、FAQ）
@@ -38,6 +39,10 @@ npm run m5:check     # 回饋單驗收（資料推導、檔名、單頁 PDF、�
 npm run m6:check     # 統計驗收（G1／G2／G3、分數摘要、CSV 四檔、UI 煙霧）
 npm run m7:check     # 交付驗收（備份／還原、zip slip、日誌輪替、ErrorBoundary、打包設定）
 npm run drive:check  # Google Drive 外部 inbox 驗收（兩種擺法、去重、PDF、錯誤路徑、UI）
+npm run manifest:check # 手機 manifest 驗收（欄位、只含在學學生、覆蓋、無 root 錯誤、UI）
+npm run android:test # Android JVM 單元測試（:app:testDebugUnitTest）
+npm run android:build # Android debug APK（:app:assembleDebug）
+npm run m8:check     # Android 測試＋建置
 npm run excel:check  # 成績寫回 Excel 驗收（副本、座號、驗證、重複、匯出模式、CSV、UI）
 npm run match:check  # 未匹配照片驗收（內外清單、meta、縮圖、指定座號、去重、路徑防護、UI）
 npm run batch:check  # 整班批次回饋單驗收（輸出、跳過、溢頁失敗、報告、取消、重複啟動、UI）
@@ -85,6 +90,29 @@ Google Drive 外部 inbox：在匯入佇列表按「設定／變更」選擇 Goo
 與 `<root>/` 扁平模式（一定要 sidecar）。成功匯入後刪除雲端來源圖片與 sidecar；
 重複檔移到 `_duplicates/`，失敗檔移到 `_unmatched/` 並附 `.reason.txt`。
 只支援 JPG／JPEG／PNG，PDF 會進 `_unmatched`。資料庫仍只放本機，不進雲端。
+
+### Android 掃描器（M8）
+
+`apps/android/` 是 Kotlin + ML Kit Document Scanner 手機 App：從 Drive 根目錄讀 `manifest.json`，
+選班級／作業／學生後掃描，寫入 `<root>/<classId>/<assignmentId>/S07__session__001.jpg` 與 sidecar；
+沒有網路或上傳失敗時先存本機 pending 佇列，之後可重新上傳。ML Kit 需要 Google Play services，
+不支援的裝置會顯示繁中提示。
+
+桌機端在「Google Drive inbox」區塊按「產生手機 manifest」，會在外部 inbox 根目錄
+（Google Drive 本機同步資料夾）寫入 `manifest.json`，內容只有目前班級、該班全部作業與
+在學學生座號／姓名；不含分數、批注、總評、更新時間或作品內容。沒有設定外部 root 時會回繁中錯誤。
+manifest 含學生姓名，請把 Drive inbox 放在受控的教師帳號資料夾，不要公開分享。
+
+建置工具鏈優先使用環境變數 `JAVA_HOME`／`ANDROID_HOME`；未設定時使用
+`M:\dev\tools\jdk` 與 `M:\dev\tools\android-sdk`。也可直接指定：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/android.ps1 -Task ":app:testDebugUnitTest"
+powershell -ExecutionPolicy Bypass -File tools/android.ps1 -Task ":app:assembleDebug"
+```
+
+產物：`apps/android/app/build/outputs/apk/debug/app-debug.apk`。Android 建置檔（build/、
+local.properties、APK）不進版控；wrapper jar 會提交。
 
 量規預設採用**均衡版**（40／30／30），之後可調整。另外提供內容導向 45／25／30、
 語言導向 35／30／35；扣分皆為錯字 0.5／標點 0.5、上限 10，等第門檻相同。
@@ -270,7 +298,7 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 
 M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付、
 Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配座號、F2 整班批次回饋單、
-10 分鐘 soak、G4 與上次比較、G6 佳句庫累積已完成。
+10 分鐘 soak、G4 與上次比較、G6 佳句庫累積、M8 Android 掃描器已完成（App 建置完成，待實機驗證）。
 國中版評語庫草稿 138 條已接入 runtime，預設依班級學制自動選用，也可在批閱畫面手動切換；
 國中版會標示「草稿」，待國中國文老師校閱。
 評語庫已支援常用排序與釘選（D13）：「預設／常用（累計）／本批未用優先」、每條顯示本批與累計次數，
@@ -303,8 +331,8 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 72/72、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
-`praise:check` 15/15、`library-import:check` 19/19、`junior:check`、
-`library:wording/structure/coverage/short` 與 `spike` 通過。
+`praise:check` 15/15、`library-import:check` 19/19、`manifest:check` 11/11、`junior:check`、
+`library:wording/structure/coverage/short` 與 `spike` 通過；Android JVM 測試 13/13、debug APK 建置通過。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；
 M5 以單份作品驗證回饋單資料、檔名與單頁 PDF（1 頁、約 150 KB、約 360 ms），
@@ -329,4 +357,7 @@ P1 經 normalize 後 3 次／3 份、來源作業依 id 排序，缺 `created_at
 序列化不含測試姓名、座號與 `seat`／`name` 欄位；壞掉的 assignment 會被跳過，UI 與 preload 通過。
 soak 以 45 人、每圈 45 份回饋單跑滿 10 分鐘：15 圈、16 次批次、720 份 PDF；private 291→291 MB、
 peak 426 MB、growth 0 MB，視窗批次後回到 0，45 份作品與最後一輪 PDF 驗證皆通過。
-已知限制見 `progress.md`；下一步為 M8 手機掃描。
+M8 以 1 班（2 位在學、1 位不在學）、2 份作業驗證 manifest：classes 1、assignments 2、
+students 只含在學 2 人，欄位只有 10 個必要 key；覆蓋舊檔、無外部 root 錯誤與 UI 提示皆通過。
+Android 13 個 JVM 測試通過，`app-debug.apk` 6,629,853 bytes；實機掃描、ML Kit、SAF 與 Drive 上傳仍待驗證。
+已知限制見 `progress.md`；下一步為 M9 與真機測試。

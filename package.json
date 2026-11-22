@@ -25,6 +25,7 @@
     "m6:check": "electron apps/desktop --m6-check",
     "m7:check": "electron apps/desktop --m7-check",
     "drive:check": "electron apps/desktop --drive-check",
+    "manifest:check": "electron apps/desktop --manifest-check",
     "excel:check": "electron apps/desktop --excel-check",
     "match:check": "electron apps/desktop --match-check",
     "batch:check": "electron apps/desktop --batch-check",
@@ -40,6 +41,9 @@
     "library:coverage": "node tools/validate_comment_coverage.mjs",
     "library:short": "node tools/validate_library_short.mjs",
     "soak": "electron apps/desktop --soak",
+    "android:test": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/android.ps1 -Task \":app:testDebugUnitTest\"",
+    "android:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/android.ps1 -Task \":app:assembleDebug\"",
+    "m8:check": "npm run android:test && npm run android:build",
     "dist": "npm run dist:win",
     "dist:win": "npm run build && npm run dist -w @essay-grader/desktop",
     "dist:portable": "npm run build && npm run dist:portable -w @essay-grader/desktop"

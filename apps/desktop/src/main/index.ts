@@ -15,6 +15,7 @@ import { runCompareCheck } from './data/compare-check'
 import { runPraiseCheck } from './data/praise-check'
 import { runLibraryImportCheck } from './data/library-import-check'
 import { runDriveCheck } from './import/drive-check'
+import { runManifestCheck } from './import/manifest-check'
 import { runMatchCheck } from './import/match-check'
 import { runM2Check } from './import/m2-check'
 import { runExcelCheck } from './data/gradebook-check'
@@ -34,6 +35,7 @@ const m5Mode = process.argv.includes('--m5-check')
 const m6Mode = process.argv.includes('--m6-check')
 const m7Mode = process.argv.includes('--m7-check')
 const driveMode = process.argv.includes('--drive-check')
+const manifestMode = process.argv.includes('--manifest-check')
 const excelMode = process.argv.includes('--excel-check')
 const matchMode = process.argv.includes('--match-check')
 const batchMode = process.argv.includes('--batch-check')
@@ -50,6 +52,7 @@ const checkMode =
   m6Mode ||
   m7Mode ||
   driveMode ||
+  manifestMode ||
   excelMode ||
   matchMode ||
   batchMode ||
@@ -215,6 +218,12 @@ if (!gotLock) {
       return
     }
 
+    if (manifestMode) {
+      const code = await runManifestCheck()
+      app.exit(code)
+      return
+    }
+
     if (excelMode) {
       const code = await runExcelCheck()
       app.exit(code)
@@ -288,6 +297,7 @@ if (!gotLock) {
       !m6Mode &&
       !m7Mode &&
       !driveMode &&
+      !manifestMode &&
       !excelMode &&
       !matchMode &&
       !batchMode &&

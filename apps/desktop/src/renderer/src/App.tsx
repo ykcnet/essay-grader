@@ -633,6 +633,22 @@ export default function App(): JSX.Element {
     })
   }
 
+  const handleWriteManifest = (): void => {
+    if (!classFile) return
+    void run('產生手機 manifest', async () => {
+      const result = (await window.electronAPI.imports.writeManifest(classFile.id)) as {
+        path: string
+        classCount: number
+        assignmentCount: number
+        studentCount: number
+      }
+      setToast({
+        kind: 'ok',
+        text: `已產生 manifest：${result.path}（${result.classCount} 班級、${result.assignmentCount} 份作業、${result.studentCount} 位在學學生）`
+      })
+    })
+  }
+
   useEffect(() => {
     const listenerId = window.electronAPI.imports.onEvent((raw) => {
       const event = raw as ImportEvent
@@ -866,6 +882,7 @@ export default function App(): JSX.Element {
                     onClearDriveRoot={handleClearDriveRoot}
                     onEnsureDriveFolder={handleEnsureDriveFolder}
                     onOpenDriveRoot={handleOpenDriveRoot}
+                    onWriteManifest={handleWriteManifest}
                     onReview={(seat) => {
                       if (!classFile || !selectedAssignment) return
                       setReviewTarget({
@@ -1348,6 +1365,7 @@ function ImportPanel({
   onClearDriveRoot,
   onEnsureDriveFolder,
   onOpenDriveRoot,
+  onWriteManifest,
   onReview,
   onFeedback
 }: {
@@ -1385,6 +1403,7 @@ function ImportPanel({
   onClearDriveRoot: () => void
   onEnsureDriveFolder: () => void
   onOpenDriveRoot: () => void
+  onWriteManifest: () => void
   onReview: (seat: string) => void
   onFeedback: (seat: string) => void
 }): JSX.Element {
@@ -1480,6 +1499,13 @@ function ImportPanel({
             onClick={onEnsureDriveFolder}
           >
             建立此作業資料夾
+          </button>
+          <button
+            className="small manifest-write"
+            disabled={busy || !status?.externalRoot}
+            onClick={onWriteManifest}
+          >
+            產生手機 manifest
           </button>
           <button
             className="small"
