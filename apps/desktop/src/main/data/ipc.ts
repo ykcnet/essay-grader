@@ -18,6 +18,7 @@ import {
   type LibraryId,
   type LibraryMode,
   type Rubric,
+  type UpdateAssignmentInput,
   type WorkFile
 } from '@essay-grader/core'
 import { randomUUID } from 'node:crypto'
@@ -57,6 +58,8 @@ import {
   currentRoot,
   auditAssignment,
   compareAssignments,
+  deleteAssignment,
+  deleteClass,
   exportAssignmentStats,
   getAssignmentStats,
   getLibraryUsage,
@@ -72,6 +75,7 @@ import {
   revealDatabase,
   saveClass,
   saveWork,
+  updateAssignment,
   updateAssignmentRubric
 } from './repository'
 import { backupFileName, createBackupZip, restoreBackupZip } from './backup'
@@ -197,12 +201,21 @@ export function registerDataIpc(): void {
   ipcMain.handle('class:create', (_event, input: CreateClassInput) => createClass(input))
   ipcMain.handle('class:load', (_event, id: string) => loadClass(id))
   ipcMain.handle('class:save', (_event, input: ClassFile) => saveClass(input))
+  ipcMain.handle('class:delete', (_event, id: string) => deleteClass(id))
   ipcMain.handle('assignment:list', (_event, classId: string) => listAssignments(classId))
   ipcMain.handle('assignment:create', (_event, input: CreateAssignmentInput) =>
     createAssignment(input)
   )
   ipcMain.handle('assignment:load', (_event, classId: string, id: string) =>
     loadAssignment(classId, id)
+  )
+  ipcMain.handle(
+    'assignment:update',
+    (_event, classId: string, assignmentId: string, input: UpdateAssignmentInput) =>
+      updateAssignment(classId, assignmentId, input)
+  )
+  ipcMain.handle('assignment:delete', (_event, classId: string, assignmentId: string) =>
+    deleteAssignment(classId, assignmentId)
   )
   ipcMain.handle('assignment:audit', (_event, classId: string, assignmentId: string) =>
     auditAssignment(classId, assignmentId)

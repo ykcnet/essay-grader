@@ -8,6 +8,7 @@ import {
   RUBRIC_PRESETS,
   type AssignmentAudit,
   type AssignmentComparison,
+  type AssignmentFile,
   type AssignmentStats,
   type AssignmentSummary,
   type ClassFile,
@@ -21,6 +22,7 @@ import {
   type PraiseBankEntry,
   type RubricPresetBaseId,
   type Student,
+  type UpdateAssignmentInput,
   type WorkSummary
 } from '@essay-grader/core'
 import ReviewView from './review/ReviewView'
@@ -218,6 +220,8 @@ export default function App(): JSX.Element {
   const [toast, setToast] = useState<Toast | null>(null)
   const [showClassForm, setShowClassForm] = useState(false)
   const [showAssignmentForm, setShowAssignmentForm] = useState(false)
+  const [editingClass, setEditingClass] = useState(false)
+  const [editingAssignment, setEditingAssignment] = useState<AssignmentFile | null>(null)
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null)
   const [works, setWorks] = useState<WorkSummary[]>([])
   const [importStatus, setImportStatus] = useState<ImportStatus | null>(null)
@@ -276,6 +280,8 @@ export default function App(): JSX.Element {
     setSelectedId(id)
     setClassFile(result.data)
     setDirty(false)
+    setEditingClass(false)
+    setEditingAssignment(null)
     setSelectedAssignmentId(null)
     setWorks([])
     setAudit(null)
@@ -433,6 +439,97 @@ export default function App(): JSX.Element {
       setShowAssignmentForm(false)
       setToast({ kind: 'ok', text: `已建立作業 ${summary.id}` })
     })
+  }
+
+  const handleEditClass = (next: ClassFile): void => {
+    void run('儲存班級', async () => {
+      await window.electronAPI.db.saveClass(next)
+      await refresh(next.id)
+      setEditingClass(false)
+      setToast({ kind: 'ok', text: `已更新 ${next.name}` })
+    })
+  }
+
+  const handleDeleteClass = (): void => {
+    if (!classFile) return
+    const ok = window.confirm(
+      `確定要刪除班級「${classFile.name}」？\n學生 ${classFile.students.length} 位、作業 ${assignments.length} 份。\n班級與其下所有作業、作品、批注、分數會移到系統資源回收桶。`
+    )
+    if (!ok) return
+    void run('刪除班級', async () => {
+      await window.electronAPI.db.deleteClass(classFile.id)
+      await refresh()
+      setToast({ kind: 'ok', text: `已刪除班級 ${classFile.name}` })
+    })
+  }
+
+  const handleStartEditAssignment = (id: string): void => {
+    if (!classFile) return
+    void run('載入作業', async () => {
+      const result = (await window.electronAPI.db.loadAssignment(classFile.id, id)) as {
+        data: AssignmentFile
+        warning?: string
+      }
+      setEditingAssignment(result.data)
+      if (result.warning) setToast({ kind: 'info', text: result.warning })
+    })
+  }
+
+  const handleCancelEditAssignment = (): void => {
+    setEditingAssignment(null)
+  }
+
+  const handleUpdateAssignment = (input: UpdateAssignmentInput): void => {
+    if (!classFile || !editingAssignment) return
+    void run('儲存作業', async () => {
+      await window.electronAPI.db.updateAssignment(classFile.id, editingAssignment.id, input)
+      setAssignments(
+        (await window.electronAPI.db.listAssignments(classFile.id)) as AssignmentSummary[]
+      )
+      setEditingAssignment(null)
+      setToast({ kind: 'ok', text: `已更新作業 ${input.title}` })
+    })
+  }
+
+  const handleDeleteAssignment = (id: string): void => {
+    if (!classFile) return
+    const assignment = assignments.find((item) => item.id === id)
+    if (!assignment) return
+    void window.electronAPI.work
+      .list(classFile.id, id)
+      .then((list) => {
+        const workList = list as WorkSummary[]
+        const ok = window.confirm(
+          `確定要刪除作業「${assignment.title}」？\n作品 ${workList.length} 份。\n作業與其下的作品、批注、分數會移到系統資源回收桶。`
+        )
+        if (!ok) return
+        void run('刪除作業', async () => {
+          await window.electronAPI.db.deleteAssignment(classFile.id, id)
+          if (selectedAssignmentId === id) {
+            auditSeqRef.current += 1
+            statsSeqRef.current += 1
+            setSelectedAssignmentId(null)
+            setWorks([])
+            setAudit(null)
+            setAuditOpen(false)
+            setAuditMs(null)
+            setStats(null)
+            setStatsOpen(false)
+            setStatsMs(null)
+            setStatsExport(null)
+            setGradebookOpen(false)
+            setImportStatus((await window.electronAPI.imports.status()) as ImportStatus)
+          }
+          setAssignments(
+            (await window.electronAPI.db.listAssignments(classFile.id)) as AssignmentSummary[]
+          )
+          setEditingAssignment((prev) => (prev && prev.id === id ? null : prev))
+          setToast({ kind: 'ok', text: `已刪除作業 ${assignment.title}` })
+        })
+      })
+      .catch((error: unknown) =>
+        setToast({ kind: 'error', text: `讀取作品：${errorText(error)}` })
+      )
   }
 
   const refreshWorks = useCallback(async (classId: string, assignmentId: string) => {
@@ -811,16 +908,40 @@ export default function App(): JSX.Element {
                       {classFile.teacher ? ` · ${classFile.teacher}` : ''}
                     </p>
                   </div>
-                  <div className="stat-row">
-                    <span>
-                      <strong>{students.length}</strong> 學生
-                    </span>
-                    <span>
-                      <strong>{assignments.length}</strong> 作業
-                    </span>
-                    {dirty && <span className="dirty">名單未儲存</span>}
+                  <div className="class-head-side">
+                    <div className="stat-row">
+                      <span>
+                        <strong>{students.length}</strong> 學生
+                      </span>
+                      <span>
+                        <strong>{assignments.length}</strong> 作業
+                      </span>
+                      {dirty && <span className="dirty">名單未儲存</span>}
+                    </div>
+                    <div className="class-head-actions">
+                      <button
+                        className="small"
+                        disabled={busy}
+                        onClick={() => setEditingClass((value) => !value)}
+                      >
+                        {editingClass ? '取消編輯' : '編輯班級'}
+                      </button>
+                      <button className="small danger" disabled={busy} onClick={handleDeleteClass}>
+                        刪除班級
+                      </button>
+                    </div>
                   </div>
                 </section>
+
+                {editingClass && (
+                  <EditClassForm
+                    key={classFile.id}
+                    file={classFile}
+                    busy={busy}
+                    onCancel={() => setEditingClass(false)}
+                    onSubmit={handleEditClass}
+                  />
+                )}
 
                 <div className="two-col">
                   <RosterEditor
@@ -841,10 +962,15 @@ export default function App(): JSX.Element {
                     busy={busy}
                     showForm={showAssignmentForm}
                     selectedId={selectedAssignmentId}
+                    editingAssignment={editingAssignment}
                     onSelect={handleSelectAssignment}
                     defaultRubric="balanced"
                     onToggleForm={() => setShowAssignmentForm((v) => !v)}
                     onCreate={handleCreateAssignment}
+                    onEdit={handleStartEditAssignment}
+                    onDelete={handleDeleteAssignment}
+                    onCancelEdit={handleCancelEditAssignment}
+                    onSubmitEdit={handleUpdateAssignment}
                   />
                 </div>
 
@@ -1031,6 +1157,71 @@ function CreateClassForm({
   )
 }
 
+function EditClassForm({
+  file,
+  busy,
+  onCancel,
+  onSubmit
+}: {
+  file: ClassFile
+  busy: boolean
+  onCancel: () => void
+  onSubmit: (next: ClassFile) => void
+}): JSX.Element {
+  const [name, setName] = useState(file.name)
+  const [grade, setGrade] = useState<Grade>(file.grade)
+  const [teacher, setTeacher] = useState(file.teacher ?? '')
+  const [error, setError] = useState('')
+
+  const submit = (event: FormEvent): void => {
+    event.preventDefault()
+    if (!name.trim()) {
+      setError('請填班級名稱')
+      return
+    }
+    setError('')
+    onSubmit({
+      ...file,
+      name: name.trim(),
+      grade,
+      teacher: teacher.trim() || undefined
+    })
+  }
+
+  return (
+    <form className="form" onSubmit={submit}>
+      <p className="assignment-meta">
+        班級 ID 不變：{file.id}（學年度 {file.academic_year} 第 {file.semester} 學期）
+      </p>
+      <label>
+        班級名稱
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="國中302" />
+      </label>
+      <label>
+        學制
+        <select value={grade} onChange={(e) => setGrade(e.target.value as Grade)}>
+          <option value="junior">國中</option>
+          <option value="senior">高中</option>
+          <option value="vocational">高職</option>
+        </select>
+      </label>
+      <label>
+        教師
+        <input value={teacher} onChange={(e) => setTeacher(e.target.value)} placeholder="王老師" />
+      </label>
+      {error && <p className="form-error">{error}</p>}
+      <div className="form-actions">
+        <button type="button" onClick={onCancel}>
+          取消
+        </button>
+        <button type="submit" className="primary" disabled={busy}>
+          儲存
+        </button>
+      </div>
+    </form>
+  )
+}
+
 function RosterEditor({
   file,
   busy,
@@ -1177,19 +1368,29 @@ function AssignmentList({
   busy,
   showForm,
   selectedId,
+  editingAssignment,
   defaultRubric,
   onSelect,
   onToggleForm,
-  onCreate
+  onCreate,
+  onEdit,
+  onDelete,
+  onCancelEdit,
+  onSubmitEdit
 }: {
   assignments: AssignmentSummary[]
   busy: boolean
   showForm: boolean
   selectedId: string | null
+  editingAssignment: AssignmentFile | null
   defaultRubric: RubricPresetBaseId
   onSelect: (id: string) => void
   onToggleForm: () => void
   onCreate: (input: Omit<CreateAssignmentInput, 'classId'>) => void
+  onEdit: (id: string) => void
+  onDelete: (id: string) => void
+  onCancelEdit: () => void
+  onSubmitEdit: (input: UpdateAssignmentInput) => void
 }): JSX.Element {
   return (
     <section className="card">
@@ -1209,14 +1410,24 @@ function AssignmentList({
         />
       )}
 
+      {editingAssignment && (
+        <EditAssignmentForm
+          key={editingAssignment.id}
+          assignment={editingAssignment}
+          busy={busy}
+          onCancel={onCancelEdit}
+          onSubmit={onSubmitEdit}
+        />
+      )}
+
       <ul className="assignment-list">
         {assignments.length === 0 && <li className="muted">尚無作業</li>}
         {assignments.map((item) => (
-          <li key={item.id}>
-            <button
-              className={item.id === selectedId ? 'assignment-row active' : 'assignment-row'}
-              onClick={() => onSelect(item.id)}
-            >
+          <li
+            key={item.id}
+            className={item.id === selectedId ? 'assignment-item active' : 'assignment-item'}
+          >
+            <button className="assignment-row assignment-select" onClick={() => onSelect(item.id)}>
               <div>
                 <p className="assignment-title">{item.title}</p>
                 <p className="assignment-meta">
@@ -1225,10 +1436,114 @@ function AssignmentList({
               </div>
               <span className="assignment-date">{item.dueAt?.slice(0, 10) ?? '未設定'}</span>
             </button>
+            <span className="assignment-actions">
+              <button className="small" disabled={busy} onClick={() => onEdit(item.id)}>
+                編輯
+              </button>
+              <button className="small danger" disabled={busy} onClick={() => onDelete(item.id)}>
+                刪除
+              </button>
+            </span>
           </li>
         ))}
       </ul>
     </section>
+  )
+}
+
+function EditAssignmentForm({
+  assignment,
+  busy,
+  onCancel,
+  onSubmit
+}: {
+  assignment: AssignmentFile
+  busy: boolean
+  onCancel: () => void
+  onSubmit: (input: UpdateAssignmentInput) => void
+}): JSX.Element {
+  const [title, setTitle] = useState(assignment.title)
+  const [prompt, setPrompt] = useState(assignment.prompt ?? '')
+  const [genre, setGenre] = useState(assignment.genre || 'narrative')
+  const [wordLimit, setWordLimit] = useState(
+    assignment.word_limit ? String(assignment.word_limit) : ''
+  )
+  const [dueAt, setDueAt] = useState(assignment.due_at ? assignment.due_at.slice(0, 10) : '')
+  const [error, setError] = useState('')
+
+  const submit = (event: FormEvent): void => {
+    event.preventDefault()
+    if (!title.trim()) {
+      setError('請填作文題目')
+      return
+    }
+    const trimmedLimit = wordLimit.trim()
+    const limit = Number(trimmedLimit)
+    if (trimmedLimit !== '' && (!Number.isInteger(limit) || limit <= 0)) {
+      setError('字數下限請填正整數')
+      return
+    }
+    setError('')
+    onSubmit({
+      title: title.trim(),
+      prompt: prompt.trim(),
+      genre,
+      wordLimit: trimmedLimit === '' ? undefined : limit,
+      dueAt: dueAt ? `${dueAt}T23:59:00+08:00` : undefined
+    })
+  }
+
+  return (
+    <form className="form" onSubmit={submit}>
+      <p className="assignment-meta">作業 ID 不變：{assignment.id}</p>
+      <label>
+        題目
+        <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="我的母親" />
+      </label>
+      <label>
+        題幹
+        <textarea
+          rows={2}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          placeholder="請以「我的母親」為題……"
+        />
+      </label>
+      <div className="form-row">
+        <label>
+          體裁
+          <select value={genre} onChange={(e) => setGenre(e.target.value)}>
+            <option value="narrative">記敘文</option>
+            <option value="argumentative">議論文</option>
+            <option value="expository">說明文</option>
+            <option value="other">其他</option>
+          </select>
+        </label>
+        <label>
+          字數下限
+          <input
+            value={wordLimit}
+            onChange={(e) => setWordLimit(e.target.value)}
+            inputMode="numeric"
+          />
+        </label>
+      </div>
+      <div className="form-row">
+        <label>
+          截止日
+          <input type="date" value={dueAt} onChange={(e) => setDueAt(e.target.value)} />
+        </label>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      <div className="form-actions">
+        <button type="button" onClick={onCancel}>
+          取消
+        </button>
+        <button type="submit" className="primary" disabled={busy}>
+          儲存
+        </button>
+      </div>
+    </form>
   )
 }
 

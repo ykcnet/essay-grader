@@ -42,10 +42,15 @@ const api = {
     createClass: (input: unknown) => ipcRenderer.invoke('class:create', input),
     loadClass: (id: string) => ipcRenderer.invoke('class:load', id),
     saveClass: (input: unknown) => ipcRenderer.invoke('class:save', input),
+    deleteClass: (id: string) => ipcRenderer.invoke('class:delete', id),
     listAssignments: (classId: string) => ipcRenderer.invoke('assignment:list', classId),
     createAssignment: (input: unknown) => ipcRenderer.invoke('assignment:create', input),
     loadAssignment: (classId: string, id: string) =>
       ipcRenderer.invoke('assignment:load', classId, id),
+    updateAssignment: (classId: string, assignmentId: string, input: unknown) =>
+      ipcRenderer.invoke('assignment:update', classId, assignmentId, input),
+    deleteAssignment: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('assignment:delete', classId, assignmentId),
     updateRubric: (classId: string, assignmentId: string, rubric: unknown) =>
       ipcRenderer.invoke('assignment:update-rubric', classId, assignmentId, rubric)
   },

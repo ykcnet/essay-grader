@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, shell } from 'electron'
 import { join } from 'node:path'
 import { registerDataIpc } from './data/ipc'
+import { runCrudCheck } from './data/crud-check'
 import { runM1Check } from './data/m1-check'
 import { runM3Check } from './data/m3-check'
 import { runM4Check } from './data/m4-check'
@@ -28,6 +29,7 @@ import { validateFixtures } from './validate-fixtures'
 const isDev = !app.isPackaged
 const fixturesOnly = process.argv.includes('--validate-fixtures')
 const spikeMode = process.argv.includes('--spike')
+const crudMode = process.argv.includes('--crud-check')
 const m1Mode = process.argv.includes('--m1-check')
 const m2Mode = process.argv.includes('--m2-check')
 const m3Mode = process.argv.includes('--m3-check')
@@ -46,6 +48,7 @@ const praiseMode = process.argv.includes('--praise-check')
 const libraryImportMode = process.argv.includes('--library-import-check')
 const soakMode = process.argv.includes('--soak')
 const checkMode =
+  crudMode ||
   m1Mode ||
   m2Mode ||
   m3Mode ||
@@ -169,6 +172,12 @@ if (!gotLock) {
 
     if (spikeMode) {
       const code = await runSpike()
+      app.exit(code)
+      return
+    }
+
+    if (crudMode) {
+      const code = await runCrudCheck()
       app.exit(code)
       return
     }
@@ -298,6 +307,7 @@ if (!gotLock) {
     // Spike／M1／M2／M3 檢查期間會反覆開關隱藏視窗，不能因此結束程式
     if (
       !spikeMode &&
+      !crudMode &&
       !m1Mode &&
       !m2Mode &&
       !m3Mode &&

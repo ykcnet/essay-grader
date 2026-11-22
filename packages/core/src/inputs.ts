@@ -24,6 +24,15 @@ export const CreateAssignmentInputSchema = z.object({
 })
 export type CreateAssignmentInput = z.infer<typeof CreateAssignmentInputSchema>
 
+export const UpdateAssignmentInputSchema = z.object({
+  title: z.string().min(1, '請填作文題目'),
+  prompt: z.string().default(''),
+  genre: z.string().optional(),
+  wordLimit: z.number().int().positive().optional(),
+  dueAt: z.string().optional()
+})
+export type UpdateAssignmentInput = z.infer<typeof UpdateAssignmentInputSchema>
+
 export interface ClassSummary {
   id: string
   name: string

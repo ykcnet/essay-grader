@@ -18,6 +18,7 @@
     "validate:fixtures": "electron apps/desktop --validate-fixtures",
     "spike": "electron apps/desktop --spike",
     "m1:check": "electron apps/desktop --m1-check",
+    "crud:check": "electron apps/desktop --crud-check",
     "m2:check": "electron apps/desktop --m2-check",
     "m3:check": "electron apps/desktop --m3-check",
     "m4:check": "electron apps/desktop --m4-check",

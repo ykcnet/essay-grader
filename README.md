@@ -32,6 +32,7 @@ npm run build        # 打包 renderer / main / preload
 npm run typecheck    # 兩份 tsconfig 都檢查
 npm run spike        # 自動驗證 Canvas／PDF／監看／記憶體
 npm run m1:check     # 資料層驗收（建檔、名單、壞檔還原、鎖、主畫面）
+npm run crud:check   # 班級／作業編輯刪除驗收（update/delete、錯誤、watcher、UI 煙霧）
 npm run m2:check     # 匯入驗收（10 檔配對、去重、unmatched、Excel 名單）
 npm run m3:check     # 批閱驗收（EXIF／縮圖、評語庫與排序釘選停用、量規與等第、計分與快速給分、驗證、work 存取、UI 煙霧）
 npm run m4:check     # 批次檢查驗收（45 人、44 份作品、重複／缺頁／未匯入、UI 煙霧）
@@ -124,6 +125,17 @@ local.properties、APK）不進版控；wrapper jar 會提交。
 等第至少一筆、名稱不可空白或重複、最低分須為 0–100 且不可重複，儲存時由高到低排序；
 表單會即時顯示目前總分落在哪一級。若該作業已有評分，變更前會先確認；只影響之後的計算，
 已儲存的分數與等第不會自動改寫，目前這份的預覽會用新量規重算，完成批閱時才寫入。
+
+### 班級與作業編輯／刪除
+
+主畫面選好班級後，班級標題右側有「編輯班級」與「刪除班級」；作業卡片每列右側有「編輯」與「刪除」。
+
+- **編輯班級**：只能改班級名稱、學制與教師。班級 ID、學年度、學期與資料夾位置不變，學生名單、作業與作品完整保留。
+- **刪除班級**：確認後把整個班級資料夾（含名單、作業、作品、批注、分數與統計）移到系統資源回收桶；DB 狀態立即移除該班。可從回收桶自行還原，程式內沒有復原按鈕。
+- **編輯作業**：可改題目、題幹、體裁、字數下限與截止日。作業 ID、量規（rubric）與規則（rules）不會改變，既有作品、批注與分數原樣保留；其他作業不受影響。
+- **刪除作業**：確認後把該作業資料夾（含作品、批注、分數、回饋單與統計）移到系統資源回收桶；班級與其他作業仍在。
+- 兩種刪除都會先停止 inbox／Drive watcher，完成後重新啟動；移到回收桶失敗時會回繁體中文錯誤，資料留在原位。
+- 刪除目前選取的作業時，匯入佇列、批次檢查、統計等面板會一併清空，避免顯示已刪除的資料。
 
 ### 快速給分
 
@@ -319,6 +331,8 @@ powershell -ExecutionPolicy Bypass -File tools/make_fixture_pages.ps1
 M0 骨架、M1 資料層、M2 匯入與佇列、M3 批閱核心、M4 批次檢查、M5 回饋單、M6 統計、M7 打磨與交付、
 Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配座號、F2 整班批次回饋單、
 10 分鐘 soak、G4 與上次比較、G6 佳句庫累積、M8 Android 掃描器已完成（App 建置完成，待實機驗證）。
+班級與作業已可編輯與刪除：班級只改名稱／學制／教師且 ID 不變；刪除班級或作業會把整個資料夾移到系統資源回收桶，
+作業編輯不動量規與規則，刪除後 watcher 自動重啟。
 國中版評語庫草稿 138 條已接入 runtime，預設依班級學制自動選用，也可在批閱畫面手動切換；
 國中版會標示「草稿」，待國中國文老師校閱。
 評語庫已支援常用排序與釘選（D13）：「預設／常用（累計）／本批未用優先」、每條顯示本批與累計次數，
@@ -351,7 +365,8 @@ Google Drive 外部 inbox、E6 成績寫回 Excel、未匹配照片手動分配�
 驗收：`m1:check` 11/11、`m2:check` 13/13、`m3:check` 77/77、`m4:check` 17/17、
 `m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`drive:check` 23/23、
 `excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、
-`praise:check` 15/15、`library-import:check` 19/19、`manifest:check` 11/11、`similarity:check` 13/13、`junior:check`、
+`praise:check` 15/15、`library-import:check` 19/19、`manifest:check` 11/11、`similarity:check` 15/15、
+`crud:check` 24/24、`junior:check`、
 `library:wording/structure/coverage/short` 與 `spike` 通過；Android JVM 測試 16/16、debug APK 建置通過。
 量規**預設採用均衡版**，之後可調整；建立作業時可改選、評分前可調整配分與等第門檻，
 已有評分不自動改寫。M4 以 45 人、44 份作品驗證批次檢查（問題 14、提醒 11、約 27 ms）；

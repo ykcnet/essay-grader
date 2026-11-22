@@ -9,6 +9,7 @@ import {
   CreateClassInputSchema,
   RUBRIC_PRESETS,
   RubricSchema,
+  UpdateAssignmentInputSchema,
   WorkSchema,
   assignmentCollisionId,
   assignmentFolderId,
@@ -40,6 +41,7 @@ import {
   type PraiseAssignmentInfo,
   type PraiseBank,
   type Rubric,
+  type UpdateAssignmentInput,
   type WorkFile,
   type WorkSummary
 } from '@essay-grader/core'
@@ -219,6 +221,41 @@ export async function saveClass(input: ClassFile): Promise<ClassSummary> {
   }
 }
 
+/** 把目標資料夾移到系統資源回收桶；先停監看，成功或失敗後都嘗試重啟。 */
+async function trashPathAndRestart(target: string): Promise<void> {
+  const root = requireRoot()
+  await stopImportWatcher()
+  try {
+    await shell.trashItem(target)
+  } catch (error) {
+    if (current) {
+      try {
+        await startImportWatcher(current.root)
+      } catch (watchError) {
+        logWarn(`[db] watcher 重啟失敗：${toMessage(watchError)}`)
+      }
+    }
+    throw new Error(`無法移到系統資源回收桶：${toMessage(error)}`)
+  }
+  if (current) {
+    try {
+      await startImportWatcher(current.root)
+    } catch (watchError) {
+      logWarn(`[db] watcher 重啟失敗：${toMessage(watchError)}`)
+    }
+  }
+}
+
+export async function deleteClass(classId: string): Promise<{ deleted: true }> {
+  const root = requireRoot()
+  if (!CLASS_DIR.test(classId)) throw new Error(`班級 id 格式不正確：${classId}`)
+  if (!(await pathExists(join(root, classId, 'class.json')))) {
+    throw new Error(`找不到班級 ${classId}`)
+  }
+  await trashPathAndRestart(join(root, classId))
+  return { deleted: true }
+}
+
 export async function listAssignments(classId: string): Promise<AssignmentSummary[]> {
   const root = requireRoot()
   const classDir = join(root, classId)
@@ -300,6 +337,63 @@ export async function loadAssignment(
     AssignmentSchema
   )
   return { data: result.data, warning: result.warning }
+}
+
+/**
+ * 只更新作業的基本資訊（題目、題幹、體裁、字數、截止日）。
+ * 保留 id、schema_version、量規與規則；不改任何 work.json。
+ */
+export async function updateAssignment(
+  classId: string,
+  assignmentId: string,
+  input: UpdateAssignmentInput
+): Promise<AssignmentSummary> {
+  const root = requireRoot()
+  const parsed = UpdateAssignmentInputSchema.parse(input)
+
+  if (!CLASS_DIR.test(classId)) throw new Error(`班級 id 格式不正確：${classId}`)
+  if (!(await pathExists(join(root, classId, 'class.json')))) {
+    throw new Error(`找不到班級 ${classId}`)
+  }
+  if (!ASSIGNMENT_DIR.test(assignmentId)) {
+    throw new Error(`作業 id 格式不正確：${assignmentId}`)
+  }
+  const assignmentPath = join(root, classId, assignmentId, 'assignment.json')
+  if (!(await pathExists(assignmentPath))) {
+    throw new Error(`找不到作業 ${assignmentId}`)
+  }
+
+  const { data } = await loadAssignment(classId, assignmentId)
+  const next = AssignmentSchema.parse({
+    ...data,
+    title: parsed.title,
+    prompt: parsed.prompt,
+    genre: parsed.genre?.trim() ? parsed.genre.trim() : undefined,
+    word_limit: parsed.wordLimit,
+    due_at: parsed.dueAt || undefined
+  })
+
+  await writeJsonAtomic(assignmentPath, next)
+  return { id: next.id, title: next.title, dueAt: next.due_at, rubricId: next.rubric.id }
+}
+
+export async function deleteAssignment(
+  classId: string,
+  assignmentId: string
+): Promise<{ deleted: true }> {
+  const root = requireRoot()
+  if (!CLASS_DIR.test(classId)) throw new Error(`班級 id 格式不正確：${classId}`)
+  if (!(await pathExists(join(root, classId, 'class.json')))) {
+    throw new Error(`找不到班級 ${classId}`)
+  }
+  if (!ASSIGNMENT_DIR.test(assignmentId)) {
+    throw new Error(`作業 id 格式不正確：${assignmentId}`)
+  }
+  if (!(await pathExists(join(root, classId, assignmentId, 'assignment.json')))) {
+    throw new Error(`找不到作業 ${assignmentId}`)
+  }
+  await trashPathAndRestart(join(root, classId, assignmentId))
+  return { deleted: true }
 }
 
 /**

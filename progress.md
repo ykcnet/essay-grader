@@ -1,7 +1,7 @@
 # Essay Grader — Progress
 
 > 最後更新：2026-11-22
-> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D11 自訂評語增刪改＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D21 評語庫版本更新＋D22 跨批冷卻輪替＋D23 停用取代刪除＋E1 快速給分＋M8 Android 掃描器（含掃描方向確認；App 建置完成、桌面 manifest 完成，待實機驗證）；下一步 M9／真機測試**
+> 階段：**M0–M7＋Google Drive 外部 inbox＋E6 成績寫回＋未匹配分配＋F2 整班批次回饋單＋10 分鐘 soak＋G4 與上次比較＋G6 佳句庫累積＋D11 自訂評語增刪改＋D12 國中／高中職雙評語庫＋D13 常用排序與釘選＋D21 評語庫版本更新＋D22 跨批冷卻輪替＋D23 停用取代刪除＋E1 快速給分＋A4／A5 班級與作業編輯刪除＋M8 Android 掃描器（含掃描方向確認；App 建置完成、桌面 manifest 完成，待實機驗證）；下一步 M9／真機測試**
 
 ---
 
@@ -35,6 +35,7 @@
 | `apps/desktop/src/main/data/` | M1 資料層：原子寫入、`.bak` 還原、鎖、repository、IPC；M3–M7 驗收 |
 | `packages/core/src/audit.ts` | M4 作業層級批次檢查純函式（未匯入、總評不足、重複、未評分、缺頁） |
 | `apps/desktop/src/main/data/m4-check.ts` | M4 驗收：45 人、44 份作品的批次檢查與 UI 煙霧 |
+| `apps/desktop/src/main/data/crud-check.ts` | A4／A5 驗收：班級／作業 update 與 delete、錯誤訊息、回收桶失敗、watcher 重啟、UI 煙霧 |
 | `packages/core/src/feedback.ts` | M5 回饋單 view model：分項、扣分、錯字聚合、詞句改寫、佳句、檔名規則 |
 | `apps/desktop/src/main/feedback/` | M5 回饋單預覽視窗、單份 PDF（隱藏視窗＋printToPDF）、列印、另存 |
 | `apps/desktop/src/main/data/m5-check.ts` | M5 驗收：資料推導、檔名、單頁 PDF、溢頁阻擋與 UI 煙霧 |
@@ -179,6 +180,7 @@
 | 98 | 手機 manifest 入口 | IPC `import:write-manifest(classId)`、preload `imports.writeManifest(classId)`；ImportPanel 的 Google Drive inbox 區塊加「產生手機 manifest」，成功顯示路徑與班級／作業／學生數 |
 | 99 | Android 建置工具鏈 | `tools/android.ps1` 預設 `:app:assembleDebug`；優先 `JAVA_HOME`／`ANDROID_HOME`，否則 `M:\dev\tools\jdk`、`M:\dev\tools\android-sdk`；缺工具鏈回繁中錯誤；npm 腳本不硬編碼路徑 |
 | 100 | M8 驗收邊界 | 桌面 manifest 以 `manifest:check` 11/11 驗收；Android 以 16 個 JVM 測試與 debug APK 建置驗收；ML Kit、SAF、Drive 上傳與端到端仍待實機 |
+| 101 | A4／A5 班級與作業編輯刪除 | 班級只改 name／grade／teacher，id、資料夾與 students 不變；作業只改 title／prompt／genre／word_limit／due_at，id、rubric、rules 不變；刪除整個資料夾到系統資源回收桶，先停 watcher、完成後重啟；錯誤回繁中；`crud:check` 24/24 |
 
 ---
 
@@ -619,6 +621,24 @@ essay-grader-data/
 - Android：`ImageRotation` 純函式（`normalizeDegrees`、`rotatedSize`、`sampleSizeFor`）與 JVM 測試涵蓋 0/90/180/270、90／270 寬高交換、縮圖取樣（1000×800 → 1、2000×1500 → 2、4000×3000 → 4、0×0 → 1）。掃描完成跳出「確認掃描方向」，預覽第一頁縮圖，選定角度整批套用；取消不寫 pending、不上傳，按上傳才 `savePending` 後上傳。0° 直接串流複製，其餘逐頁解碼旋轉後以 JPEG 92 寫入；解碼／壓縮／OOM 失敗會刪除已建立的暫存與頁面，整批不留半套。`AndroidManifest` 固定直向，主畫面新增拍攝提示。
 - 驗收：`m3:check` 77/77（新增 3 項 `distributeScore`、2 項快速給分 UI）；Android JVM 16/16（Filenames 5、ImageRotation 3、ManifestParser 4、PendingMeta 2、Sidecar 2）；`typecheck`、`build`、android:test、android:build 通過。
 - 已知限制：快速分配只依比例拆分，不判斷內容優劣；「複製上一份」只找同作業且已有分數的作品，跨作業不支援；只複製分項與手動覆寫，總評／批注仍需自行處理；分配後仍可逐項手改。Android 一次僅能選一個角度套用整批，不能逐頁不同角度；非 90 倍數一律視為 0；旋轉頁會重新編碼 JPEG 92，可能與原始壓縮略有差異；大圖旋轉仍可能因記憶體不足整批失敗；方向確認只預覽第一頁，其餘頁面需上傳後在桌機確認。
+
+### A4／A5 班級與作業編輯刪除驗收（2026-11-22）
+
+- Repository／IPC：新增 `deleteClass`、`updateAssignment`、`deleteAssignment` 與共用 `trashPathAndRestart`；IPC `class:delete`、`assignment:update`、`assignment:delete`；preload `db.deleteClass`／`db.updateAssignment`／`db.deleteAssignment`；core 新增 `UpdateAssignmentInputSchema`（title 必填、prompt 預設空字串、genre／wordLimit／dueAt 選填）。
+- 刪除流程：先 `stopImportWatcher`，以 `shell.trashItem` 把整個班級或作業資料夾移到系統資源回收桶，成功或失敗都會重啟 watcher；失敗時拋出「無法移到系統資源回收桶：…」，資料留在原位。刪除前檢查 id 格式、班級存在與 assignment.json 存在，錯誤皆為繁中。
+- UI：班級標題右側新增「編輯班級／刪除班級」；作業列改為 `.assignment-item`（`.assignment-select` 主選取按鈕＋`.assignment-actions` 右側動作群），不再 button 包 button；`EditClassForm` 只送 name／grade／teacher，`EditAssignmentForm` 預填 title／prompt／wordLimit／dueAt 並轉成 `YYYY-MM-DDT23:59:00+08:00`；刪除以 `window.confirm` 確認，刪除目前選取的作業會清空佇列、批次檢查與統計狀態。
+- CSS：新增 `.assignment-item`（flex、min-width 0）、`.assignment-select`（沿用 `.assignment-row` 外觀與 active 樣式）、`.assignment-actions`（右側垂直按鈕群，窄螢幕 860px 以下換行並靠右）；保留 `.assignment-row` 相容；`button.danger` 與 `.class-head-actions` 沿用本輪樣式。
+- `npm run crud:check` 24/24（暫存資料庫 `spike-out/crud-db`）：
+  - 建立 `C302-2025F`、2 位學生（01 在學、02 停用）、2 份作業。
+  - `saveClass` 改 name／grade／teacher：`國中302（更新）／senior／李老師`，id、資料夾與 students 完整保留。
+  - `updateAssignment` 改 title／prompt／genre／word_limit／due_at：id、rubric（`balanced-default`）、rules 不變，另一份作業 JSON 完全相同。
+  - 錯誤：不存在班級／作業、非法班級／作業 id、空題目（「請填作文題目」）皆回繁中；覆寫 `shell.trashItem` 模擬失敗回「無法移到系統資源回收桶：模擬回收桶失敗」且資料保留。
+  - deleteAssignment：資料夾消失、班級與另一份作業仍在、list 剩 1 份；watcher 刪除前後皆監看 1 個 inbox。
+  - deleteClass：資料夾消失、state 0 班、watcher 監看 0 且無監看錯誤事件。
+  - UI 煙霧：班級按鈕存在；作業列有「編輯／刪除」且無嵌套 button；編輯班級後 h2 更新、id 與 2 位學生不變；編輯作業表單預填正確、儲存後列表更新、rubric／rules 不變；`window.confirm = () => true` 後刪除作業該列消失、API 剩 1 份；刪除班級後資料夾消失、state 0 班、watcher 正常。
+- 回歸：`npm run typecheck -w @essay-grader/core`、`npm run typecheck`、`npm run build`、`crud:check` 24/24、`m1:check` 11/11、`m2:check` 13/13、`m3:check` 77/77、`m4:check` 17/17、`m5:check` 19/19、`m6:check` 17/17、`m7:check` 25/25、`similarity:check` 15/15、`praise:check` 15/15、`library-import:check` 19/19、`drive:check` 23/23、`manifest:check` 11/11、`excel:check` 25/25、`match:check` 21/21、`batch:check` 17/17、`compare:check` 15/15、`junior:check`、`library:wording／structure／coverage／short`、`spike`、`android:test`、`android:build`。
+- 文件：README／`docs/使用說明.md`／features／plan／progress 同步記錄。
+- 已知限制：刪除依賴 Windows 系統資源回收桶，程式內沒有復原或永久刪除選項；回收桶被停用或磁碟不支援時會回錯誤且不刪資料。編輯班級不允許改班號／學年度／學期，避免資料夾與既有參照失效。編輯作業不會同步調整既有作品的量規分數或規則判定，只影響之後的批閱。
 
 ### 已知限制（M3–M7＋Drive inbox＋E6＋未匹配分配＋F2＋soak＋G4＋G6＋M8）
 

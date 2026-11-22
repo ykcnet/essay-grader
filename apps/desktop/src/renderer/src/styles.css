@@ -143,6 +143,28 @@ button.link:disabled {
   color: var(--muted);
 }
 
+button.danger {
+  border-color: #d99a90;
+  color: var(--red);
+  background: #fff;
+}
+
+button.danger:hover:not(:disabled) {
+  background: #fbe4e0;
+  border-color: var(--red);
+}
+
+button.danger:active:not(:disabled) {
+  background: #f7d3cd;
+  border-color: #b03a2e;
+}
+
+button.danger:disabled {
+  border-color: #e3cfc9;
+  color: #c29086;
+  background: #f6f0ec;
+}
+
 input,
 select,
 textarea {
@@ -366,6 +388,18 @@ input[type='checkbox'] {
   margin: 5px 0 0;
 }
 
+.class-head-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.class-head-actions {
+  display: flex;
+  gap: 6px;
+}
+
 .stat-row {
   display: flex;
   align-items: center;
@@ -536,6 +570,7 @@ input[type='checkbox'] {
   list-style: none;
 }
 
+/* 舊版單一按鈕列，保留相容 */
 .assignment-row {
   width: 100%;
   display: flex;
@@ -558,6 +593,71 @@ input[type='checkbox'] {
   border-color: #6f98c7;
   box-shadow: inset 3px 0 0 var(--blue);
   background: #eef4fb;
+}
+
+/* 一列 = 主選取按鈕 + 右側動作按鈕群 */
+.assignment-item {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+
+.assignment-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 11px;
+  border: 1px solid #ddd2bd;
+  border-radius: 8px;
+  background: #fdfaf3;
+  text-align: left;
+}
+
+.assignment-select > div {
+  min-width: 0;
+}
+
+.assignment-select .assignment-title {
+  overflow-wrap: anywhere;
+}
+
+.assignment-select:hover {
+  background: #efe6d5;
+  border-color: #cbbfa6;
+}
+
+.assignment-item.active .assignment-select {
+  border-color: #6f98c7;
+  box-shadow: inset 3px 0 0 var(--blue);
+  background: #eef4fb;
+}
+
+.assignment-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.assignment-actions button.small {
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .assignment-item {
+    flex-wrap: wrap;
+  }
+
+  .assignment-actions {
+    flex-direction: row;
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 
 .assignment-list li.muted {
