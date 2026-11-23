@@ -730,6 +730,7 @@ essay-grader-data/
   - 上傳診斷：新增 logcat tag `EssayGraderUpload`，記錄 root／班級／作業 document URI、檔名與實際寫入 bytes；寫入 0 bytes 直接判定失敗，不再回報成功。
   - 驗證受阻：14:42 起手機 Google Drive 同步引擎出現 `GetPendingUploadItemsInternal Assertion failed (dirty_content_size > -1)`，SAF 寫入回傳 0 bytes，雲端與桌機都收不到檔；清除 Drive App 快取無效，待重開機或清除 App 資料後重測。
   - `npm run m8:check` 通過；新 APK 已建置，待 Drive 恢復後驗證 0° 與 90° 方向。
+- 2026-11-23 T7 結案：Drive 恢復後以 log 驗證，`save rotation=90`、`page exif=0 src=2085x2923 upright=2085x2923 degrees=90`，匯入 `p16` 為 2600×1855 側躺，與手機 90° 預覽一致；0° 的 `p12` 為正立。先前 `p13` 是「倒立頁選 90°」造成，正確修正為 180°。EXIF 與旋轉流程確認正常。
 
 ---
 

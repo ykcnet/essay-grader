@@ -701,7 +701,13 @@ class MainActivity : AppCompatActivity() {
         val decoded = contentResolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, options)
         } ?: return null
-        return applyExifOrientation(decoded, readExifOrientation(uri))
+        val orientation = readExifOrientation(uri)
+        val upright = applyExifOrientation(decoded, orientation)
+        Log.i(
+            UPLOAD_LOG_TAG,
+            "preview exif=$orientation upright=${upright.width}x${upright.height}"
+        )
+        return upright
     }
 
     /** BitmapFactory 不會套用 EXIF Orientation，必須自己轉正。 */
@@ -745,6 +751,10 @@ class MainActivity : AppCompatActivity() {
         seat: String,
         rotationDegrees: Int
     ) {
+        Log.i(
+            UPLOAD_LOG_TAG,
+            "save class=$classId assignment=$assignmentId seat=$seat pages=${pages.size} rotation=$rotationDegrees"
+        )
         val sessionId = Filenames.sessionId()
         val capturedAt = Filenames.capturedAt()
 
@@ -839,7 +849,12 @@ class MainActivity : AppCompatActivity() {
             BitmapFactory.decodeStream(it)
         } ?: throw PageRotationException("無法解碼頁面")
 
-        val upright = applyExifOrientation(original, readExifOrientation(uri))
+        val exifOrientation = readExifOrientation(uri)
+        val upright = applyExifOrientation(original, exifOrientation)
+        Log.i(
+            UPLOAD_LOG_TAG,
+            "page exif=$exifOrientation src=${original.width}x${original.height} upright=${upright.width}x${upright.height} degrees=$degrees"
+        )
         val result = if (degrees == 0) {
             upright
         } else {
