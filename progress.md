@@ -725,6 +725,11 @@ essay-grader-data/
   - 13:58 上傳 → 14:06:08 匯入 `p11`；5 分鐘重試仍失敗，14:11:09 WARN。同資料夾的 163 bytes sidecar 可立即刪除，只有 821 KB jpg 被 Drive 鎖住約 8 分鐘。
   - 結論：自動匯入已可不用重啟；來源刪除受 Google Drive 鎖檔限制，維持「5 分鐘重試＋WARN＋保留 sidecar」策略，並在 `docs/使用說明.md` 註明可稍後手動清除。
   - Drive inbox、`_unmatched` 與重複資料夾 `C1-2026F (1)`／`E20261122 (1)` 已清空。
+- 2026-11-23 T7 旋轉修正與 Drive App 上傳阻塞：
+  - EXIF：`BitmapFactory` 不套用 EXIF Orientation，手機預覽與桌機（sharp 會套用）方向可能不一致。改為預覽與存檔都先依 EXIF 轉正，且所有頁面一律重新編碼 JPEG 92（0° 也一樣），確保手機預覽與桌機結果一致。
+  - 上傳診斷：新增 logcat tag `EssayGraderUpload`，記錄 root／班級／作業 document URI、檔名與實際寫入 bytes；寫入 0 bytes 直接判定失敗，不再回報成功。
+  - 驗證受阻：14:42 起手機 Google Drive 同步引擎出現 `GetPendingUploadItemsInternal Assertion failed (dirty_content_size > -1)`，SAF 寫入回傳 0 bytes，雲端與桌機都收不到檔；清除 Drive App 快取無效，待重開機或清除 App 資料後重測。
+  - `npm run m8:check` 通過；新 APK 已建置，待 Drive 恢復後驗證 0° 與 90° 方向。
 
 ---
 

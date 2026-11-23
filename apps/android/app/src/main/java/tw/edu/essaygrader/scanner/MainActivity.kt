@@ -6,9 +6,11 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewTreeObserver
@@ -696,9 +698,44 @@ class MainActivity : AppCompatActivity() {
         val options = BitmapFactory.Options().apply {
             inSampleSize = ImageRotation.sampleSizeFor(bounds.outWidth, bounds.outHeight, maxLongSide)
         }
-        return contentResolver.openInputStream(uri)?.use {
+        val decoded = contentResolver.openInputStream(uri)?.use {
             BitmapFactory.decodeStream(it, null, options)
+        } ?: return null
+        return applyExifOrientation(decoded, readExifOrientation(uri))
+    }
+
+    /** BitmapFactory 不會套用 EXIF Orientation，必須自己轉正。 */
+    private fun readExifOrientation(uri: Uri): Int = runCatching {
+        contentResolver.openInputStream(uri)?.use {
+            ExifInterface(it).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        } ?: ExifInterface.ORIENTATION_NORMAL
+    }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+
+    private fun applyExifOrientation(bitmap: Bitmap, orientation: Int): Bitmap {
+        val matrix = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> matrix.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> matrix.setRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> matrix.setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> {
+                matrix.setRotate(90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_90 -> matrix.setRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> {
+                matrix.setRotate(-90f)
+                matrix.postScale(-1f, 1f)
+            }
+            ExifInterface.ORIENTATION_ROTATE_270 -> matrix.setRotate(-90f)
+            else -> return bitmap
         }
+
+        val upright = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (upright !== bitmap) bitmap.recycle()
+        return upright
     }
 
     private fun saveAndUpload(
@@ -764,16 +801,8 @@ class MainActivity : AppCompatActivity() {
                 val temp = File(dir, "${target.name}.tmp")
                 createdFiles += temp
 
-                val input = contentResolver.openInputStream(pages[i].imageUri)
-                    ?: throw IOException("無法讀取第 $seq 頁")
-                input.use { ins ->
-                    if (rotation == 0) {
-                        // 0 度維持原檔串流複製，不重新編碼。
-                        FileOutputStream(temp).use { outs -> copyStream(ins, outs) }
-                    } else {
-                        rotatePageToFile(ins, temp, rotation)
-                    }
-                }
+                // 一律依 EXIF 轉正後再套用使用者角度，確保預覽與桌機看到的一致。
+                rotatePageToFile(pages[i].imageUri, temp, rotation)
 
                 if (!temp.renameTo(target)) {
                     // 少數檔案系統不支援直接 rename，退回複製後刪除暫存檔。
@@ -804,31 +833,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 解碼單頁、旋轉後以 JPEG 寫入指定檔案；只保留一份 Bitmap，處理完立即 recycle。 */
-    private fun rotatePageToFile(input: InputStream, outputFile: File, degrees: Int) {
-        val original = BitmapFactory.decodeStream(input)
-            ?: throw PageRotationException("無法解碼頁面")
-        var rotated: Bitmap? = null
-        try {
+    /** 解碼單頁、依 EXIF 轉正、套用角度後以 JPEG 寫入；只保留必要 Bitmap。 */
+    private fun rotatePageToFile(uri: Uri, outputFile: File, degrees: Int) {
+        val original = contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it)
+        } ?: throw PageRotationException("無法解碼頁面")
+
+        val upright = applyExifOrientation(original, readExifOrientation(uri))
+        val result = if (degrees == 0) {
+            upright
+        } else {
             val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
-            val rotatedBitmap = Bitmap.createBitmap(
-                original,
-                0,
-                0,
-                original.width,
-                original.height,
-                matrix,
-                true
-            )
-            rotated = rotatedBitmap
+            Bitmap.createBitmap(upright, 0, 0, upright.width, upright.height, matrix, true)
+        }
+
+        try {
             FileOutputStream(outputFile).use { outs ->
-                if (!rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, PAGE_JPEG_QUALITY, outs)) {
+                if (!result.compress(Bitmap.CompressFormat.JPEG, PAGE_JPEG_QUALITY, outs)) {
                     throw PageRotationException("無法壓縮頁面")
                 }
             }
         } finally {
-            rotated?.takeIf { it !== original && !it.isRecycled }?.recycle()
-            if (!original.isRecycled) original.recycle()
+            if (result !== upright && !result.isRecycled) result.recycle()
+            if (!upright.isRecycled) upright.recycle()
         }
     }
 
@@ -868,6 +895,10 @@ class MainActivity : AppCompatActivity() {
         val assignmentDir = classDir.findFile(meta.assignmentId)
             ?: classDir.createDirectory(meta.assignmentId)
             ?: return UploadResult.failure("無法建立作業資料夾")
+        Log.i(
+            UPLOAD_LOG_TAG,
+            "root=${treeUri} class=${classDir.uri} assignment=${assignmentDir.uri} pages=${meta.pageCount}"
+        )
 
         var success = 0
         var failure = 0
@@ -906,6 +937,12 @@ class MainActivity : AppCompatActivity() {
                 ?: throw IOException("無法寫入 $pageFileName")
             out.use { outs -> copyStream(ins, outs) }
         }
+        val writtenBytes = imageDoc.length()
+        Log.i(
+            UPLOAD_LOG_TAG,
+            "image=${imageDoc.uri} name=$pageFileName bytes=$writtenBytes pending=${pendingFile.length()}"
+        )
+        if (writtenBytes <= 0L) throw IOException("寫入 0 bytes：$pageFileName")
 
         val sidecarDoc = assignmentDir.findFile(sidecarName)
             ?: assignmentDir.createFile("application/json", sidecarName)
@@ -921,6 +958,10 @@ class MainActivity : AppCompatActivity() {
         val out = contentResolver.openOutputStream(sidecarDoc.uri, "w")
             ?: throw IOException("無法寫入 $sidecarName")
         out.use { it.write(sidecar.toJson().toByteArray(Charsets.UTF_8)) }
+        Log.i(
+            UPLOAD_LOG_TAG,
+            "sidecar=${sidecarDoc.uri} name=$sidecarName bytes=${sidecarDoc.length()}"
+        )
     }
 
     private fun retryPendingUploads() {
@@ -1023,6 +1064,7 @@ class MainActivity : AppCompatActivity() {
         private const val MANIFEST_FILE_NAME = "manifest.json"
         private const val PREVIEW_MAX_LONG_SIDE = 1200
         private const val PAGE_JPEG_QUALITY = 92
+        private const val UPLOAD_LOG_TAG = "EssayGraderUpload"
     }
 }
 
