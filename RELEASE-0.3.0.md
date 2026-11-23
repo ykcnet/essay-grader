@@ -1,7 +1,7 @@
 # Essay Grader 0.3.0（桌機版）
 
 日期：2026-11-23（Asia/Taipei）
-版本：0.3.0（commit `d4595ee`、tag `v0.3.0`）
+版本：0.3.0（commit `d4595ee`、tag `v0.3.0`；2026-11-23 09:20 最終建置，含 Drive 匯入與來源刪除修正）
 適用：Windows 10 22H2 以上（x64）
 
 ## 本版重點
@@ -11,13 +11,14 @@
 - 班級與作業編輯／刪除。
 - 修正 Android manifest 讀取與淺色主題對比。
 - 承接 0.2.0：M8 Android 掃描器、Google Drive 外部 inbox、自訂評語、佳句庫、UI 對比修正。
+- 2026-11-23 修正：Drive inbox 每 20 秒補掃、來源檔「穩定消失」刪除與警告、側欄選取與 hover 對比。
 
 ## 檔案
 
 | 形式 | 檔案 | 大小 | SHA-256 |
 |---|---|---|---|
-| 安裝版 | `EssayGrader-0.3.0-Setup.exe` | 134,214,857 bytes（約 128.0 MB） | `D536A0BC49ECE2B5D33A626C76D4EF06FCCB1F48E39A1186EC9C4205C140C654` |
-| 免安裝版 | `EssayGrader-0.3.0-Portable.exe` | 120,853,784 bytes（約 115.3 MB） | `8D64374022C749ECEE6EE4EEC784EE0F4916345EB746EE6DB401C0FFD2CA4C90` |
+| 安裝版 | `EssayGrader-0.3.0-Setup.exe` | 134,215,830 bytes（約 128.0 MB） | `A20D740A9102005A40D073F2F1979026A46530EEDEA100CF75D54AA94AB5EECE` |
+| 免安裝版 | `EssayGrader-0.3.0-Portable.exe` | 120,854,396 bytes（約 115.3 MB） | `59E2E3E9249B3194E5847452A0F9CA8654F2C316EB4E945CF1183E7AB1857C8D` |
 | Android 掃描器（debug，選用） | `EssayGrader-Scanner-0.2.0-debug.apk` | 7,840,727 bytes（約 7.5 MB） | `437F27EE2E6FE1E9155B088661A90D477887CAB765E9041C2C7A5D8841843DE0` |
 
 ## 安裝

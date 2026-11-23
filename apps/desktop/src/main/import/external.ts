@@ -1,5 +1,6 @@
 import chokidar, { type FSWatcher } from 'chokidar'
 import { mkdir, readdir, readFile, stat, unlink } from 'node:fs/promises'
+import { logWarn } from '../logger'
 import { basename, dirname, extname, join, relative, sep } from 'node:path'
 import {
   AssignmentSchema,
@@ -30,6 +31,9 @@ const CLASS_ID_RE = /^C[0-9A-Za-z-]+$/
 const ASSIGNMENT_ID_RE = /^E\d{8}(-\d{2})?$/
 /** Google Drive 同步較慢，圖片與 sidecar 可能先後到達。 */
 const GRACE_MS = 2500
+/** Google Drive 虛擬磁碟不一定會觸發檔案事件，定期全量掃描補漏。 */
+const RESCAN_INTERVAL_MS = 20_000
+const MAX_RESCAN_DEPTH = 8
 
 interface FolderRoute {
   classId: string | null
@@ -45,6 +49,12 @@ let error: string | null = null
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
 const inFlight = new Set<string>()
+/** 已排入背景刪除的來源檔；避免定期掃描重複匯入。 */
+const removing = new Set<string>()
+/** 背景刪除仍失敗的來源檔；本次執行不再處理，避免重複頁面。 */
+const abandoned = new Set<string>()
+let rescanTimer: ReturnType<typeof setTimeout> | null = null
+let rescanRunning = false
 let chain: Promise<void> = Promise.resolve()
 
 const messageOf = (value: unknown): string =>
@@ -122,17 +132,106 @@ async function reject(
   })
 }
 
-async function removeSource(path: string): Promise<void> {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    try {
-      await unlink(path)
-      return
-    } catch (value) {
-      if ((value as NodeJS.ErrnoException).code === 'ENOENT') return
-      if (attempt === 4) return
-      await delay(250)
-    }
+async function tryRemoveSource(path: string): Promise<boolean> {
+  try {
+    await unlink(path)
+  } catch (value) {
+    return (value as NodeJS.ErrnoException).code === 'ENOENT'
   }
+
+  // Google Drive 偶爾會回報刪除成功，但檔案稍後又出現；確認真的消失才算完成。
+  for (let check = 0; check < 3; check++) {
+    await delay(400)
+    if (!(await pathExists(path))) return true
+  }
+  return false
+}
+
+async function removeSource(path: string): Promise<boolean> {
+  if (await tryRemoveSource(path)) return true
+  await delay(250)
+  return tryRemoveSource(path)
+}
+
+/**
+ * Drive 偶爾刪除成功後又把檔案補回來；要求連續 12 秒不存在才算完成，
+ * 期間再出現就重新刪除，最多等 90 秒。
+ */
+async function removeSourceStable(path: string, timeoutMs = 90_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs
+  let missingSince: number | null = null
+  let waitBeforeUnlink = 0
+
+  while (Date.now() < deadline) {
+    if (await pathExists(path)) {
+      missingSince = null
+      if (waitBeforeUnlink > 0) {
+        await delay(waitBeforeUnlink)
+        waitBeforeUnlink = 0
+        continue
+      }
+      try {
+        await unlink(path)
+      } catch (value) {
+        if ((value as NodeJS.ErrnoException).code !== 'ENOENT') {
+          await delay(1000)
+          continue
+        }
+      }
+      // 又出現時先等 10 秒再刪，避免和 Drive 同步互相搶檔。
+      waitBeforeUnlink = 10_000
+      await delay(500)
+      continue
+    }
+
+    if (missingSince === null) missingSince = Date.now()
+    if (Date.now() - missingSince >= 12_000) return true
+    await delay(500)
+  }
+
+  return !(await pathExists(path))
+}
+
+const verifyTimers = new Set<ReturnType<typeof setTimeout>>()
+
+/** Drive 同步可能在上傳完成後又補回檔案，10 秒後再確認一次。 */
+function verifySourceRemovedLater(imagePath: string, sidecarPath: string | null): void {
+  const timer = setTimeout(() => {
+    verifyTimers.delete(timer)
+    void (async () => {
+      if (!(await pathExists(imagePath))) {
+        if (sidecarPath && !(await tryRemoveSource(sidecarPath))) {
+          retryRemoveSourceInBackground(sidecarPath)
+        }
+        return
+      }
+      retryRemoveSourceInBackground(imagePath, sidecarPath)
+    })()
+  }, 10_000)
+  verifyTimers.add(timer)
+}
+
+/** Drive 上傳剛完成時常會短暫鎖檔，背景再退避重試；失敗時留下警告。 */
+function retryRemoveSourceInBackground(path: string, companionPath: string | null = null): void {
+  const key = path.toLowerCase()
+  if (removing.has(key) || abandoned.has(key)) return
+  removing.add(key)
+
+  void (async () => {
+    const removed = await removeSourceStable(path)
+    if (removed && companionPath) await removeSource(companionPath)
+    removing.delete(key)
+    if (removed) return
+
+    abandoned.add(key)
+    logWarn(`[drive] 已匯入但來源檔刪除失敗：${path}`)
+    await emitImportEvent({
+      type: 'error',
+      source: 'drive',
+      file: basename(path),
+      message: `Drive：作品已匯入，但來源檔刪除失敗，請稍後手動清除或重啟後再處理（${basename(path)}）`
+    })
+  })()
 }
 
 async function processExternalFile(imagePath: string): Promise<void> {
@@ -142,7 +241,7 @@ async function processExternalFile(imagePath: string): Promise<void> {
   if (!(await pathExists(imagePath))) return
 
   const key = imagePath.toLowerCase()
-  if (inFlight.has(key)) return
+  if (inFlight.has(key) || removing.has(key) || abandoned.has(key)) return
   inFlight.add(key)
 
   try {
@@ -419,8 +518,16 @@ async function processExternalFile(imagePath: string): Promise<void> {
     await writeJsonAtomic(workPath, nextWork)
 
     // 成功後刪除雲端來源，作品不長期留在 Google Drive。
-    await removeSource(imagePath)
-    if (hasSidecar) await removeSource(sidecarPath)
+    // 圖片若刪不掉，先保留 sidecar，讓下次掃描仍能辨識路由並視為重複檔。
+    const imageRemoved = await removeSource(imagePath)
+    if (!imageRemoved) {
+      retryRemoveSourceInBackground(imagePath, hasSidecar ? sidecarPath : null)
+    } else if (hasSidecar) {
+      if (!(await removeSource(sidecarPath))) {
+        retryRemoveSourceInBackground(sidecarPath)
+      }
+    }
+    verifySourceRemovedLater(imagePath, hasSidecar ? sidecarPath : null)
 
     await emitImportEvent({
       type: 'imported',
@@ -453,6 +560,9 @@ async function considerFile(path: string): Promise<void> {
   if (!driveRoot) return
   if (ignoredPath(driveRoot, path)) return
 
+  const key = path.toLowerCase()
+  if (removing.has(key) || abandoned.has(key)) return
+
   const extension = extname(path).toLowerCase()
   if (IMAGE_EXTS.has(extension) || extension === '.pdf') {
     scheduleCandidate(path)
@@ -467,6 +577,59 @@ async function considerFile(path: string): Promise<void> {
     const candidate = `${base}${imageExtension}`
     if (await pathExists(candidate)) scheduleCandidate(candidate)
   }
+}
+
+async function collectInboxFiles(dir: string, out: string[], depth = 0): Promise<void> {
+  if (depth > MAX_RESCAN_DEPTH) return
+
+  let entries
+  try {
+    entries = await readdir(dir, { withFileTypes: true })
+  } catch {
+    return
+  }
+
+  for (const entry of entries) {
+    const full = join(dir, entry.name)
+    if (ignoredPath(root ?? '', full)) continue
+    if (entry.isDirectory()) {
+      await collectInboxFiles(full, out, depth + 1)
+      continue
+    }
+    if (!entry.isFile()) continue
+
+    const extension = extname(entry.name).toLowerCase()
+    if (IMAGE_EXTS.has(extension) || extension === '.pdf' || extension === '.json') {
+      out.push(full)
+    }
+  }
+}
+
+/** 補抓 chokidar 在 Google Drive 虛擬磁碟漏掉的檔案事件。 */
+async function rescanExternalInbox(): Promise<void> {
+  const driveRoot = root
+  if (!driveRoot || !watching || rescanRunning) return
+
+  rescanRunning = true
+  try {
+    const files: string[] = []
+    await collectInboxFiles(driveRoot, files)
+    for (const file of files) await considerFile(file)
+  } catch (value) {
+    logWarn(`[drive] 定期掃描外部 inbox 失敗：${messageOf(value)}`)
+  } finally {
+    rescanRunning = false
+  }
+}
+
+function scheduleRescan(): void {
+  if (rescanTimer) clearTimeout(rescanTimer)
+  rescanTimer = setTimeout(() => {
+    rescanTimer = null
+    void rescanExternalInbox().finally(() => {
+      if (watching) scheduleRescan()
+    })
+  }, RESCAN_INTERVAL_MS)
 }
 
 export async function startExternalWatcher(
@@ -528,6 +691,7 @@ export async function startExternalWatcher(
 
   watching = true
   error = null
+  scheduleRescan()
   await emitImportEvent({
     type: 'watcher',
     source: 'drive',
@@ -538,6 +702,15 @@ export async function startExternalWatcher(
 export async function stopExternalWatcher(): Promise<void> {
   for (const timer of timers.values()) clearTimeout(timer)
   timers.clear()
+  if (rescanTimer) {
+    clearTimeout(rescanTimer)
+    rescanTimer = null
+  }
+  for (const timer of verifyTimers) clearTimeout(timer)
+  verifyTimers.clear()
+  rescanRunning = false
+  removing.clear()
+  abandoned.clear()
 
   const instance = watcher
   watcher = null

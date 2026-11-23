@@ -321,13 +321,30 @@ input[type='checkbox'] {
 }
 
 .class-item:hover {
-  background: rgba(247, 241, 227, 0.07);
+  background: rgba(111, 152, 199, 0.28);
+}
+
+/* 蓋過全域 button:hover 的淺底，避免深色側欄上的文字反白後看不清楚。 */
+button.class-item:hover:not(.active) {
+  background: rgba(111, 152, 199, 0.28);
+  color: var(--cream);
+}
+
+/* 選取中的項目 hover 改用淡藍底，和作業選取狀態一致。 */
+button.class-item.active:hover {
+  background: #eef4fb;
+  color: var(--ink);
 }
 
 .class-item.active {
-  background: rgba(247, 241, 227, 0.2);
+  background: rgba(247, 241, 227, 0.92);
   border-color: rgba(247, 241, 227, 0.36);
   box-shadow: inset 3px 0 0 var(--cream);
+  color: var(--ink);
+}
+
+.class-item.active .class-meta {
+  color: rgba(31, 41, 51, 0.72);
 }
 
 .class-name {

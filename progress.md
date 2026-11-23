@@ -706,6 +706,21 @@ essay-grader-data/
 - 打包：`npm run dist:win` 成功，`EssayGrader-0.3.0-Setup.exe` 134,214,857 bytes、`EssayGrader-0.3.0-Portable.exe` 120,853,784 bytes；舊 0.2.0 產物移至 `apps/desktop/release/archive-0.2.0/` 保留，未提交 release。
 - 已知限制：安裝檔仍未簽章。
 
+### 0.3.0 實機驗證與匯入流程修正（2026-11-23）
+- 實機環境：Redmi Note 13 Pro 5G（`23078PND5G`）、無線偵錯、Android APK 0.2.0（`versionCode` 2）；桌機 portable 0.3.0、外部 inbox `G:\我的雲端硬碟\EssayGrader\inbox`。
+- 通過：T1 安裝啟動、T2 Drive SAF 權限重開保留、T3 manifest 讀取、T4 班級／作業／在學學生選單、T5 ML Kit 掃描、T6 0° 上傳與 `S27__<session>__001.jpg` 命名；桌機可匯入為 `p2`、`p5`、`p6`。
+- 發現：
+  1. 執行中的 watcher 只處理啟動當下既有的檔案。之後新建的子資料夾（Drive 產生 `E20261122 (1)`）內的檔案不會觸發事件，必須重啟 App 才會匯入，未達「10 秒內」目標。
+  2. 來源 jpg 刪除後又被 Drive 補回；舊 `removeSource` 只重試 5×250ms 且靜默失敗，sidecar 已先刪除，留下孤兒圖。
+  3. 旋轉：兩次獨立 session 都選 90°，`p3` 匯入後 180° 倒立、`p4` 90° 側躺。各頁原始方向不同時單一角度不足；預覽與存檔方向是否一致仍待釐清。
+  4. UI：側欄選取為 cream on cream；hover 底色被全域 `button:hover` 蓋掉。
+- 修正：
+  - `external.ts` 每 20 秒全量掃描（深度上限 8、跳過忽略目錄），搭配既有 SHA-256 去重，補 Drive 虛擬磁碟漏掉的檔案事件。
+  - 來源刪除改「穩定消失」判定：須連續 12 秒不存在，期間再出現就重新刪除，最多等 90 秒；最終失敗寫 WARN 並發 UI error；sidecar 只在圖片確認移除後才刪，避免孤兒檔。
+  - 側欄選取改淺底深字；hover 改淡藍底（`rgba(111,152,199,0.28)`），作用中項目 hover 用 `#eef4fb`，不加邊框。
+- 驗收：`typecheck`、`build`、`drive:check` 23/23、`manifest:check` 11/11、`match:check` 21/21、`m7:check` 25/25；重新打包 portable 0.3.0。
+- 待辦：旋轉方向（逐頁或自動校正）、修正後的最終上傳刪除穩定性尚未再實測、舊測試檔仍在 `inbox/_unmatched` 與 `inbox/C1-2026F/E20261122 (1)`。
+
 ---
 
 ## 六、施工順序（建議）
