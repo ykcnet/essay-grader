@@ -1,6 +1,6 @@
 {
   "name": "essay-grader",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "紙本作文掃描、批閱、評分與回饋單輸出的桌機工具",
   "workspaces": [

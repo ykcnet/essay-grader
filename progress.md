@@ -733,6 +733,13 @@ essay-grader-data/
 - 2026-11-23 T7 結案：Drive 恢復後以 log 驗證，`save rotation=90`、`page exif=0 src=2085x2923 upright=2085x2923 degrees=90`，匯入 `p16` 為 2600×1855 側躺，與手機 90° 預覽一致；0° 的 `p12` 為正立。先前 `p13` 是「倒立頁選 90°」造成，正確修正為 180°。EXIF 與旋轉流程確認正常。
 - 2026-11-23 方向確認 UI：OCR 自動判定在中文頁面四角度分數幾乎相同（376／363／375／372），無法區分方向，已移除 OCR 依賴。改為方向確認對話框顯示 0°／90°／180°／270° 四張縮圖，點正立的那張即可；另在明顯橫向時於開始掃描前提醒。實測 `p17`（rotation=0）正立可讀。
 
+### 0.3.1 版號與重新打包（2026-11-23）
+- 版本：root／`apps/desktop`／`packages/core` 與 `package-lock.json` 統一為 `0.3.1`；Android `versionName` `0.3.1`、`versionCode` 3。
+- 內容：Drive 每 20 秒補掃、來源刪除穩定重試與 WARN、Android EXIF 轉正＋四張縮圖方向確認＋橫向提醒、上傳 0 bytes 判定失敗、側欄選取與 hover 對比。
+- 驗收：`typecheck`、`build`、`m7:check` 25/25；Android `assembleDebug` 通過。
+- 打包：`EssayGrader-0.3.1-Setup.exe` 134,215,729 bytes、`EssayGrader-0.3.1-Portable.exe` 120,853,703 bytes、`EssayGrader-Scanner-0.3.1-debug.apk` 6,670,754 bytes；舊 0.3.0 桌機產物移至 `apps/desktop/release/archive-0.3.0/`。
+- 待辦：T8、T10–T14 未測；Drive 鎖檔導致來源刪除可能 WARN；正式簽章與 push 尚未處理。
+
 ---
 
 ## 六、施工順序（建議）

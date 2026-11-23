@@ -1,7 +1,7 @@
 # Android 掃描器實機驗證清單
 
 > 狀態：**部分完成（2026-11-23 第一輪）**，結果見文末第 7 節
-> 桌機版本：0.3.0（commit `d4595ee`，含 2026-11-23 匯入流程修正）
+> 桌機版本：0.3.1（tag `v0.3.1`，含 2026-11-23 匯入流程與方向修正）
 > APK：`EssayGrader-Scanner-0.2.0-debug.apk`（`versionCode` 2、applicationId `tw.edu.essaygrader.scanner`）
 > 用途：驗證 ML Kit 掃描、SAF 資料夾權限、Google Drive 上傳與桌機端到端匯入。這份清單只列操作與預期結果，實機結果請填在最後的紀錄表。
 
