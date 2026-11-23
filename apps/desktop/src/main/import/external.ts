@@ -154,10 +154,10 @@ async function removeSource(path: string): Promise<boolean> {
 }
 
 /**
- * Drive 偶爾刪除成功後又把檔案補回來；要求連續 12 秒不存在才算完成，
- * 期間再出現就重新刪除，最多等 90 秒。
+ * Drive 刪除後可能又補回檔案，或同步期間直接拒絕刪除。
+ * 要求連續 12 秒不存在才算完成；期間再出現就重新刪除，最多等 5 分鐘。
  */
-async function removeSourceStable(path: string, timeoutMs = 90_000): Promise<boolean> {
+async function removeSourceStable(path: string, timeoutMs = 300_000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs
   let missingSince: number | null = null
   let waitBeforeUnlink = 0
@@ -174,7 +174,8 @@ async function removeSourceStable(path: string, timeoutMs = 90_000): Promise<boo
         await unlink(path)
       } catch (value) {
         if ((value as NodeJS.ErrnoException).code !== 'ENOENT') {
-          await delay(1000)
+          // Drive 同步中會暫時拒絕刪除，稍後再試。
+          await delay(5000)
           continue
         }
       }
