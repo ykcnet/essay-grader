@@ -54,6 +54,10 @@ android {
         abortOnError = false
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     kotlinOptions {
         jvmTarget = "17"
     }

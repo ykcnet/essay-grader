@@ -103,14 +103,18 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
-                val pages = scanResult?.pages
-                if (pages.isNullOrEmpty()) {
-                    showMessage(getString(R.string.msg_scan_empty))
-                } else {
-                    handleScannedPages(pages)
-                }
+                handleScanPages(scanResult?.pages)
             }
         }
+
+    /** 空頁與正常頁面的共用入口；debug 版可長按「開始掃描」模擬 0 頁。 */
+    private fun handleScanPages(pages: List<GmsDocumentScanningResult.Page>?) {
+        if (pages.isNullOrEmpty()) {
+            showMessage(getString(R.string.msg_scan_empty))
+            return
+        }
+        handleScannedPages(pages)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -137,6 +141,13 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.reloadManifestButton).setOnClickListener { reloadManifest() }
         findViewById<MaterialButton>(R.id.chooseManifestButton).setOnClickListener { chooseManifestFile() }
         findViewById<MaterialButton>(R.id.scanButton).setOnClickListener { startScan() }
+        if (BuildConfig.DEBUG) {
+            // 測試用：長按「開始掃描」模擬 ML Kit 回傳 0 頁。
+            findViewById<MaterialButton>(R.id.scanButton).setOnLongClickListener {
+                handleScanPages(emptyList())
+                true
+            }
+        }
         findViewById<MaterialButton>(R.id.retryUploadButton).setOnClickListener { retryPendingUploads() }
         toggleSetupButton.setOnClickListener { expandSetupFromSummary() }
 

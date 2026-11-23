@@ -749,6 +749,7 @@ essay-grader-data/
 - 驗收：`typecheck`、`build`、`m7:check` 25/25；Android `assembleRelease` 通過並簽章。
 - 打包：Setup 134,216,127 bytes、Portable 120,854,225 bytes、APK 5,487,542 bytes；舊 0.3.1 產物移至 `archive-0.3.1`。
 - 測試資料清理：`S27` 只保留 `p1`，其餘 17 頁與縮圖刪除並同步改 `work.json`；`S26`、`S07` 整個學生資料夾刪除。清理前備份在 `M:\dev\backup\essay-grader\S27-before-clean-*.zip`、`S26-before-clean-*.zip`、`S07-before-clean-*.zip`。
+- 2026-11-24 T14 結案：抽出 `handleScanPages()` 共用空頁判斷，debug 版長按「開始掃描」可模擬 0 頁；實機顯示「掃描結果沒有頁面」。T1–T14 全部完成。release 0.3.2 APK 未包含此測試 hook（僅 refactor，行為不變）。
 
 ---
 
