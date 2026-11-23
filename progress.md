@@ -743,6 +743,13 @@ essay-grader-data/
 - 2026-11-23 實機 T11–T14：T11 以手機清除 App 資料模擬授權遺失，重建後重新選 inbox 與 manifest，成功載入 3 位學生（adb `pm clear` 被 MIUI 拒絕、SAF 單一授權無法撤銷）；T12 桌機重新產生 610 bytes manifest，手機重載後出現 27／26／07；T13 S26、S07 各自匯入 `p1.jpg`，S07 首次因 Drive 圖片處理失敗進 `_unmatched`，重傳成功；T14 manifest 缺失顯示「無法讀取」、格式錯誤顯示專屬提示，座號 99 模擬上傳成功被移到 `_unmatched`（原因：不在名單），0 頁未測。測試後 inbox 測試檔已清空，只留 manifest.json。
 - 2026-11-23 Android 簽章：keystore 位於 `M:\dev\shared\secrets\essay-grader-release.jks`，密碼存同資料夾 `essay-grader-keystore.txt`；`apps/android/keystore.properties` 由建置讀取且不進版控；`npm run android:release` 產出簽署 APK。`apksigner verify` 顯示 CN=Essay Grader，SHA-256 `D0DFC5013662F99C7A50D76511FC3DB36F8AE67EACB3C26EAD08DE61F8C37E4F`、5,487,542 bytes。release 建置關閉 lintVital，避免離線環境缺 lint 依賴。
 
+### 0.3.2 Drive inbox 入口與資料清理（2026-11-23）
+- 頂部新增「Drive inbox」按鈕，開啟覆蓋式面板：顯示資料夾與監看狀態，提供設定／變更、清除、開啟資料夾、產生手機 manifest；不需先選作業即可使用。
+- 版號：root／desktop／core 與 lock 統一 `0.3.2`；Android `versionName` `0.3.2`、`versionCode` 4。
+- 驗收：`typecheck`、`build`、`m7:check` 25/25；Android `assembleRelease` 通過並簽章。
+- 打包：Setup 134,216,127 bytes、Portable 120,854,225 bytes、APK 5,487,542 bytes；舊 0.3.1 產物移至 `archive-0.3.1`。
+- 測試資料清理：`S27` 只保留 `p1`，其餘 17 頁與縮圖刪除並同步改 `work.json`；清理前備份在 `M:\dev\backup\essay-grader\S27-before-clean-*.zip`。
+
 ---
 
 ## 六、施工順序（建議）

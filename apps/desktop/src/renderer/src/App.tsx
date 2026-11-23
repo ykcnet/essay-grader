@@ -244,6 +244,7 @@ export default function App(): JSX.Element {
   const [statsExport, setStatsExport] = useState<{ dir: string; files: string[] } | null>(null)
   const [gradebookOpen, setGradebookOpen] = useState(false)
   const [praiseOpen, setPraiseOpen] = useState(false)
+  const [driveOpen, setDriveOpen] = useState(false)
 
   const selectedIdRef = useRef<string | null>(null)
   const selectedAssignmentRef = useRef<string | null>(null)
@@ -823,6 +824,9 @@ export default function App(): JSX.Element {
               <button className="ghost" onClick={() => setPraiseOpen(true)}>
                 佳句庫
               </button>
+              <button className="ghost" onClick={() => setDriveOpen(true)}>
+                Drive inbox
+              </button>
               <button className="ghost" onClick={handleBackup}>
                 備份資料庫
               </button>
@@ -1036,6 +1040,67 @@ export default function App(): JSX.Element {
           className={classFile?.name ?? null}
           onClose={() => setPraiseOpen(false)}
         />
+      )}
+
+      {driveOpen && (
+        <div className="drive-modal-backdrop" role="presentation" onClick={() => setDriveOpen(false)}>
+          <section
+            className="drive-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Google Drive inbox"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="drive-modal-head">
+              <h2>Google Drive inbox</h2>
+              <button className="small" onClick={() => setDriveOpen(false)}>
+                關閉
+              </button>
+            </div>
+            <p className="assignment-meta" title={importStatus?.externalRoot ?? ''}>
+              {importStatus?.externalRoot ?? '尚未設定'}
+            </p>
+            <p className="drive-inbox-state">
+              {importStatus?.externalRoot
+                ? importStatus.externalWatching
+                  ? '監看中'
+                  : '未監看'
+                : '未設定外部 inbox'}
+              {importStatus?.externalError ? ` · ${importStatus.externalError}` : ''}
+            </p>
+            <div className="drive-modal-actions">
+              <button className="small" disabled={busy} onClick={handleChooseDriveRoot}>
+                設定／變更
+              </button>
+              <button
+                className="small"
+                disabled={busy || !importStatus?.externalRoot}
+                onClick={handleClearDriveRoot}
+              >
+                清除
+              </button>
+              <button
+                className="small"
+                disabled={busy || !importStatus?.externalRoot}
+                onClick={handleOpenDriveRoot}
+              >
+                開啟資料夾
+              </button>
+              <button
+                className="small primary"
+                disabled={busy || !importStatus?.externalRoot || !classFile}
+                onClick={handleWriteManifest}
+              >
+                產生手機 manifest
+              </button>
+            </div>
+            <p className="muted small-text">
+              {classFile
+                ? `會產生「${classFile.name}」全部作業與在學學生的 manifest。`
+                : '請先在左側選擇班級，才能產生 manifest。'}
+            </p>
+          </section>
+        </div>
       )}
 
       {toast && <div className={`toast toast--${toast.kind}`}>{toast.text}</div>}
