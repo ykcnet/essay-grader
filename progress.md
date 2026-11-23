@@ -699,6 +699,13 @@ essay-grader-data/
 - 打包：`npm run dist:win` 成功，`EssayGrader-0.2.0-Setup.exe` 134,206,337 bytes、`EssayGrader-0.2.0-Portable.exe` 120,845,265 bytes；舊 0.1.0 產物移至 `apps/desktop/release/archive-0.1.0/` 保留，未提交 release。
 - 已知限制：安裝檔仍未簽章；Android 仍只有 debug APK，實機 ML Kit／SAF／Drive 流程待驗證。
 
+### 0.3.0 版號與桌機重新打包（2026-11-23）
+- 版本：root／`apps/desktop`／`packages/core` 三份 `package.json` 與 `package-lock.json` 統一為 `0.3.0`；README 與 `docs/使用說明.md` 的版本、產物名稱與大小同步更新。Android `versionName`／`versionCode` 本次未動，仍為 `0.2.0`／2（僅重新打包桌機）。
+- 內容：包含 0.2.0 之後的掃描方向確認與旋轉、快速給分、班級與作業編輯刪除，以及 Android manifest 讀取與淺色主題對比修正。
+- 驗收：`typecheck`、`build`、`m7:check` 25/25（含版本一致 0.3.0、產物命名與非空檢查）。其餘功能檢查本次未重跑。
+- 打包：`npm run dist:win` 成功，`EssayGrader-0.3.0-Setup.exe` 134,214,857 bytes、`EssayGrader-0.3.0-Portable.exe` 120,853,784 bytes；舊 0.2.0 產物移至 `apps/desktop/release/archive-0.2.0/` 保留，未提交 release。
+- 已知限制：安裝檔仍未簽章。
+
 ---
 
 ## 六、施工順序（建議）
