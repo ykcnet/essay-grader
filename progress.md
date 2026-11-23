@@ -739,6 +739,7 @@ essay-grader-data/
 - 驗收：`typecheck`、`build`、`m7:check` 25/25；Android `assembleDebug` 通過。
 - 打包：`EssayGrader-0.3.1-Setup.exe` 134,215,729 bytes、`EssayGrader-0.3.1-Portable.exe` 120,853,703 bytes、`EssayGrader-Scanner-0.3.1-debug.apk` 6,670,754 bytes；舊 0.3.0 桌機產物移至 `apps/desktop/release/archive-0.3.0/`。
 - 待辦：T8、T10–T14 未測；Drive 鎖檔導致來源刪除可能 WARN；正式簽章與 push 尚未處理。
+- 2026-11-23 實機 T8／T10：T8 按取消後待上傳不變、Drive 與本機皆無新增；T10 飛航模式上傳成「待上傳：1 頁」，恢復 Wi-Fi 後按重新上傳成功、待上傳 0，21:13 匯入 `p18`（正立）。測試前殘留的 3 個 pending session 已清除。
 
 ---
 
