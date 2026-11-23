@@ -11,7 +11,7 @@
 - 班級與作業編輯／刪除。
 - 修正 Android manifest 讀取與淺色主題對比。
 - 承接 0.2.0：M8 Android 掃描器、Google Drive 外部 inbox、自訂評語、佳句庫、UI 對比修正。
-- 2026-11-23 修正：Drive inbox 每 20 秒補掃、來源檔「穩定消失」刪除與警告、側欄選取與 hover 對比。
+- 2026-11-23 修正：Drive inbox 每 20 秒補掃、來源檔「穩定消失」刪除與警告、側欄選取與 hover 對比；Android 方向確認改為四張縮圖並支援 EXIF 轉正。
 
 ## 檔案
 
@@ -19,7 +19,7 @@
 |---|---|---|---|
 | 安裝版 | `EssayGrader-0.3.0-Setup.exe` | 134,215,638 bytes（約 128.0 MB） | `0DBE6EEB8B09C308102B84E92E32C2509A805F5BA42BBB030DFE924CA83DC719` |
 | 免安裝版 | `EssayGrader-0.3.0-Portable.exe` | 120,855,733 bytes（約 115.3 MB） | `4823CE615B2C84DDA9D7B32815AA337375D92B44DD47DE0B1ADFA59DA1A4010B` |
-| Android 掃描器（debug，選用） | `EssayGrader-Scanner-0.2.0-debug.apk` | 7,840,727 bytes（約 7.5 MB） | `437F27EE2E6FE1E9155B088661A90D477887CAB765E9041C2C7A5D8841843DE0` |
+| Android 掃描器（debug，選用） | `EssayGrader-Scanner-0.2.0-debug.apk` | 10,870,477 bytes（約 10.4 MB） | `362668957184BD0F8971E077BC98AC21C523E2E5D1AF942EE4BD91CB5B68F60A` |
 
 ## 安裝
 

@@ -61,7 +61,7 @@
     <string name="msg_scan_save_failed">儲存掃描結果失敗，請重試</string>
 
     <string name="scan_rotation_title">確認掃描方向</string>
-    <string name="scan_rotation_desc">若頁面方向不對，請選擇旋轉角度；預覽會同步旋轉。</string>
+    <string name="scan_rotation_desc">點選下方看起來正立的縮圖；倒立選 180°，側躺選 90° 或 270°。預覽會同步旋轉。</string>
     <string name="scan_rotation_preview_desc">第一頁縮圖預覽</string>
     <string name="scan_rotation_preparing">準備預覽…</string>
     <string name="scan_rotation_preview_failed">無法載入預覽縮圖</string>
@@ -71,6 +71,9 @@
     <string name="scan_rotation_270">270°</string>
     <string name="scan_rotation_upload">上傳</string>
     <string name="scan_rotation_cancel">取消</string>
+    <string name="scan_orientation_warning_title">手機目前是橫向</string>
+    <string name="scan_orientation_warning_message">橫向拍攝容易讓頁面側倒。建議改為直向握持再掃描；若仍要繼續，掃描後請在「確認掃描方向」校正。</string>
+    <string name="scan_orientation_continue">仍要繼續</string>
     <string name="msg_scan_rotate_failed">頁面旋轉失敗，未儲存任何頁面，請重試</string>
 
     <string name="msg_uploaded_pages">已上傳 %1$d 頁</string>

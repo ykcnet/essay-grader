@@ -6,6 +6,10 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.media.ExifInterface
 import android.net.Uri
 import android.os.Bundle
@@ -41,6 +45,8 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
 
@@ -61,6 +67,18 @@ class MainActivity : AppCompatActivity() {
     private lateinit var toggleSetupButton: MaterialButton
 
     private var snackbar: Snackbar? = null
+
+    private val sensorManager by lazy {
+        getSystemService(SENSOR_SERVICE) as SensorManager
+    }
+    private var lastGravity: FloatArray? = null
+    private val gravityListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            lastGravity = event.values.clone()
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+    }
 
     private lateinit var classAdapter: ArrayAdapter<String>
     private lateinit var assignmentAdapter: ArrayAdapter<String>
@@ -575,6 +593,18 @@ class MainActivity : AppCompatActivity() {
     // 掃描
     // -------------------------------------------------------------------------
 
+    override fun onResume() {
+        super.onResume()
+        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
+            sensorManager.registerListener(gravityListener, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+
+    override fun onPause() {
+        sensorManager.unregisterListener(gravityListener)
+        super.onPause()
+    }
+
     private fun startScan() {
         if (prefs.getString(KEY_DRIVE_URI, null) == null) {
             showMessage(getString(R.string.msg_select_drive_first))
@@ -593,6 +623,25 @@ class MainActivity : AppCompatActivity() {
             return
         }
 
+        if (isHoldingLandscape()) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.scan_orientation_warning_title)
+                .setMessage(R.string.scan_orientation_warning_message)
+                .setPositiveButton(R.string.scan_orientation_continue) { _, _ -> launchScanner() }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        launchScanner()
+    }
+
+    /** 以重力感測判斷手機是否明顯橫向；平放桌面時不判定。 */
+    private fun isHoldingLandscape(): Boolean {
+        val gravity = lastGravity ?: return false
+        return abs(gravity[0]) > abs(gravity[1]) * 1.2f
+    }
+
+    private fun launchScanner() {
         val options = GmsDocumentScannerOptions.Builder()
             .setGalleryImportAllowed(false)
             .setPageLimit(20)
@@ -636,6 +685,14 @@ class MainActivity : AppCompatActivity() {
         val previewHint = content.findViewById<TextView>(R.id.rotationPreviewHint)
         val rotationGroup = content.findViewById<RadioGroup>(R.id.rotationGroup)
 
+        val thumbs = listOf(
+            content.findViewById<ImageView>(R.id.rotationThumb0) to 0,
+            content.findViewById<ImageView>(R.id.rotationThumb90) to 90,
+            content.findViewById<ImageView>(R.id.rotationThumb180) to 180,
+            content.findViewById<ImageView>(R.id.rotationThumb270) to 270
+        )
+        val thumbBitmaps = mutableListOf<Bitmap>()
+
         var previewBitmap: Bitmap? = null
         val dialog = AlertDialog.Builder(this)
             .setView(content)
@@ -645,6 +702,7 @@ class MainActivity : AppCompatActivity() {
 
         rotationGroup.setOnCheckedChangeListener { _, _ ->
             previewImage.rotation = selectedRotation(rotationGroup).toFloat()
+            updateThumbSelection(thumbs, selectedRotation(rotationGroup))
         }
 
         dialog.setOnDismissListener {
@@ -652,9 +710,24 @@ class MainActivity : AppCompatActivity() {
             previewImage.setImageDrawable(null)
             previewBitmap?.takeIf { !it.isRecycled }?.recycle()
             previewBitmap = null
+            thumbBitmaps.forEach { if (!it.isRecycled) it.recycle() }
+            thumbBitmaps.clear()
         }
         dialog.setCanceledOnTouchOutside(false)
         dialog.show()
+
+        thumbs.forEach { (view, angle) ->
+            view.setOnClickListener {
+                rotationGroup.check(
+                    when (angle) {
+                        90 -> R.id.rotation90
+                        180 -> R.id.rotation180
+                        270 -> R.id.rotation270
+                        else -> R.id.rotation0
+                    }
+                )
+            }
+        }
 
         // 覆寫「上傳」按鈕，先取角度再關閉，避免預設監聽直接 dismiss。
         dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
@@ -677,9 +750,49 @@ class MainActivity : AppCompatActivity() {
                 return@launch
             }
             previewBitmap = bitmap
-            previewHint.visibility = View.GONE
             previewImage.setImageBitmap(bitmap)
             previewImage.rotation = selectedRotation(rotationGroup).toFloat()
+            previewHint.visibility = View.GONE
+            buildOrientationThumbs(bitmap, thumbs, thumbBitmaps)
+            updateThumbSelection(thumbs, selectedRotation(rotationGroup))
+        }
+    }
+
+    /** 建立 0／90／180／270 四張縮圖，讓老師直接用眼睛挑正立的那張。 */
+    private fun buildOrientationThumbs(
+        source: Bitmap,
+        thumbs: List<Pair<ImageView, Int>>,
+        stash: MutableList<Bitmap>
+    ) {
+        val longSide = THUMB_MAX_LONG_SIDE
+        val scale = longSide.toFloat() / maxOf(source.width, source.height)
+        val width = maxOf(1, (source.width * scale).roundToInt())
+        val height = maxOf(1, (source.height * scale).roundToInt())
+        val base = Bitmap.createScaledBitmap(source, width, height, true)
+
+        for ((view, angle) in thumbs) {
+            val thumb = if (angle == 0) {
+                base
+            } else {
+                Bitmap.createBitmap(
+                    base,
+                    0,
+                    0,
+                    base.width,
+                    base.height,
+                    Matrix().apply { postRotate(angle.toFloat()) },
+                    true
+                )
+            }
+            view.setImageBitmap(thumb)
+            stash.add(thumb)
+        }
+        // base 一定是 0° 的縮圖，已加入 stash，不能在這裡回收。
+    }
+
+    private fun updateThumbSelection(thumbs: List<Pair<ImageView, Int>>, selected: Int) {
+        for ((view, angle) in thumbs) {
+            view.alpha = if (angle == selected) 1f else 0.45f
         }
     }
 
@@ -1080,6 +1193,7 @@ class MainActivity : AppCompatActivity() {
         private const val PREVIEW_MAX_LONG_SIDE = 1200
         private const val PAGE_JPEG_QUALITY = 92
         private const val UPLOAD_LOG_TAG = "EssayGraderUpload"
+        private const val THUMB_MAX_LONG_SIDE = 200
     }
 }
 
