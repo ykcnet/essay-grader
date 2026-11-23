@@ -748,7 +748,7 @@ essay-grader-data/
 - 版號：root／desktop／core 與 lock 統一 `0.3.2`；Android `versionName` `0.3.2`、`versionCode` 4。
 - 驗收：`typecheck`、`build`、`m7:check` 25/25；Android `assembleRelease` 通過並簽章。
 - 打包：Setup 134,216,127 bytes、Portable 120,854,225 bytes、APK 5,487,542 bytes；舊 0.3.1 產物移至 `archive-0.3.1`。
-- 測試資料清理：`S27` 只保留 `p1`，其餘 17 頁與縮圖刪除並同步改 `work.json`；清理前備份在 `M:\dev\backup\essay-grader\S27-before-clean-*.zip`。
+- 測試資料清理：`S27` 只保留 `p1`，其餘 17 頁與縮圖刪除並同步改 `work.json`；`S26`、`S07` 整個學生資料夾刪除。清理前備份在 `M:\dev\backup\essay-grader\S27-before-clean-*.zip`、`S26-before-clean-*.zip`、`S07-before-clean-*.zip`。
 
 ---
 
