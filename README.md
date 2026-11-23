@@ -113,10 +113,12 @@ manifest 含學生姓名，請把 Drive inbox 放在受控的教師帳號資料�
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools/android.ps1 -Task ":app:testDebugUnitTest"
 powershell -ExecutionPolicy Bypass -File tools/android.ps1 -Task ":app:assembleDebug"
+powershell -ExecutionPolicy Bypass -File tools/android.ps1 -Task ":app:assembleRelease"
 ```
 
-產物：`apps/android/app/build/outputs/apk/debug/app-debug.apk`。Android 建置檔（build/、
-local.properties、APK）不進版控；wrapper jar 會提交。
+產物：debug 為 `apps/android/app/build/outputs/apk/debug/app-debug.apk`；簽署版為
+`apps/android/app/build/outputs/apk/release/app-release.apk`（讀取 `apps/android/keystore.properties`，該檔不進版控）。
+Android 建置檔（build/、local.properties、APK）不進版控；wrapper jar 會提交。
 
 量規預設採用**均衡版**（40／30／30），之後可調整。另外提供內容導向 45／25／30、
 語言導向 35／30／35；扣分皆為錯字 0.5／標點 0.5、上限 10，等第門檻相同。

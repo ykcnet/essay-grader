@@ -25,3 +25,6 @@ apps/android/app/build/
 *.iml
 *.apk
 *.aab
+
+# Android release signing
+apps/android/keystore.properties

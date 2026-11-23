@@ -12,6 +12,7 @@
 - **橫向提醒**：手機明顯橫向時，開始掃描前提示可能造成頁面側倒。
 - **上傳檢查**：寫入 0 bytes 直接判定失敗，不再回報成功。
 - **側欄對比**：班級選取改淺底深字，hover 改淡藍底。
+- **Android 簽章**：提供以本機 keystore 簽署的 0.3.1 release APK。
 - 承接 0.3.0：掃描方向確認、快速給分、班級與作業編輯刪除、Android manifest 與淺色主題修正。
 
 ## 檔案
@@ -20,7 +21,7 @@
 |---|---|---|---|
 | 安裝版 | `EssayGrader-0.3.1-Setup.exe` | 134,215,729 bytes（約 128.0 MB） | `B4D2FEFDEDB0735322A5FE9B96D10DF3F662FB171BB8E84748E5274F370AF7EC` |
 | 免安裝版 | `EssayGrader-0.3.1-Portable.exe` | 120,853,703 bytes（約 115.3 MB） | `C3F7FA72B0EB32AFF02842F020A7B67F60D61C4426654D3449297D180A60FBC8` |
-| Android 掃描器（debug，選用） | `EssayGrader-Scanner-0.3.1-debug.apk` | 6,670,754 bytes（約 6.4 MB） | `4CFE272495EC0E1C8621B7772F820D95969FBDFB5739138FF1DBB7D2A3ECE3C7` |
+| Android 掃描器（已簽署） | `EssayGrader-Scanner-0.3.1-release.apk` | 5,487,542 bytes（約 5.2 MB） | `D0DFC5013662F99C7A50D76511FC3DB36F8AE67EACB3C26EAD08DE61F8C37E4F` |
 
 ## 安裝
 
@@ -40,5 +41,5 @@
 
 - 安裝檔未簽章。
 - Google Drive for desktop 可能在上傳後鎖住大圖約 8 分鐘；來源刪除重試 5 分鐘後仍可能失敗並顯示警告，作品已匯入，來源可稍後手動清除。
-- Android 端仍為 debug APK，尚未正式簽署；ML Kit、SAF、Drive 上傳與桌機端到端流程僅完成部分實機驗證（T8、T10–T14 未測）。
+- Android 端為本機 keystore 簽署的 release APK，未上架 Google Play；T1–T13 已實機驗證，T14 部分驗證（0 頁情境未測）。
 - 只支援 Windows x64。

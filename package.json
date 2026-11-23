@@ -45,6 +45,7 @@
     "soak": "electron apps/desktop --soak",
     "android:test": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/android.ps1 -Task \":app:testDebugUnitTest\"",
     "android:build": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/android.ps1 -Task \":app:assembleDebug\"",
+    "android:release": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/android.ps1 -Task \":app:assembleRelease\"",
     "m8:check": "npm run android:test && npm run android:build",
     "dist": "npm run dist:win",
     "dist:win": "npm run build && npm run dist -w @essay-grader/desktop",
