@@ -180,7 +180,9 @@ const api = {
     }
   },
   roster: {
-    importExcel: (classId: string) => ipcRenderer.invoke('roster:import-excel', classId)
+    importExcel: (classId: string) => ipcRenderer.invoke('roster:import-excel', classId),
+    list: () => ipcRenderer.invoke('roster:list'),
+    importFile: (path: string) => ipcRenderer.invoke('roster:import', path)
   },
   gradebook: {
     getConfig: (classId: string, assignmentId: string) =>

@@ -72,6 +72,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition-chinese:16.0.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

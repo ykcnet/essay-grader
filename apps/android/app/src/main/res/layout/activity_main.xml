@@ -123,6 +123,14 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/scanRosterButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="@string/scan_roster" />
+
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

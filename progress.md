@@ -761,6 +761,13 @@ essay-grader-data/
 - 打包：Setup 134,218,799 bytes、Portable 120,858,297 bytes、APK 5,489,938 bytes。
 - 待辦：名條掃描建檔、Word 成績單、Windows 安裝檔簽章、Play AAB。
 
+### 名條掃描建檔（2026-11-24，待實機驗收）
+- Android：新增「掃描名條建檔」按鈕；掃描後用 ML Kit 中文文字辨識，解析「座號 姓名」並允許在對話框修正，上傳 `_roster/<classId>-<session>.json`。
+- 桌機：新增 `roster-inbox.ts`，讀取外部 inbox 的 `_roster/*.json`；Drive inbox 面板顯示「名條名單」，可匯入（同座號更新姓名、新座號新增），完成後移到 `_roster/_imported/`。
+- UI：班級項目 hover 改為明顯藍框（outline）。
+- 現況：紙本成績登記表第一次 OCR 只抓到表頭（1600px 降採樣），已提高到 3000px 待重測；解析為空時會顯示 OCR 原文供手動修正，上傳成功才關閉對話框。
+- 版號暫維持 0.3.3，待名條驗收後再決定是否升 0.3.4。
+
 ---
 
 ## 六、施工順序（建議）

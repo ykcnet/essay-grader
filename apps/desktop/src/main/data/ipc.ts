@@ -36,6 +36,7 @@ import {
   stopExternalWatcher
 } from '../import/external'
 import { importRosterViaDialog } from '../import/roster-excel'
+import { importIncomingRoster, listIncomingRosters } from '../import/roster-inbox'
 import { exportGradesExcel } from './grades-export'
 import {
   assignUnmatched,
@@ -239,6 +240,9 @@ export function registerDataIpc(): void {
   ipcMain.handle('stats:export-excel', (_event, classId: string, assignmentId: string) =>
     exportGradesExcel(classId, assignmentId)
   )
+
+  ipcMain.handle('roster:list', () => listIncomingRosters())
+  ipcMain.handle('roster:import', (_event, path: string) => importIncomingRoster(path))
 
   ipcMain.handle('stats:reveal', async (_event, dir: string) => {
     await shell.openPath(dir)

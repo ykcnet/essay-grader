@@ -327,12 +327,20 @@ input[type='checkbox'] {
 /* 蓋過全域 button:hover 的淺底，避免深色側欄上的文字反白後看不清楚。 */
 button.class-item:hover:not(.active) {
   background: rgba(111, 152, 199, 0.28);
+  border-color: rgba(247, 241, 227, 0.85);
+  outline: 2px solid rgba(247, 241, 227, 0.9);
+  outline-offset: -2px;
+  box-shadow: 0 0 0 1px rgba(247, 241, 227, 0.55);
   color: var(--cream);
 }
 
-/* 選取中的項目 hover 改用淡藍底，和作業選取狀態一致。 */
+/* 選取中的項目 hover 用藍底與藍框，邊框要明顯可見。 */
 button.class-item.active:hover {
   background: #eef4fb;
+  border-color: #2b6cb0;
+  outline: 2px solid #2b6cb0;
+  outline-offset: -2px;
+  box-shadow: 0 0 0 1px rgba(43, 108, 176, 0.5);
   color: var(--ink);
 }
 
@@ -2246,5 +2254,35 @@ button.class-item.active:hover {
   margin-top: 16px;
   font-size: 12px;
   color: #6b7280;
+}
+
+
+/* Drive inbox 內的名條名單 */
+.roster-inbox {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid #e3dccd;
+}
+
+.roster-inbox h4 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.roster-inbox ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-inbox li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
 }
 

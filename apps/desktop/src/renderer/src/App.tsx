@@ -31,6 +31,16 @@ import { HelpPanel } from './HelpPanel'
 type Grade = 'junior' | 'senior' | 'vocational'
 type Toast = { kind: 'ok' | 'error' | 'info'; text: string }
 type AuditFilter = 'problems' | 'all'
+type IncomingRoster = {
+  path: string
+  file: string
+  classId: string
+  className: string
+  count: number
+  generatedAt?: string
+  valid: boolean
+  error?: string
+}
 
 type GradebookDraft = {
   path: string
@@ -226,6 +236,7 @@ export default function App(): JSX.Element {
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null)
   const [works, setWorks] = useState<WorkSummary[]>([])
   const [importStatus, setImportStatus] = useState<ImportStatus | null>(null)
+  const [importRosters, setImportRosters] = useState<IncomingRoster[]>([])
   const [reviewTarget, setReviewTarget] = useState<{
     classId: string
     assignmentId: string
@@ -789,6 +800,32 @@ export default function App(): JSX.Element {
     return () => window.electronAPI.imports.offEvent(listenerId)
   }, [])
 
+  const handleImportRoster = (path: string): void => {
+    void run('匯入名條', async () => {
+      const result = (await window.electronAPI.roster.importFile(path)) as {
+        classId: string
+        className: string
+        added: number
+        updated: number
+        total: number
+      }
+      setImportRosters((await window.electronAPI.roster.list()) as IncomingRoster[])
+      if (selectedId) await openClass(selectedId)
+      setToast({
+        kind: 'ok',
+        text: `已匯入名條：${result.className} 新增 ${result.added}、更新 ${result.updated}`
+      })
+    })
+  }
+
+  useEffect(() => {
+    if (!driveOpen) return
+    void window.electronAPI.roster
+      .list()
+      .then((rows) => setImportRosters(rows as IncomingRoster[]))
+      .catch(() => setImportRosters([]))
+  }, [driveOpen])
+
   const students = classFile?.students ?? []
   const selectedAssignment =
     assignments.find((item) => item.id === selectedAssignmentId) ?? null
@@ -1120,6 +1157,34 @@ export default function App(): JSX.Element {
                 ? `會產生「${classFile.name}」全部作業與在學學生的 manifest。`
                 : '請先在左側選擇班級，才能產生 manifest。'}
             </p>
+
+            <div className="roster-inbox">
+              <h4>名條名單</h4>
+              {importRosters.length === 0 ? (
+                <p className="muted small-text">
+                  尚無名條名單。手機按「掃描名條建檔」上傳後會出現在這裡。
+                </p>
+              ) : (
+                <ul>
+                  {importRosters.map((roster) => (
+                    <li key={roster.path}>
+                      <span>
+                        {roster.valid
+                          ? `${roster.className} · ${roster.count} 位 · ${roster.file}`
+                          : `${roster.file} · 格式錯誤`}
+                      </span>
+                      <button
+                        className="small"
+                        disabled={busy || !roster.valid}
+                        onClick={() => handleImportRoster(roster.path)}
+                      >
+                        匯入
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </section>
         </div>
       )}

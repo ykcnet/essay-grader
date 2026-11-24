@@ -20,6 +20,7 @@ import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.RadioGroup
 import android.widget.ScrollView
@@ -36,9 +37,16 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -80,6 +88,13 @@ class MainActivity : AppCompatActivity() {
         override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
     }
 
+    private var rosterScanMode = false
+    private var rosterRecognizerCreated = false
+    private val rosterRecognizer by lazy {
+        rosterRecognizerCreated = true
+        TextRecognition.getClient(ChineseTextRecognizerOptions.Builder().build())
+    }
+
     private lateinit var classAdapter: ArrayAdapter<String>
     private lateinit var assignmentAdapter: ArrayAdapter<String>
     private lateinit var studentAdapter: ArrayAdapter<String>
@@ -103,7 +118,19 @@ class MainActivity : AppCompatActivity() {
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
                 val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
-                handleScanPages(scanResult?.pages)
+                val pages = scanResult?.pages
+                if (rosterScanMode) {
+                    rosterScanMode = false
+                    if (pages.isNullOrEmpty()) {
+                        showMessage(getString(R.string.msg_scan_empty))
+                    } else {
+                        handleRosterPages(pages)
+                    }
+                } else {
+                    handleScanPages(pages)
+                }
+            } else {
+                rosterScanMode = false
             }
         }
 
@@ -141,6 +168,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.reloadManifestButton).setOnClickListener { reloadManifest() }
         findViewById<MaterialButton>(R.id.chooseManifestButton).setOnClickListener { chooseManifestFile() }
         findViewById<MaterialButton>(R.id.scanButton).setOnClickListener { startScan() }
+        findViewById<MaterialButton>(R.id.scanRosterButton).setOnClickListener { startRosterScan() }
         findViewById<MaterialButton>(R.id.helpButton).setOnClickListener { showHelpDialog() }
         if (BuildConfig.DEBUG) {
             // 測試用：長按「開始掃描」模擬 ML Kit 回傳 0 頁。
@@ -612,6 +640,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onDestroy() {
+        if (rosterRecognizerCreated) rosterRecognizer.close()
+        super.onDestroy()
+    }
+
     override fun onPause() {
         sensorManager.unregisterListener(gravityListener)
         super.onPause()
@@ -653,6 +686,19 @@ class MainActivity : AppCompatActivity() {
         return abs(gravity[0]) > abs(gravity[1]) * 1.2f
     }
 
+    private fun startRosterScan() {
+        if (prefs.getString(KEY_DRIVE_URI, null) == null) {
+            showMessage(getString(R.string.msg_select_drive_first))
+            return
+        }
+        if (currentClass() == null) {
+            showMessage(getString(R.string.msg_select_class))
+            return
+        }
+        rosterScanMode = true
+        launchScanner()
+    }
+
     private fun launchScanner() {
         val options = GmsDocumentScannerOptions.Builder()
             .setGalleryImportAllowed(false)
@@ -668,9 +714,11 @@ class MainActivity : AppCompatActivity() {
                     scannerLauncher.launch(IntentSenderRequest.Builder(intentSender).build())
                 }
                 .addOnFailureListener {
+                    rosterScanMode = false
                     showMessage(getString(R.string.msg_scanner_unsupported))
                 }
         } catch (_: Exception) {
+            rosterScanMode = false
             showMessage(getString(R.string.msg_scanner_unsupported))
         }
     }
@@ -680,6 +728,196 @@ class MainActivity : AppCompatActivity() {
         val assignment = currentAssignment() ?: return
         val student = currentStudent() ?: return
         showRotationDialog(pages, classInfo.id, assignment.id, student.seat)
+    }
+
+    // -------------------------------------------------------------------------
+    // 名條掃描建檔
+    // -------------------------------------------------------------------------
+
+    private fun handleRosterPages(pages: List<GmsDocumentScanningResult.Page>) {
+        val classInfo = currentClass() ?: return
+        lifecycleScope.launch {
+            val text = withContext(Dispatchers.IO) {
+                runCatching { recognizeRosterText(pages) }.getOrNull()
+            }
+            if (text == null) {
+                showMessage(getString(R.string.roster_ocr_failed, "無法讀取頁面"))
+                return@launch
+            }
+            val students = parseRosterLines(text)
+            Log.i(UPLOAD_LOG_TAG, "roster ocr=${text.take(600)} parsed=${students.size}")
+            showRosterEditor(students, classInfo, text)
+        }
+    }
+
+    private suspend fun recognizeRosterText(
+        pages: List<GmsDocumentScanningResult.Page>
+    ): String {
+        val builder = StringBuilder()
+        for (page in pages) {
+            val bitmap = decodeForOcr(page.imageUri) ?: continue
+            try {
+                val text = suspendCancellableCoroutine { continuation ->
+                    rosterRecognizer.process(InputImage.fromBitmap(bitmap, 0))
+                        .addOnSuccessListener {
+                            if (continuation.isActive) continuation.resume(it.text)
+                        }
+                        .addOnFailureListener {
+                            if (continuation.isActive) continuation.resume("")
+                        }
+                }
+                builder.append(text).append('\n')
+            } finally {
+                if (!bitmap.isRecycled) bitmap.recycle()
+            }
+        }
+        return builder.toString()
+    }
+
+    /** 解析「座號 姓名」行；容忍表格拆行、字間空白與常見分隔符。 */
+    private fun parseRosterLines(text: String): List<Pair<String, String>> {
+        val bySeat = LinkedHashMap<String, String>()
+        val inline = Regex(
+            "^(\\d{1,2})\\s*[.、,，:：\\-]?\\s*([\\u4e00-\\u9fff]{1,10})\\s*$"
+        )
+        val loose = Regex("(\\d{1,2})\\s*[.、,，:：\\-]?\\s*([\\u4e00-\\u9fff]{2,10})")
+        var pendingSeat: String? = null
+
+        for (raw in text.lines()) {
+            val line = raw.replace('\u3000', ' ').trim()
+            if (line.isEmpty()) continue
+            val compact = line
+                .replace(Regex("(?<=[\\u4e00-\\u9fff])\\s+(?=[\\u4e00-\\u9fff])"), "")
+                .replace(Regex("^[＊*]\\s*"), "")
+
+            // 只有座號的列：等下一列的名稱。
+            val seatOnly = Regex("^(\\d{1,2})$").find(compact)
+            if (seatOnly != null) {
+                val number = seatOnly.groupValues[1].toIntOrNull()
+                pendingSeat = if (number != null && number in 1..99) {
+                    number.toString().padStart(2, '0')
+                } else {
+                    null
+                }
+                continue
+            }
+
+            if (pendingSeat != null) {
+                val nameOnly = Regex("^([\\u4e00-\\u9fff]{1,10})$").find(compact)
+                if (nameOnly != null) {
+                    bySeat[pendingSeat!!] = nameOnly.groupValues[1]
+                    pendingSeat = null
+                    continue
+                }
+                pendingSeat = null
+            }
+
+            val anchored = inline.find(compact)
+            if (anchored != null) {
+                val seat = anchored.groupValues[1].padStart(2, '0')
+                val number = seat.toIntOrNull() ?: continue
+                if (number in 1..99) bySeat[seat] = anchored.groupValues[2]
+                continue
+            }
+
+            val found = loose.find(compact) ?: continue
+            val seat = found.groupValues[1].padStart(2, '0')
+            val number = seat.toIntOrNull() ?: continue
+            val name = found.groupValues[2]
+            if (number !in 1..99) continue
+            if (name.contains("學年度") || name.contains("成績") || name.contains("座號")) continue
+            bySeat[seat] = name
+        }
+        return bySeat.entries.sortedBy { it.key }.map { it.key to it.value }
+    }
+
+    private fun showRosterEditor(
+        students: List<Pair<String, String>>,
+        classInfo: ClassInfo,
+        rawText: String
+    ) {
+        val initial = if (students.isEmpty()) {
+            rawText
+        } else {
+            students.joinToString("\n") { "${it.first} ${it.second}" }
+        }
+        val edit = EditText(this).apply {
+            setText(initial)
+            hint = getString(R.string.roster_dialog_hint)
+            minLines = 12
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            setPadding(36, 24, 36, 24)
+        }
+        val scroll = ScrollView(this).apply { addView(edit) }
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.roster_dialog_title)
+            .setView(scroll)
+            .setPositiveButton(R.string.roster_upload, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+                val parsed = parseRosterLines(edit.text.toString())
+                if (parsed.isEmpty()) {
+                    showMessage(getString(R.string.roster_empty))
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                uploadRoster(parsed, classInfo)
+            }
+        }
+        dialog.show()
+    }
+
+    private fun uploadRoster(students: List<Pair<String, String>>, classInfo: ClassInfo) {
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { writeRosterToDrive(classInfo, students) }
+            }
+            result.fold(
+                onSuccess = {
+                    showMessage(getString(R.string.roster_uploaded, students.size))
+                },
+                onFailure = {
+                    showMessage(getString(R.string.msg_upload_failed, it.message ?: ""))
+                }
+            )
+        }
+    }
+
+    private fun writeRosterToDrive(
+        classInfo: ClassInfo,
+        students: List<Pair<String, String>>
+    ) {
+        val uriStr = prefs.getString(KEY_DRIVE_URI, null)
+            ?: throw IOException("尚未設定 Drive 資料夾")
+        val root = DocumentFile.fromTreeUri(this, Uri.parse(uriStr))
+            ?: throw IOException("無法存取 Drive 資料夾")
+        val dir = root.findFile(ROSTER_DIR) ?: root.createDirectory(ROSTER_DIR)
+            ?: throw IOException("無法建立 $ROSTER_DIR 資料夾")
+        val name = "${classInfo.id}-${Filenames.sessionId()}.json"
+        val file = dir.findFile(name) ?: dir.createFile("application/json", name)
+            ?: throw IOException("無法建立名單檔")
+
+        val studentsJson = JSONArray()
+        for ((seat, studentName) in students) {
+            studentsJson.put(JSONObject().apply {
+                put("seat", seat)
+                put("name", studentName)
+            })
+        }
+        val json = JSONObject().apply {
+            put("schema_version", 1)
+            put("class_id", classInfo.id)
+            put("class_name", classInfo.name)
+            put("generated_at", Filenames.capturedAt())
+            put("students", studentsJson)
+        }
+        contentResolver.openOutputStream(file.uri, "w")?.use {
+            it.write(json.toString().toByteArray(Charsets.UTF_8))
+        } ?: throw IOException("無法寫入名單檔")
     }
 
     /**
@@ -768,6 +1006,26 @@ class MainActivity : AppCompatActivity() {
             buildOrientationThumbs(bitmap, thumbs, thumbBitmaps)
             updateThumbSelection(thumbs, selectedRotation(rotationGroup))
         }
+    }
+
+    /** 名條 OCR 用：盡量保留原始解析度，小字才辨識得到。 */
+    private fun decodeForOcr(uri: Uri): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        val options = BitmapFactory.Options().apply {
+            inSampleSize = ImageRotation.sampleSizeFor(bounds.outWidth, bounds.outHeight, OCR_MAX_LONG_SIDE)
+        }
+        val decoded = contentResolver.openInputStream(uri)?.use {
+            BitmapFactory.decodeStream(it, null, options)
+        } ?: return null
+        val orientation = readExifOrientation(uri)
+        val upright = applyExifOrientation(decoded, orientation)
+        Log.i(
+            UPLOAD_LOG_TAG,
+            "roster bitmap ${upright.width}x${upright.height} exif=$orientation src=${bounds.outWidth}x${bounds.outHeight}"
+        )
+        return upright
     }
 
     /** 建立 0／90／180／270 四張縮圖，讓老師直接用眼睛挑正立的那張。 */
@@ -1228,6 +1486,8 @@ class MainActivity : AppCompatActivity() {
         private const val PAGE_JPEG_QUALITY = 92
         private const val UPLOAD_LOG_TAG = "EssayGraderUpload"
         private const val THUMB_MAX_LONG_SIDE = 200
+        private const val OCR_MAX_LONG_SIDE = 3000
+        private const val ROSTER_DIR = "_roster"
     }
 }
 
