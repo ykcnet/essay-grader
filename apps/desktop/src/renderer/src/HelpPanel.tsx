@@ -72,6 +72,21 @@ export function HelpPanel({ onClose }: { onClose: () => void }): JSX.Element {
             <li>「開啟日誌」可看執行紀錄；日誌不包含學生姓名、總評或批注內容。</li>
           </ul>
 
+          <h3>名條掃描（輔助）</h3>
+          <p>
+            手機主畫面可按「掃描名條（輔助）」掃描紙本名單。OCR 結果僅供參考，
+            表格小字與框線常造成漏字或重複，請在手機上逐筆核對後上傳。
+          </p>
+          <ol>
+            <li>桌機在 Google Drive inbox 按「產生手機 manifest」。</li>
+            <li>手機重新讀取 manifest，選好班級。</li>
+            <li>掃描名條 → 在草稿清單修正 → 上傳名單。</li>
+            <li>桌機 Drive inbox 的「名條名單」按「匯入」，同座號更新、新座號新增。</li>
+          </ol>
+          <p>
+            若 OCR 錯誤率過高，建議改用「匯入 Excel」手動建立名單。
+          </p>
+
           <h3>注意事項</h3>
           <ul>
             <li>同一個資料庫不要同時在兩台電腦開啟（有 lock 保護，但仍應避免）。</li>

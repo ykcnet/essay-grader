@@ -1,4 +1,4 @@
-package tw.edu.essaygrader.scanner
+﻿package tw.edu.essaygrader.scanner
 
 import android.app.Activity
 import android.content.Intent
@@ -38,6 +38,7 @@ import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
 import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
@@ -734,44 +735,288 @@ class MainActivity : AppCompatActivity() {
     // 名條掃描建檔
     // -------------------------------------------------------------------------
 
+    private data class OcrItem(
+        val text: String,
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float
+    ) {
+        val cy: Float get() = (top + bottom) / 2f
+        val height: Float get() = bottom - top
+    }
+
+    private data class RosterOcr(
+        val items: List<OcrItem>,
+        val text: String,
+        val table: List<Pair<String, String>> = emptyList()
+    )
+
+    private data class PreparedOcr(
+        val bitmap: Bitmap,
+        val rowLines: List<Int>,
+        val colLines: List<Int>
+    )
+
     private fun handleRosterPages(pages: List<GmsDocumentScanningResult.Page>) {
         val classInfo = currentClass() ?: return
+        showMessage(getString(R.string.roster_scanning))
         lifecycleScope.launch {
-            val text = withContext(Dispatchers.IO) {
-                runCatching { recognizeRosterText(pages) }.getOrNull()
+            val ocr = withContext(Dispatchers.IO) {
+                runCatching { recognizeRoster(pages) }.getOrNull()
             }
-            if (text == null) {
+            if (ocr == null) {
                 showMessage(getString(R.string.roster_ocr_failed, "無法讀取頁面"))
                 return@launch
             }
-            val students = parseRosterLines(text)
-            Log.i(UPLOAD_LOG_TAG, "roster ocr=${text.take(600)} parsed=${students.size}")
-            showRosterEditor(students, classInfo, text)
+            val students = ocr.table.ifEmpty {
+                parseRosterItems(ocr.items).ifEmpty { parseRosterLines(ocr.text) }
+            }
+            Log.i(
+                UPLOAD_LOG_TAG,
+                "roster items=${ocr.items.size} table=${ocr.table.size} parsed=${students.size}"
+            )
+            showRosterEditor(students, classInfo, ocr.text)
         }
     }
 
-    private suspend fun recognizeRosterText(
+    private suspend fun recognizeRoster(
         pages: List<GmsDocumentScanningResult.Page>
-    ): String {
+    ): RosterOcr {
+        val items = mutableListOf<OcrItem>()
         val builder = StringBuilder()
+        val table = mutableListOf<Pair<String, String>>()
         for (page in pages) {
-            val bitmap = decodeForOcr(page.imageUri) ?: continue
+            val source = decodeForOcr(page.imageUri) ?: continue
+            val prepared = preprocessForOcr(source)
+            val bitmap = prepared.bitmap
             try {
-                val text = suspendCancellableCoroutine { continuation ->
-                    rosterRecognizer.process(InputImage.fromBitmap(bitmap, 0))
-                        .addOnSuccessListener {
-                            if (continuation.isActive) continuation.resume(it.text)
-                        }
-                        .addOnFailureListener {
-                            if (continuation.isActive) continuation.resume("")
-                        }
+                if (prepared.rowLines.size >= 5 && prepared.colLines.size >= 3) {
+                    table.addAll(ocrTableRows(prepared))
                 }
-                builder.append(text).append('\n')
+
+                val bands = 5
+                val bandHeight = maxOf(1, bitmap.height / bands)
+                val overlap = (bandHeight * 0.12f).toInt()
+                for (index in 0 until bands) {
+                    val top = maxOf(0, index * bandHeight - overlap)
+                    val bottom = minOf(bitmap.height, (index + 1) * bandHeight + overlap)
+                    if (bottom <= top) continue
+                    val band = Bitmap.createBitmap(bitmap, 0, top, bitmap.width, bottom - top)
+                    try {
+                        val text = recognizeText(band) ?: continue
+                        builder.append(text.text).append('\n')
+                        for (block in text.textBlocks) {
+                            for (line in block.lines) {
+                                for (element in line.elements) {
+                                    val box = element.boundingBox ?: continue
+                                    items.add(
+                                        OcrItem(
+                                            element.text,
+                                            box.left.toFloat(),
+                                            (box.top + top).toFloat(),
+                                            box.right.toFloat(),
+                                            (box.bottom + top).toFloat()
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    } finally {
+                        if (!band.isRecycled) band.recycle()
+                    }
+                }
             } finally {
                 if (!bitmap.isRecycled) bitmap.recycle()
             }
         }
-        return builder.toString()
+        return RosterOcr(items, builder.toString(), table)
+    }
+
+    /** 灰階、對比增強、去除長表格線；回傳新 Bitmap 與列／欄線位置（來源會被回收）。 */
+    private fun preprocessForOcr(source: Bitmap): PreparedOcr {
+        val width = source.width
+        val height = source.height
+        val total = width * height
+        val pixels = IntArray(total)
+        source.getPixels(pixels, 0, width, 0, 0, width, height)
+
+        for (i in 0 until total) {
+            val color = pixels[i]
+            val value = ((color shr 16 and 0xFF) * 299 + (color shr 8 and 0xFF) * 587 + (color and 0xFF) * 114) / 1000
+            pixels[i] = (((value - 128) * 1.35f) + 128f).toInt().coerceIn(0, 255)
+        }
+
+        val threshold = 200
+        val rowMaxRun = IntArray(height)
+        val colMaxRun = IntArray(width)
+
+        // 表格線是「連續」暗點；文字有間隙，用最大連續長度才不會誤判。
+        for (y in 0 until height) {
+            var run = 0
+            var maxRun = 0
+            val offset = y * width
+            for (x in 0 until width) {
+                if (pixels[offset + x] < threshold) {
+                    run++
+                    if (run > maxRun) maxRun = run
+                } else {
+                    run = 0
+                }
+            }
+            rowMaxRun[y] = maxRun
+        }
+        for (x in 0 until width) {
+            var run = 0
+            var maxRun = 0
+            for (y in 0 until height) {
+                if (pixels[y * width + x] < threshold) {
+                    run++
+                    if (run > maxRun) maxRun = run
+                } else {
+                    run = 0
+                }
+            }
+            colMaxRun[x] = maxRun
+        }
+
+        val rowLimit = (width * 0.6f).toInt()
+        val colLimit = (height * 0.6f).toInt()
+        val rowLines = groupLines(rowMaxRun, rowLimit)
+        val colLines = groupLines(colMaxRun, colLimit)
+
+        for (y in 0 until height) {
+            val isGridRow = rowMaxRun[y] > rowLimit
+            val offset = y * width
+            for (x in 0 until width) {
+                val value = if (isGridRow || colMaxRun[x] > colLimit) 255 else pixels[offset + x]
+                pixels[offset + x] = (0xFF shl 24) or (value shl 16) or (value shl 8) or value
+            }
+        }
+
+        source.recycle()
+        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        result.setPixels(pixels, 0, width, 0, 0, width, height)
+        return PreparedOcr(result, rowLines, colLines)
+    }
+
+    /** 把連續超過門檻的像素索引併成一條線，取中點。 */
+    private fun groupLines(counts: IntArray, limit: Int): List<Int> {
+        val lines = mutableListOf<Int>()
+        var start = -1
+        for (index in counts.indices) {
+            if (counts[index] > limit) {
+                if (start < 0) start = index
+            } else if (start >= 0) {
+                lines.add((start + index - 1) / 2)
+                start = -1
+            }
+        }
+        if (start >= 0) lines.add((start + counts.size - 1) / 2)
+        return lines
+    }
+
+    /** 依表格列線逐列裁切「座號＋姓名」欄，放大後 OCR。 */
+    private suspend fun ocrTableRows(prepared: PreparedOcr): List<Pair<String, String>> {
+        val bitmap = prepared.bitmap
+        val rows = prepared.rowLines
+        val cols = prepared.colLines
+        if (rows.size < 2 || cols.size < 2) return emptyList()
+        val left = cols.first().coerceIn(0, bitmap.width - 1)
+        val right = (cols.getOrNull(2) ?: cols.last()).coerceIn(left + 1, bitmap.width)
+        val bySeat = LinkedHashMap<String, String>()
+
+        for (index in 0 until rows.size - 1) {
+            val top = (rows[index] + 3).coerceAtLeast(0)
+            val bottom = (rows[index + 1] - 3).coerceAtMost(bitmap.height)
+            if (bottom - top < 18) continue
+            val crop = Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
+            val scaled = Bitmap.createScaledBitmap(crop, crop.width * 2, crop.height * 2, true)
+            try {
+                val text = recognizeText(scaled)?.text ?: continue
+                for ((seat, name) in parseRosterLines(text)) {
+                    if (name.length >= 2) bySeat[seat] = name
+                }
+            } finally {
+                if (!scaled.isRecycled) scaled.recycle()
+                if (!crop.isRecycled) crop.recycle()
+            }
+        }
+        return bySeat.entries.sortedBy { it.key }.map { it.key to it.value }
+    }
+
+    private suspend fun recognizeText(bitmap: Bitmap): Text? =
+        suspendCancellableCoroutine { continuation ->
+            rosterRecognizer.process(InputImage.fromBitmap(bitmap, 0))
+                .addOnSuccessListener {
+                    if (continuation.isActive) continuation.resume(it)
+                }
+                .addOnFailureListener {
+                    if (continuation.isActive) continuation.resume(null)
+                }
+        }
+
+    /** 用座標把同一列的座號與姓名配對；表格欄位被拆開也能處理。 */
+    private fun parseRosterItems(items: List<OcrItem>): List<Pair<String, String>> {
+        val headers = setOf(
+            "科目", "任課老師", "學年度", "成績", "日常", "考查", "定期", "平均",
+            "學期", "姓名", "座號", "組別", "商二忠", "商三忠"
+        )
+        val seatPattern = Regex("^[＊*]?(\\d{1,2})$")
+        val namePattern = Regex("^[＊*]?([\\u4e00-\\u9fff]{1,10})$")
+
+        val seats = items.mapNotNull { item ->
+            val compact = item.text.replace(Regex("\\s+"), "")
+            val match = seatPattern.find(compact) ?: return@mapNotNull null
+            val number = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
+            if (number !in 1..99) return@mapNotNull null
+            item.copy(text = number.toString().padStart(2, '0'))
+        }
+
+        val nameItems = items.mapNotNull { item ->
+            val compact = item.text.replace(Regex("\\s+"), "")
+            val match = namePattern.find(compact) ?: return@mapNotNull null
+            val name = match.groupValues[1]
+            if (name in headers || name.contains("學年度") || name.contains("成績") || name.contains("老")) {
+                return@mapNotNull null
+            }
+            item.copy(text = name)
+        }
+
+        // 同一列被切成多個中文字片段時合併。
+        val merged = mutableListOf<OcrItem>()
+        for (item in nameItems.sortedWith(compareBy({ it.cy }, { it.left }))) {
+            val last = merged.lastOrNull()
+            val sameRow = last != null &&
+                kotlin.math.abs(last.cy - item.cy) <= maxOf(last.height, item.height) * 0.7f
+            if (sameRow && last!!.text.length + item.text.length <= 10) {
+                merged[merged.size - 1] = last.copy(
+                    text = last.text + item.text,
+                    left = minOf(last.left, item.left),
+                    right = maxOf(last.right, item.right),
+                    top = minOf(last.top, item.top),
+                    bottom = maxOf(last.bottom, item.bottom)
+                )
+            } else {
+                merged.add(item)
+            }
+        }
+
+        val bySeat = LinkedHashMap<String, String>()
+        val usedNames = mutableSetOf<OcrItem>()
+        for (seat in seats.sortedBy { it.cy }) {
+            val candidates = merged.filter { name ->
+                name !in usedNames &&
+                    kotlin.math.abs(name.cy - seat.cy) <= maxOf(seat.height, name.height) * 1.3f &&
+                    name.left >= seat.left - seat.height * 1.5f
+            }
+            val best = candidates.minByOrNull { kotlin.math.abs(it.cy - seat.cy) } ?: continue
+            if (best.text.length >= 2) {
+                bySeat[seat.text] = best.text
+                usedNames.add(best)
+            }
+        }
+        return bySeat.entries.sortedBy { it.key }.map { it.key to it.value }
     }
 
     /** 解析「座號 姓名」行；容忍表格拆行、字間空白與常見分隔符。 */
@@ -1486,7 +1731,7 @@ class MainActivity : AppCompatActivity() {
         private const val PAGE_JPEG_QUALITY = 92
         private const val UPLOAD_LOG_TAG = "EssayGraderUpload"
         private const val THUMB_MAX_LONG_SIDE = 200
-        private const val OCR_MAX_LONG_SIDE = 3000
+        private const val OCR_MAX_LONG_SIDE = 4096
         private const val ROSTER_DIR = "_roster"
     }
 }
@@ -1503,3 +1748,4 @@ private fun copyStream(input: InputStream, output: OutputStream) {
     }
     output.flush()
 }
+

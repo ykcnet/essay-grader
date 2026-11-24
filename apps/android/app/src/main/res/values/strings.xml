@@ -23,13 +23,14 @@
     <string name="label_class">班級</string>
     <string name="label_assignment">作業</string>
     <string name="label_student">學生</string>
-    <string name="scan_roster">掃描名條建檔</string>
-    <string name="roster_dialog_title">名條名單（可修改）</string>
-    <string name="roster_dialog_hint">每行「座號 姓名」，可修正辨識錯誤後上傳。</string>
+    <string name="scan_roster">掃描名條（輔助）</string>
+    <string name="roster_dialog_title">名條名單（OCR 草稿，請核對）</string>
+    <string name="roster_dialog_hint">OCR 僅供參考，請逐筆核對；每行「座號 姓名」，可修正後上傳。</string>
     <string name="roster_upload">上傳名單</string>
     <string name="roster_empty">沒有辨識到名條，請重拍或改用手動輸入</string>
-    <string name="roster_uploaded">已上傳名條名單（%1$d 位），請到桌機 Drive inbox 匯入</string>
+    <string name="roster_uploaded">已上傳名條草稿（%1$d 位）；請到桌機匯入前再次核對</string>
     <string name="roster_ocr_failed">名條辨識失敗：%1$s</string>
+    <string name="roster_scanning">正在辨識名條，請稍候…</string>
 
     <string name="start_scan">開始掃描</string>
     <string name="scan_hint">拍攝時保持手機直立，讓文件四角都在框內；完成後可在預覽頁旋轉、裁切、調整順序。</string>
