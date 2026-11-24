@@ -115,6 +115,11 @@ class MainActivity : AppCompatActivity() {
             onManifestFileChosen(uri)
         }
 
+    private val rosterPhotoLauncher =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) handleRosterUris(listOf(uri))
+        }
+
     private val scannerLauncher =
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
@@ -696,8 +701,23 @@ class MainActivity : AppCompatActivity() {
             showMessage(getString(R.string.msg_select_class))
             return
         }
-        rosterScanMode = true
-        launchScanner()
+        AlertDialog.Builder(this)
+            .setTitle(R.string.roster_source_title)
+            .setItems(
+                arrayOf(
+                    getString(R.string.roster_source_scanner),
+                    getString(R.string.roster_source_gallery)
+                )
+            ) { _, which ->
+                if (which == 0) {
+                    rosterScanMode = true
+                    launchScanner()
+                } else {
+                    rosterPhotoLauncher.launch(arrayOf("image/*"))
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     private fun launchScanner() {
@@ -759,11 +779,15 @@ class MainActivity : AppCompatActivity() {
     )
 
     private fun handleRosterPages(pages: List<GmsDocumentScanningResult.Page>) {
+        handleRosterUris(pages.map { it.imageUri })
+    }
+
+    private fun handleRosterUris(uris: List<Uri>) {
         val classInfo = currentClass() ?: return
         showMessage(getString(R.string.roster_scanning))
         lifecycleScope.launch {
             val ocr = withContext(Dispatchers.IO) {
-                runCatching { recognizeRoster(pages) }.getOrNull()
+                runCatching { recognizeRoster(uris) }.getOrNull()
             }
             if (ocr == null) {
                 showMessage(getString(R.string.roster_ocr_failed, "無法讀取頁面"))
@@ -781,13 +805,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private suspend fun recognizeRoster(
-        pages: List<GmsDocumentScanningResult.Page>
+        uris: List<Uri>
     ): RosterOcr {
         val items = mutableListOf<OcrItem>()
         val builder = StringBuilder()
         val table = mutableListOf<Pair<String, String>>()
-        for (page in pages) {
-            val source = decodeForOcr(page.imageUri) ?: continue
+        for (uri in uris) {
+            val source = decodeForOcr(uri) ?: continue
             val prepared = preprocessForOcr(source)
             val bitmap = prepared.bitmap
             try {
