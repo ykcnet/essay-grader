@@ -36,6 +36,7 @@ import {
   stopExternalWatcher
 } from '../import/external'
 import { importRosterViaDialog } from '../import/roster-excel'
+import { exportGradesExcel } from './grades-export'
 import {
   assignUnmatched,
   getUnmatchedThumbnail,
@@ -233,6 +234,10 @@ export function registerDataIpc(): void {
 
   ipcMain.handle('stats:export', (_event, classId: string, assignmentId: string) =>
     exportAssignmentStats(classId, assignmentId)
+  )
+
+  ipcMain.handle('stats:export-excel', (_event, classId: string, assignmentId: string) =>
+    exportGradesExcel(classId, assignmentId)
   )
 
   ipcMain.handle('stats:reveal', async (_event, dir: string) => {

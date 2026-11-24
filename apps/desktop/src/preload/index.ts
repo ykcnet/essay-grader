@@ -75,6 +75,8 @@ const api = {
       ipcRenderer.invoke('stats:compare', classId, currentId, previousId),
     exportCsv: (classId: string, assignmentId: string) =>
       ipcRenderer.invoke('stats:export', classId, assignmentId),
+    exportExcel: (classId: string, assignmentId: string) =>
+      ipcRenderer.invoke('stats:export-excel', classId, assignmentId),
     reveal: (dir: string) => ipcRenderer.invoke('stats:reveal', dir)
   },
   work: {

@@ -191,6 +191,14 @@
             android:layout_marginTop="8dp"
             android:text="@string/retry_upload" />
 
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/helpButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/help_title" />
+
         <TextView
             android:id="@+id/messageText"
             android:layout_width="match_parent"

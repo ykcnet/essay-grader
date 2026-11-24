@@ -751,6 +751,16 @@ essay-grader-data/
 - 測試資料清理：`S27` 只保留 `p1`，其餘 17 頁與縮圖刪除並同步改 `work.json`；`S26`、`S07` 整個學生資料夾刪除。清理前備份在 `M:\dev\backup\essay-grader\S27-before-clean-*.zip`、`S26-before-clean-*.zip`、`S07-before-clean-*.zip`。
 - 2026-11-24 T14 結案：抽出 `handleScanPages()` 共用空頁判斷，debug 版長按「開始掃描」可模擬 0 頁；實機顯示「掃描結果沒有頁面」。T1–T14 全部完成。release 0.3.2 APK 未包含此測試 hook（僅 refactor，行為不變）。
 
+### 0.3.3 使用說明與匯出成績 Excel（2026-11-24）
+- 桌機：新增 `HelpPanel` 與上方「使用說明」按鈕（9 章：第一次使用、批閱、快速給分、回饋單與統計、Drive inbox、手機掃描器、備份、注意事項、疑難排解）。
+- 手機：主畫面新增「使用說明」對話框，內容為精簡版操作步驟，可捲動與選取文字。
+- 成績匯出：新增 `grades-export.ts` 與 `stats:export-excel`，不需原始 Excel，輸出 `_stats/成績-<作業>-<時間>.xlsx`（座號、姓名、在學、狀態、頁數、各分項、扣分、總分、等第、總評、更新時間）。
+- 名單匯入：由紙本成績登記表照片轉成 `名單-商三忠-115上.xlsx`（40 人，已核對 02 李宛瞳、10 張恩旖、18 孫慈媗、25 劉秭涵、36 劉子逵），並建立 `C31-2026F`（商三忠、高職、115 學年度、第 1 學期、40 位在學）。
+- 版號：root／desktop／core 與 lock 統一 `0.3.3`；Android `versionName` `0.3.3`、`versionCode` 5。
+- 驗收：`typecheck`、`build`、`m7:check` 25/25；Android `assembleRelease` 簽章通過；Excel 匯出以實際資料庫產出並讀回檢查。
+- 打包：Setup 134,218,799 bytes、Portable 120,858,297 bytes、APK 5,489,938 bytes。
+- 待辦：名條掃描建檔、Word 成績單、Windows 安裝檔簽章、Play AAB。
+
 ---
 
 ## 六、施工順序（建議）

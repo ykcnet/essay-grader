@@ -26,6 +26,7 @@ import {
   type WorkSummary
 } from '@essay-grader/core'
 import ReviewView from './review/ReviewView'
+import { HelpPanel } from './HelpPanel'
 
 type Grade = 'junior' | 'senior' | 'vocational'
 type Toast = { kind: 'ok' | 'error' | 'info'; text: string }
@@ -245,6 +246,7 @@ export default function App(): JSX.Element {
   const [gradebookOpen, setGradebookOpen] = useState(false)
   const [praiseOpen, setPraiseOpen] = useState(false)
   const [driveOpen, setDriveOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   const selectedIdRef = useRef<string | null>(null)
   const selectedAssignmentRef = useRef<string | null>(null)
@@ -607,6 +609,21 @@ export default function App(): JSX.Element {
     })
   }
 
+  const handleExportStatsExcel = (): void => {
+    if (!classFile || !selectedAssignmentId) return
+    void run('匯出成績 Excel', async () => {
+      const result = (await window.electronAPI.stats.exportExcel(
+        classFile.id,
+        selectedAssignmentId
+      )) as { dir: string; file: string; rows: number }
+      setStatsExport({ dir: result.dir, files: [result.file] })
+      setToast({
+        kind: 'ok',
+        text: `已匯出成績 Excel：${result.file}（${result.rows} 筆）`
+      })
+    })
+  }
+
   const handleRevealStats = (): void => {
     if (!statsExport) return
     void window.electronAPI.stats.reveal(statsExport.dir)
@@ -842,6 +859,9 @@ export default function App(): JSX.Element {
               開啟資料庫
             </button>
           )}
+          <button className="ghost" onClick={() => setHelpOpen(true)}>
+            使用說明
+          </button>
           <button className="ghost" onClick={handleOpenLogs}>
             開啟日誌
           </button>
@@ -1006,6 +1026,7 @@ export default function App(): JSX.Element {
                     onAuditFilter={setAuditFilter}
                     onStats={runStats}
                     onExportStats={handleExportStats}
+                    onExportStatsExcel={handleExportStatsExcel}
                     onRevealStats={handleRevealStats}
                     onOpenInbox={handleOpenInbox}
                     onSimulate={handleSimulate}
@@ -1102,6 +1123,8 @@ export default function App(): JSX.Element {
           </section>
         </div>
       )}
+
+      {helpOpen && <HelpPanel onClose={() => setHelpOpen(false)} />}
 
       {toast && <div className={`toast toast--${toast.kind}`}>{toast.text}</div>}
 
@@ -1739,6 +1762,7 @@ function ImportPanel({
   onAuditFilter,
   onStats,
   onExportStats,
+  onExportStatsExcel,
   onRevealStats,
   onOpenInbox,
   onSimulate,
@@ -1777,6 +1801,7 @@ function ImportPanel({
   onAuditFilter: (filter: AuditFilter) => void
   onStats: () => void
   onExportStats: () => void
+  onExportStatsExcel: () => void
   onRevealStats: () => void
   onOpenInbox: () => void
   onSimulate: () => void
@@ -1973,6 +1998,7 @@ function ImportPanel({
           exported={statsExport}
           onStats={onStats}
           onExport={onExportStats}
+          onExportExcel={onExportStatsExcel}
           onReveal={onRevealStats}
         />
       )}
@@ -3119,6 +3145,7 @@ function StatsPanel({
   exported,
   onStats,
   onExport,
+  onExportExcel,
   onReveal
 }: {
   classId: string
@@ -3131,6 +3158,7 @@ function StatsPanel({
   exported: { dir: string; files: string[] } | null
   onStats: () => void
   onExport: () => void
+  onExportExcel: () => void
   onReveal: () => void
 }): JSX.Element {
   const summary = stats?.summary
@@ -3164,6 +3192,9 @@ function StatsPanel({
           </button>
           <button className="small primary" disabled={busy} onClick={onExport}>
             匯出 CSV
+          </button>
+          <button className="small" disabled={busy} onClick={onExportExcel}>
+            匯出成績 Excel
           </button>
           {exported && (
             <button className="small" onClick={onReveal}>

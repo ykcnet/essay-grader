@@ -141,6 +141,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.reloadManifestButton).setOnClickListener { reloadManifest() }
         findViewById<MaterialButton>(R.id.chooseManifestButton).setOnClickListener { chooseManifestFile() }
         findViewById<MaterialButton>(R.id.scanButton).setOnClickListener { startScan() }
+        findViewById<MaterialButton>(R.id.helpButton).setOnClickListener { showHelpDialog() }
         if (BuildConfig.DEBUG) {
             // 測試用：長按「開始掃描」模擬 ML Kit 回傳 0 頁。
             findViewById<MaterialButton>(R.id.scanButton).setOnLongClickListener {
@@ -807,8 +808,30 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun selectedRotation(group: RadioGroup): Int = when (group.checkedRadioButtonId) {
-        R.id.rotation90 -> 90
+    /** 內建使用說明：可捲動、可選取文字，內容與桌機版一致的精簡版。 */
+    private fun showHelpDialog() {
+        val density = resources.displayMetrics.density
+        val body = TextView(this).apply {
+            text = getString(R.string.help_text)
+            textSize = 15f
+            setLineSpacing(0f, 1.3f)
+            setPadding(
+                (20 * density).toInt(),
+                (12 * density).toInt(),
+                (20 * density).toInt(),
+                (12 * density).toInt()
+            )
+            setTextIsSelectable(true)
+        }
+        val scroll = ScrollView(this).apply { addView(body) }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.help_title)
+            .setView(scroll)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun selectedRotation(group: RadioGroup): Int = when (group.checkedRadioButtonId) {        R.id.rotation90 -> 90
         R.id.rotation180 -> 180
         R.id.rotation270 -> 270
         else -> 0

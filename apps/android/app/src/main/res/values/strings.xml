@@ -30,6 +30,8 @@
     <string name="pending_status">待上傳：0 頁</string>
     <string name="pending_status_fmt">待上傳：%1$d 頁</string>
     <string name="retry_upload">重新上傳待上傳</string>
+    <string name="help_title">使用說明</string>
+    <string name="help_text">1. 設定 Drive 資料夾：按「選擇 Drive 資料夾」，選 Google Drive 的 EssayGrader/inbox 根目錄並允許讀寫。\n\n2. 讀取 manifest：桌機在 Drive inbox 按「產生手機 manifest」；手機按「重新讀取 manifest」，再選班級、作業、學生。\n\n3. 掃描：按「開始掃描」，保持手機直立、文件四角在框內；完成後按儲存。\n\n4. 方向確認：點選 0°／90°／180°／270° 中看起來正立的縮圖，再按「上傳」。\n\n5. 待上傳：沒有網路時掃描會留在待上傳；恢復網路後按「重新上傳待上傳」。\n\n6. 常見問題：\n・找不到 manifest：確認選的是 inbox 根目錄，或按「選擇 manifest.json」直接指定檔案。\n・權限失效：重新選一次 Drive 資料夾。\n・上傳失敗：確認 Wi-Fi 與 Google Drive 同步狀態，再按重新上傳。\n\n完整說明見桌機版「使用說明」。</string>
 
     <string name="msg_select_drive_first">請先設定 Drive 資料夾</string>
     <string name="msg_select_class">請先選擇班級</string>
