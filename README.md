@@ -3,7 +3,7 @@
 紙本作文掃描 → 桌機批閱 → 評分 → 一頁回饋單 → 分數寫回 Excel。
 
 - 技術棧：**Electron + React + TypeScript**（2026-11-19 定案）
-- 版本：**0.3.3（內建使用說明、匯出成績 Excel；Drive inbox 入口改到上方、Drive 匯入補掃與來源刪除重試、Android EXIF 轉正與四張縮圖方向確認）**
+- 版本：**0.3.4（內建使用說明、匯出成績 Excel；Drive inbox 入口改到上方、Drive 匯入補掃與來源刪除重試、Android EXIF 轉正與四張縮圖方向確認）**
 - 手機端：Kotlin + ML Kit Document Scanner（M8 App 已建置，待實機驗證；只寫 inbox）
 - 資料庫：本地資料夾，全 ASCII，中文只存在 JSON
 - 外部 inbox：Google Drive 本機同步資料夾，只搬圖片，資料庫不進雲端
@@ -65,10 +65,10 @@ npm run dist:portable # 只產出 portable
 npm run validate:fixtures
 ```
 
-打包產物（2026-11-23 0.3.3 重新打包）：
+打包產物（2026-11-23 0.3.4 重新打包）：
 
-- `apps/desktop/release/EssayGrader-0.3.3-Setup.exe`：134,218,799 bytes（約 128.0 MB）
-- `apps/desktop/release/EssayGrader-0.3.3-Portable.exe`：120,858,297 bytes（約 115.3 MB）
+- `apps/desktop/release/EssayGrader-0.3.4-Setup.exe`：134,219,805 bytes（約 128.0 MB）
+- `apps/desktop/release/EssayGrader-0.3.4-Portable.exe`：120,857,350 bytes（約 115.3 MB）
 
 打包設定在 `apps/desktop/electron-builder.yml`：appId `tw.edu.essaygrader`、win x64、NSIS（可選安裝路徑＋桌面捷徑）與 portable、asar、sharp／@img asarUnpack、`npmRebuild: false`。設定使用已安裝的 Electron runtime（`electronDist`），避免每次重新下載；第一次打包仍可能需要下載 NSIS／7zip，離線環境會失敗，但不影響開發與驗收。
 

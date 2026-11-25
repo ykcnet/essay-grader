@@ -1,6 +1,6 @@
 {
   "name": "@essay-grader/desktop",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "private": true,
   "description": "Essay Grader 桌機批閱端（Electron）",
   "author": "Essay Grader",

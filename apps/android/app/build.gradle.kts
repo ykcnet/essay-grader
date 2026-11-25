@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -20,8 +20,8 @@ android {
         applicationId = "tw.edu.essaygrader.scanner"
         minSdk = 24
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.3.3"
+        versionCode = 6
+        versionName = "0.3.4"
     }
 
     signingConfigs {
@@ -77,3 +77,4 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }
+
