@@ -783,7 +783,7 @@ essay-grader-data/
 - 問題：Google Drive 建立 `_roster (1)` 重複資料夾，手機上傳後桌機只掃 `_roster`，面板顯示空白。
 - 修正：`roster-inbox.ts` 掃描所有 `_roster`、`_roster (N)` 資料夾；匯入後移到該資料夾的 `_imported/`。
 - 驗證：以實際 `_roster (1)` 檔案匯入商一忠（C101-2026F）32 人成功。
-- 打包：桌機 0.3.5（Setup 134,219,850、Portable 120,864,600）；Android 維持 0.3.4 APK。
+- 打包：桌機 0.3.5（Setup 134,219,850、Portable 120,864,600）；Android 同步升 0.3.5（versionCode 7、APK 5,669,728 bytes），並移除相簿／四角校正入口。
 - 名單現況：商一忠 32、商二忠 34、商三忠 40。
 
 ---

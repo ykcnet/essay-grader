@@ -8,7 +8,7 @@
 
 - **名條匯入修正**：Google Drive 有時會建立 `_roster (1)`、`_roster (2)` 等重複資料夾；桌機現在會一併掃描，不再只看 `_roster`，避免手機上傳後「名條名單」空白。
 - 匯入完成後，檔案會移到該資料夾下的 `_imported/`。
-- Android APK 維持 **0.3.4**（本次只有桌機修正）。
+- Android 同步升為 **0.3.5**（versionCode 7），與桌機版號一致；相簿／四角校正入口已移除，維持直接掃描＋手動核對。
 
 ## 檔案
 
@@ -16,7 +16,7 @@
 |---|---|---|---|
 | 安裝版 | `EssayGrader-0.3.5-Setup.exe` | 134,219,850 bytes（約 128.0 MB） | `DFD7189C3AEE8764A90A7152AC821BCEABA3E45C9DDFD2C0E246AD48F97A4867` |
 | 免安裝版 | `EssayGrader-0.3.5-Portable.exe` | 120,864,600 bytes（約 115.3 MB） | `3C7C18DFF1A70B4857C0B11F8F28846EF1316CCD85C71E690ABF2082A69E1A17` |
-| Android 掃描器（0.3.4） | `EssayGrader-Scanner-0.3.4-release.apk` | 5,661,552 bytes | 見 0.3.4 release notes |
+| Android 掃描器（已簽署） | `EssayGrader-Scanner-0.3.5-release.apk` | 5,669,728 bytes（約 5.4 MB） | `BAC9ADB5E675224AFCC445AAD415EBBC7E8ACD7B4409D2C155D02961DCFEB5F5` |
 
 ## 安裝
 
@@ -35,4 +35,4 @@
 
 - 名條 OCR 仍為草稿輔助，需人工核對。
 - 安裝檔未簽章。
-- Android 端維持 0.3.4 release APK，未上架 Google Play。
+- Android 端為本機 keystore 簽署的 release APK，未上架 Google Play。

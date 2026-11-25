@@ -5,7 +5,10 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
 import android.graphics.Matrix
+import android.graphics.Paint
+import android.graphics.PointF
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -17,16 +20,19 @@ import android.provider.OpenableColumns
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -55,6 +61,9 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
@@ -113,11 +122,6 @@ class MainActivity : AppCompatActivity() {
     private val manifestFileLauncher =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             onManifestFileChosen(uri)
-        }
-
-    private val rosterPhotoLauncher =
-        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            if (uri != null) handleRosterUris(listOf(uri))
         }
 
     private val scannerLauncher =
@@ -701,23 +705,8 @@ class MainActivity : AppCompatActivity() {
             showMessage(getString(R.string.msg_select_class))
             return
         }
-        AlertDialog.Builder(this)
-            .setTitle(R.string.roster_source_title)
-            .setItems(
-                arrayOf(
-                    getString(R.string.roster_source_scanner),
-                    getString(R.string.roster_source_gallery)
-                )
-            ) { _, which ->
-                if (which == 0) {
-                    rosterScanMode = true
-                    launchScanner()
-                } else {
-                    rosterPhotoLauncher.launch(arrayOf("image/*"))
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+        rosterScanMode = true
+        launchScanner()
     }
 
     private fun launchScanner() {
@@ -789,29 +778,154 @@ class MainActivity : AppCompatActivity() {
             val ocr = withContext(Dispatchers.IO) {
                 runCatching { recognizeRoster(uris) }.getOrNull()
             }
-            if (ocr == null) {
-                showMessage(getString(R.string.roster_ocr_failed, "無法讀取頁面"))
+            finishRosterOcr(ocr, classInfo)
+        }
+    }
+
+    private fun finishRosterOcr(ocr: RosterOcr?, classInfo: ClassInfo) {
+        if (ocr == null) {
+            showMessage(getString(R.string.roster_ocr_failed, "無法讀取頁面"))
+            return
+        }
+        val students = ocr.table.ifEmpty {
+            parseRosterItems(ocr.items).ifEmpty { parseRosterLines(ocr.text) }
+        }
+        Log.i(
+            UPLOAD_LOG_TAG,
+            "roster items=${ocr.items.size} table=${ocr.table.size} parsed=${students.size}"
+        )
+        showRosterEditor(students, classInfo, ocr.text)
+    }
+
+    private fun handleRosterPhoto(uri: Uri) {
+        lifecycleScope.launch {
+            val source = withContext(Dispatchers.IO) {
+                runCatching { decodeForOcr(uri) }.getOrNull()
+            }
+            if (source == null) {
+                showMessage(getString(R.string.roster_ocr_failed, "無法讀取照片"))
                 return@launch
             }
-            val students = ocr.table.ifEmpty {
-                parseRosterItems(ocr.items).ifEmpty { parseRosterLines(ocr.text) }
-            }
-            Log.i(
-                UPLOAD_LOG_TAG,
-                "roster items=${ocr.items.size} table=${ocr.table.size} parsed=${students.size}"
-            )
-            showRosterEditor(students, classInfo, ocr.text)
+            showQuadCropDialog(source)
         }
+    }
+
+    /** 讓使用者點四個角，套用透視校正後再 OCR。 */
+    private fun showQuadCropDialog(source: Bitmap) {
+        val density = resources.displayMetrics.density
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((12 * density).toInt(), (4 * density).toInt(), (12 * density).toInt(), 0)
+        }
+        val hint = TextView(this).apply {
+            text = getString(R.string.quad_crop_hint)
+            textSize = 13f
+            setPadding(0, 0, 0, (6 * density).toInt())
+        }
+        val viewer = QuadCropView(this).apply { bitmap = source }
+        container.addView(hint)
+        container.addView(
+            viewer,
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                (360 * density).toInt()
+            )
+        )
+
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.quad_crop_title)
+            .setView(container)
+            .setPositiveButton(R.string.quad_crop_confirm, null)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setNeutralButton(R.string.quad_crop_reset, null)
+            .create()
+
+        var confirmed = false
+        dialog.setOnDismissListener {
+            if (!confirmed && !source.isRecycled) source.recycle()
+        }
+        dialog.setOnShowListener {
+            val positive = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+            positive.isEnabled = false
+            viewer.onChange = { positive.isEnabled = viewer.points.size == 4 }
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+                viewer.reset()
+                positive.isEnabled = false
+            }
+            positive.setOnClickListener {
+                if (viewer.points.size != 4) {
+                    showMessage(getString(R.string.quad_crop_need_four))
+                    return@setOnClickListener
+                }
+                val classInfo = currentClass()
+                if (classInfo == null) {
+                    dialog.dismiss()
+                    return@setOnClickListener
+                }
+                val corrected = warpPerspective(source, viewer.points.toList())
+                confirmed = true
+                dialog.dismiss()
+                showMessage(getString(R.string.roster_scanning))
+                lifecycleScope.launch {
+                    val ocr = withContext(Dispatchers.IO) {
+                        runCatching { recognizeRosterBitmaps(listOf(corrected)) }.getOrNull()
+                    }
+                    finishRosterOcr(ocr, classInfo)
+                }
+            }
+        }
+        dialog.show()
+    }
+
+    /** 四點透視校正；輸出長邊上限 3000，避免記憶體過大。 */
+    private fun warpPerspective(source: Bitmap, points: List<PointF>): Bitmap {
+        val width = source.width.toFloat()
+        val height = source.height.toFloat()
+        val p = points.map { PointF(it.x * width, it.y * height) }
+        val src = floatArrayOf(
+            p[0].x, p[0].y,
+            p[1].x, p[1].y,
+            p[2].x, p[2].y,
+            p[3].x, p[3].y
+        )
+        val topWidth = hypot(p[1].x - p[0].x, p[1].y - p[0].y)
+        val bottomWidth = hypot(p[2].x - p[3].x, p[2].y - p[3].y)
+        val leftHeight = hypot(p[3].x - p[0].x, p[3].y - p[0].y)
+        val rightHeight = hypot(p[2].x - p[1].x, p[2].y - p[1].y)
+        var outWidth = max(topWidth, bottomWidth).roundToInt().coerceAtLeast(1)
+        var outHeight = max(leftHeight, rightHeight).roundToInt().coerceAtLeast(1)
+        val longest = max(outWidth, outHeight)
+        if (longest > 3000) {
+            val scale = 3000f / longest
+            outWidth = (outWidth * scale).roundToInt().coerceAtLeast(1)
+            outHeight = (outHeight * scale).roundToInt().coerceAtLeast(1)
+        }
+
+        val dst = floatArrayOf(
+            0f, 0f,
+            outWidth.toFloat(), 0f,
+            outWidth.toFloat(), outHeight.toFloat(),
+            0f, outHeight.toFloat()
+        )
+        val matrix = Matrix().apply { setPolyToPoly(src, 0, dst, 0, 4) }
+        val output = Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
+        Canvas(output).drawBitmap(source, matrix, Paint(Paint.FILTER_BITMAP_FLAG))
+        source.recycle()
+        return output
     }
 
     private suspend fun recognizeRoster(
         uris: List<Uri>
     ): RosterOcr {
+        val bitmaps = uris.mapNotNull { decodeForOcr(it) }
+        return recognizeRosterBitmaps(bitmaps)
+    }
+
+    private suspend fun recognizeRosterBitmaps(bitmaps: List<Bitmap>): RosterOcr {
         val items = mutableListOf<OcrItem>()
         val builder = StringBuilder()
         val table = mutableListOf<Pair<String, String>>()
-        for (uri in uris) {
-            val source = decodeForOcr(uri) ?: continue
+        for (source in bitmaps) {
             val prepared = preprocessForOcr(source)
             val bitmap = prepared.bitmap
             try {

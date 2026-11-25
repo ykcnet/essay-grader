@@ -20,8 +20,8 @@ android {
         applicationId = "tw.edu.essaygrader.scanner"
         minSdk = 24
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.3.4"
+        versionCode = 7
+        versionName = "0.3.5"
     }
 
     signingConfigs {
@@ -77,4 +77,5 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
 }
+
 
