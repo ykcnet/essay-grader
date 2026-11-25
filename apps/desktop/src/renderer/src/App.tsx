@@ -1258,8 +1258,8 @@ function CreateClassForm({
     <form className="form" onSubmit={submit}>
       <div className="form-row">
         <label>
-          班號
-          <input value={classNo} onChange={(e) => setClassNo(e.target.value)} placeholder="302" />
+          班號（年級＋班級 2 碼）
+          <input value={classNo} onChange={(e) => setClassNo(e.target.value)} placeholder="101" />
         </label>
         <label>
           學年度
