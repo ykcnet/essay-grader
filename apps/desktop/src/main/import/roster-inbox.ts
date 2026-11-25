@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { mkdir, readdir, readFile, rename, rm, copyFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { logInfo, logWarn } from '../logger'
 import { loadClass, saveClass } from '../data/repository'
 import { readSettings } from '../data/settings'
@@ -45,54 +45,69 @@ const normalizeSeat = (value: string): string | null => {
   return digits.padStart(2, '0').slice(-2)
 }
 
-async function rosterDir(): Promise<string> {
+async function externalRoot(): Promise<string> {
   const settings = await readSettings()
   const root = settings.externalInboxRoot
   if (!root) throw new Error('尚未設定 Google Drive inbox')
-  return join(root, '_roster')
+  return root
 }
 
-/** 列出外部 inbox `_roster/` 內尚未匯入的名條 JSON。 */
+/** Google Drive 可能建立 `_roster (1)` 之類的重複資料夾，全部都要掃。 */
+async function rosterDirs(): Promise<string[]> {
+  const root = await externalRoot()
+  const entries = await readdir(root, { withFileTypes: true })
+  return entries
+    .filter((entry) => entry.isDirectory() && /^_roster( \(\d+\))?$/i.test(entry.name))
+    .map((entry) => join(root, entry.name))
+}
+
+/** 列出外部 inbox 的 _roster 系列資料夾（含 Drive 重複命名）內尚未匯入的名條 JSON。 */
 export async function listIncomingRosters(): Promise<IncomingRoster[]> {
-  let dir: string
+  let dirs: string[]
   try {
-    dir = await rosterDir()
-    await readdir(dir)
+    dirs = await rosterDirs()
   } catch {
     return []
   }
 
-  const entries = await readdir(dir, { withFileTypes: true })
   const result: IncomingRoster[] = []
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.json')) continue
-    const path = join(dir, entry.name)
+  for (const dir of dirs) {
+    let entries
     try {
-      const parsed = RosterSchema.parse(JSON.parse(await readFile(path, 'utf8')))
-      const seats = new Set<string>()
-      for (const student of parsed.students) {
-        const seat = normalizeSeat(student.seat)
-        if (seat) seats.add(seat)
+      entries = await readdir(dir, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.json')) continue
+      const path = join(dir, entry.name)
+      try {
+        const parsed = RosterSchema.parse(JSON.parse(await readFile(path, 'utf8')))
+        const seats = new Set<string>()
+        for (const student of parsed.students) {
+          const seat = normalizeSeat(student.seat)
+          if (seat) seats.add(seat)
+        }
+        result.push({
+          path,
+          file: entry.name,
+          classId: parsed.class_id,
+          className: parsed.class_name ?? parsed.class_id,
+          count: seats.size,
+          generatedAt: parsed.generated_at,
+          valid: true
+        })
+      } catch (error) {
+        result.push({
+          path,
+          file: entry.name,
+          classId: '',
+          className: entry.name,
+          count: 0,
+          valid: false,
+          error: error instanceof Error ? error.message : String(error)
+        })
       }
-      result.push({
-        path,
-        file: entry.name,
-        classId: parsed.class_id,
-        className: parsed.class_name ?? parsed.class_id,
-        count: seats.size,
-        generatedAt: parsed.generated_at,
-        valid: true
-      })
-    } catch (error) {
-      result.push({
-        path,
-        file: entry.name,
-        classId: '',
-        className: entry.name,
-        count: 0,
-        valid: false,
-        error: error instanceof Error ? error.message : String(error)
-      })
     }
   }
   return result.sort((a, b) => a.file.localeCompare(b.file))
@@ -100,7 +115,7 @@ export async function listIncomingRosters(): Promise<IncomingRoster[]> {
 
 /** 匯入單一名條檔：同座號更新姓名、新座號新增，完成後移到 `_roster/_imported/`。 */
 export async function importIncomingRoster(path: string): Promise<RosterImportResult> {
-  const dir = await rosterDir()
+  const dir = dirname(path)
   const parsed = RosterSchema.parse(JSON.parse(await readFile(path, 'utf8')))
   const { data: classFile } = await loadClass(parsed.class_id)
 

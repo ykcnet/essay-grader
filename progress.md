@@ -779,6 +779,13 @@ essay-grader-data/
 - 打包：Setup 134,219,805 bytes、Portable 120,857,350 bytes、APK 5,661,552 bytes；舊 0.3.3 產物移至 `archive-0.3.3`。
 - 已知限制：名條 OCR 準確率有限、需人工核對；近拍部分頁面有梯形透視。
 
+### 0.3.5 名條資料夾 hotfix（2026-11-25）
+- 問題：Google Drive 建立 `_roster (1)` 重複資料夾，手機上傳後桌機只掃 `_roster`，面板顯示空白。
+- 修正：`roster-inbox.ts` 掃描所有 `_roster`、`_roster (N)` 資料夾；匯入後移到該資料夾的 `_imported/`。
+- 驗證：以實際 `_roster (1)` 檔案匯入商一忠（C101-2026F）32 人成功。
+- 打包：桌機 0.3.5（Setup 134,219,850、Portable 120,864,600）；Android 維持 0.3.4 APK。
+- 名單現況：商一忠 32、商二忠 34、商三忠 40。
+
 ---
 
 ## 六、施工順序（建議）
