@@ -81,7 +81,7 @@ export function HelpPanel({ onClose }: { onClose: () => void }): JSX.Element {
             <li>桌機在 Google Drive inbox 按「產生手機 manifest」。</li>
             <li>手機重新讀取 manifest，選好班級。</li>
             <li>掃描名條 → 在草稿清單修正 → 上傳名單。</li>
-            <li>桌機 Drive inbox 的「名條名單」按「匯入」，同座號更新、新座號新增。</li>
+            <li>桌機 Drive inbox 的「名條名單」按「匯入」，同座號更新、新座號新增（`_roster (1)` 等重複資料夾也會讀取）。</li>
           </ol>
           <p>
             若 OCR 錯誤率過高，建議改用「匯入 Excel」手動建立名單。

@@ -3,7 +3,7 @@
 紙本作文掃描 → 桌機批閱 → 評分 → 一頁回饋單 → 分數寫回 Excel。
 
 - 技術棧：**Electron + React + TypeScript**（2026-11-19 定案）
-- 版本：**0.3.5（內建使用說明、匯出成績 Excel；Drive inbox 入口改到上方、Drive 匯入補掃與來源刪除重試、Android EXIF 轉正與四張縮圖方向確認）**
+- 版本：**0.3.5（名條掃描輔助與匯入、內建使用說明、匯出成績 Excel；Drive inbox 入口在上方、Drive 補掃與來源刪除重試、Android EXIF 轉正與四張縮圖方向確認）**
 - 手機端：Kotlin + ML Kit Document Scanner（M8 App 已建置，待實機驗證；只寫 inbox）
 - 資料庫：本地資料夾，全 ASCII，中文只存在 JSON
 - 外部 inbox：Google Drive 本機同步資料夾，只搬圖片，資料庫不進雲端
